@@ -1,0 +1,29 @@
+---
+Checks: >
+  -*,
+  bugprone-*,
+  google-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  cppcoreguidelines-*,
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  performance-*,
+  readability-*,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -performance-avoid-endl,
+  -readability-simplify-boolean-expr,
+  -modernize-pass-by-value,
+  -readability-magic-numbers,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -modernize-avoid-c-arrays
+
+CheckOptions:
+  - key:             readability-function-cognitive-complexity.IgnoreMacros
+    value:           'true'
+
+#cppcoreguidelines has the same as modernize-avoid-c-arrays again
