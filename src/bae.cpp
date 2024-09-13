@@ -6,6 +6,7 @@
 #include "bae.h"
 #include "bitboard.h"
 #include "position.h"
+#include "types.h"
 
 namespace {
 
@@ -60,7 +61,55 @@ class EvalState {
 
 void evaluatePieceTypeFromWhitesPerspective(const Position& pos, EvalState* evalState) {}
 
-void evaluate3x3PawnStructureFromWhitesPerspective(const Position& pos, EvalState* evalState) {}
+size_t pawnMaskIndex(const Position& pos, const Square square) {
+    const Bitboard whitePawns = pos.pieces(WHITE, PAWN) >> (square - SQ_B2);
+    const Bitboard blackPawns = pos.pieces(BLACK, PAWN) >> (square - SQ_B2);
+
+    size_t result  = 0;
+    size_t counter = 1;
+
+    for (const Bitboard bit : {
+           square_bb(SQ_A3),
+           square_bb(SQ_B3),
+           square_bb(SQ_C3),
+           square_bb(SQ_A2),
+           square_bb(SQ_B2),
+           square_bb(SQ_C2),
+           square_bb(SQ_A1),
+           square_bb(SQ_B1),
+           square_bb(SQ_C1),
+         })
+    {
+        if ((whitePawns & bit) != 0)
+        {
+            result += counter * 2;
+        }
+        else if ((blackPawns & bit) != 0)
+        {
+            result += counter * 1;
+        }
+
+        counter *= 3;
+    }
+
+    return result;
+}
+
+void evaluate3x3PawnStructureFromWhitesPerspective(const Position& pos, EvalState* evalState) {
+    for (const Square square : {
+           SQ_B3, SQ_C3, SQ_D3, SQ_E3, SQ_F3, SQ_G3, SQ_B4, SQ_C4, SQ_D4, SQ_E4, SQ_F4, SQ_G4,
+           SQ_B5, SQ_C5, SQ_D5, SQ_E5, SQ_F5, SQ_G5, SQ_B6, SQ_C6, SQ_D6, SQ_E6, SQ_F6, SQ_G6,
+         })
+    {
+        const Bitboard mask3x3 = attacks_bb<KING>(square) | square_bb(square);
+
+        if (popcount(mask3x3 & pos.pieces(PAWN)) >= 2)
+        {
+            const size_t index = pawnMaskIndex(pos, square);
+            ADD_VALUE(evalState, WHITE, pawnStructureBonus[square][index]);
+        }
+    }
+}
 
 size_t pieceComboIndex(const Position& pos) {
     size_t result  = 0;
@@ -80,7 +129,7 @@ size_t pieceComboIndex(const Position& pos) {
 void pieceComboBonusWhitePerspective(const Position& pos, EvalState* evalState) {
     if (std::max(popcount(pos.pieces(WHITE, PAWN)), popcount(pos.pieces(BLACK, PAWN))) <= 2)
     {
-        const size_t index = 0;  //TODO(tsoj)
+        const size_t index = pieceComboIndex(pos);
         ADD_VALUE(evalState, WHITE, pieceComboBonus[index]);
     }
 }
