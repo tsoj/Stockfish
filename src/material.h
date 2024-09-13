@@ -2,7 +2,8 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord
+  Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -39,35 +40,34 @@ namespace Material {
 
 struct Entry {
 
-  Score imbalance() const { return make_score(value, value); }
-  Phase game_phase() const { return gamePhase; }
-  bool specialized_eval_exists() const { return evaluationFunction != nullptr; }
-  Value evaluate(const Position& pos) const { return (*evaluationFunction)(pos); }
+    Score imbalance() const { return make_score(value, value); }
+    Phase game_phase() const { return gamePhase; }
+    bool  specialized_eval_exists() const { return evaluationFunction != nullptr; }
+    Value evaluate(const Position& pos) const { return (*evaluationFunction)(pos); }
 
-  // scale_factor() takes a position and a color as input and returns a scale factor
-  // for the given color. We have to provide the position in addition to the color
-  // because the scale factor may also be a function which should be applied to
-  // the position. For instance, in KBP vs K endgames, the scaling function looks
-  // for rook pawns and wrong-colored bishops.
-  ScaleFactor scale_factor(const Position& pos, Color c) const {
-    ScaleFactor sf = scalingFunction[c] ? (*scalingFunction[c])(pos)
-                                        :  SCALE_FACTOR_NONE;
-    return sf != SCALE_FACTOR_NONE ? sf : ScaleFactor(factor[c]);
-  }
+    // scale_factor() takes a position and a color as input and returns a scale
+    // factor for the given color. We have to provide the position in addition to
+    // the color because the scale factor may also be a function which should be
+    // applied to the position. For instance, in KBP vs K endgames, the scaling
+    // function looks for rook pawns and wrong-colored bishops.
+    ScaleFactor scale_factor(const Position& pos, Color c) const {
+        ScaleFactor sf = scalingFunction[c] ? (*scalingFunction[c])(pos) : SCALE_FACTOR_NONE;
+        return sf != SCALE_FACTOR_NONE ? sf : ScaleFactor(factor[c]);
+    }
 
-  Key key;
-  const EndgameBase<Value>* evaluationFunction;
-  const EndgameBase<ScaleFactor>* scalingFunction[COLOR_NB]; // Could be one for each
-                                                             // side (e.g. KPKP, KBPsK)
-  int16_t value;
-  uint8_t factor[COLOR_NB];
-  Phase gamePhase;
+    Key                             key;
+    const EndgameBase<Value>*       evaluationFunction;
+    const EndgameBase<ScaleFactor>* scalingFunction[COLOR_NB];  // Could be one for each
+                                                                // side (e.g. KPKP, KBPsK)
+    int16_t value;
+    uint8_t factor[COLOR_NB];
+    Phase   gamePhase;
 };
 
 typedef HashTable<Entry, 8192> Table;
 
 Entry* probe(const Position& pos);
 
-} // namespace Material
+}  // namespace Material
 
-#endif // #ifndef MATERIAL_H_INCLUDED
+#endif  // #ifndef MATERIAL_H_INCLUDED

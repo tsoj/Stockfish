@@ -2,7 +2,8 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord
+  Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -37,25 +38,24 @@
 
 struct TTEntry {
 
-  Move  move()  const { return (Move )move16; }
-  Value value() const { return (Value)value16; }
-  Value eval()  const { return (Value)eval16; }
-  Depth depth() const { return (Depth)depth8 + DEPTH_OFFSET; }
-  bool is_pv()  const { return (bool)(genBound8 & 0x4); }
-  Bound bound() const { return (Bound)(genBound8 & 0x3); }
-  void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev);
+    Move  move() const { return (Move) move16; }
+    Value value() const { return (Value) value16; }
+    Value eval() const { return (Value) eval16; }
+    Depth depth() const { return (Depth) depth8 + DEPTH_OFFSET; }
+    bool  is_pv() const { return (bool) (genBound8 & 0x4); }
+    Bound bound() const { return (Bound) (genBound8 & 0x3); }
+    void  save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev);
 
-private:
-  friend class TranspositionTable;
+   private:
+    friend class TranspositionTable;
 
-  uint16_t key16;
-  uint16_t move16;
-  int16_t  value16;
-  int16_t  eval16;
-  uint8_t  genBound8;
-  uint8_t  depth8;
+    uint16_t key16;
+    uint16_t move16;
+    int16_t  value16;
+    int16_t  eval16;
+    uint8_t  genBound8;
+    uint8_t  depth8;
 };
-
 
 /// A TranspositionTable is an array of Cluster, of size clusterCount. Each
 /// cluster consists of ClusterSize number of TTEntry. Each non-empty TTEntry
@@ -65,36 +65,36 @@ private:
 
 class TranspositionTable {
 
-  static constexpr int ClusterSize = 3;
+    static constexpr int ClusterSize = 3;
 
-  struct Cluster {
-    TTEntry entry[ClusterSize];
-    char padding[2]; // Pad to 32 bytes
-  };
+    struct Cluster {
+        TTEntry entry[ClusterSize];
+        char    padding[2];  // Pad to 32 bytes
+    };
 
-  static_assert(sizeof(Cluster) == 32, "Unexpected Cluster size");
+    static_assert(sizeof(Cluster) == 32, "Unexpected Cluster size");
 
-public:
- ~TranspositionTable() { aligned_ttmem_free(mem); }
-  void new_search() { generation8 += 8; } // Lower 3 bits are used by PV flag and Bound
-  TTEntry* probe(const Key key, bool& found) const;
-  int hashfull() const;
-  void resize(size_t mbSize);
-  void clear();
+   public:
+    ~TranspositionTable() { aligned_ttmem_free(mem); }
+    void     new_search() { generation8 += 8; }  // Lower 3 bits are used by PV flag and Bound
+    TTEntry* probe(const Key key, bool& found) const;
+    int      hashfull() const;
+    void     resize(size_t mbSize);
+    void     clear();
 
-  TTEntry* first_entry(const Key key) const {
-    return &table[mul_hi64(key, clusterCount)].entry[0];
-  }
+    TTEntry* first_entry(const Key key) const {
+        return &table[mul_hi64(key, clusterCount)].entry[0];
+    }
 
-private:
-  friend struct TTEntry;
+   private:
+    friend struct TTEntry;
 
-  size_t clusterCount;
-  Cluster* table;
-  void* mem;
-  uint8_t generation8; // Size must be not bigger than TTEntry::genBound8
+    size_t   clusterCount;
+    Cluster* table;
+    void*    mem;
+    uint8_t  generation8;  // Size must be not bigger than TTEntry::genBound8
 };
 
 extern TranspositionTable TT;
 
-#endif // #ifndef TT_H_INCLUDED
+#endif  // #ifndef TT_H_INCLUDED

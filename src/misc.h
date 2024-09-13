@@ -2,7 +2,8 @@
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2008 Tord Romstad (Glaurung author)
   Copyright (C) 2008-2015 Marco Costalba, Joona Kiiski, Tord Romstad
-  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord Romstad
+  Copyright (C) 2015-2020 Marco Costalba, Joona Kiiski, Gary Linscott, Tord
+  Romstad
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -31,35 +32,38 @@
 
 const std::string engine_info(bool to_uci = false);
 const std::string compiler_info();
-void prefetch(void* addr);
-void start_logger(const std::string& fname);
-void* aligned_ttmem_alloc(size_t size, void*& mem);
-void aligned_ttmem_free(void* mem); // nop if mem == nullptr
+void              prefetch(void* addr);
+void              start_logger(const std::string& fname);
+void*             aligned_ttmem_alloc(size_t size, void*& mem);
+void              aligned_ttmem_free(void* mem);  // nop if mem == nullptr
 
 void dbg_hit_on(bool b);
 void dbg_hit_on(bool c, bool b);
 void dbg_mean_of(int v);
 void dbg_print();
 
-typedef std::chrono::milliseconds::rep TimePoint; // A value in milliseconds
+typedef std::chrono::milliseconds::rep TimePoint;  // A value in milliseconds
 
 static_assert(sizeof(TimePoint) == sizeof(int64_t), "TimePoint should be 64 bits");
 
 inline TimePoint now() {
-  return std::chrono::duration_cast<std::chrono::milliseconds>
-        (std::chrono::steady_clock::now().time_since_epoch()).count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+             std::chrono::steady_clock::now().time_since_epoch())
+      .count();
 }
 
 template<class Entry, int Size>
 struct HashTable {
-  Entry* operator[](Key key) { return &table[(uint32_t)key & (Size - 1)]; }
+    Entry* operator[](Key key) { return &table[(uint32_t) key & (Size - 1)]; }
 
-private:
-  std::vector<Entry> table = std::vector<Entry>(Size); // Allocate on the heap
+   private:
+    std::vector<Entry> table = std::vector<Entry>(Size);  // Allocate on the heap
 };
 
-
-enum SyncCout { IO_LOCK, IO_UNLOCK };
+enum SyncCout {
+    IO_LOCK,
+    IO_UNLOCK
+};
 std::ostream& operator<<(std::ostream&, SyncCout);
 
 #define sync_cout std::cout << IO_LOCK
@@ -68,11 +72,12 @@ std::ostream& operator<<(std::ostream&, SyncCout);
 namespace Utility {
 
 /// Clamp a value between lo and hi. Available in c++17.
-template<class T> constexpr const T& clamp(const T& v, const T& lo, const T& hi) {
-  return v < lo ? lo : v > hi ? hi : v;
+template<class T>
+constexpr const T& clamp(const T& v, const T& lo, const T& hi) {
+    return v < lo ? lo : v > hi ? hi : v;
 }
 
-}
+}  // namespace Utility
 
 /// xorshift64star Pseudo-Random Number Generator
 /// This class is based on original code written and dedicated
@@ -91,35 +96,43 @@ template<class T> constexpr const T& clamp(const T& v, const T& lo, const T& hi)
 
 class PRNG {
 
-  uint64_t s;
+    uint64_t s;
 
-  uint64_t rand64() {
+    uint64_t rand64() {
 
-    s ^= s >> 12, s ^= s << 25, s ^= s >> 27;
-    return s * 2685821657736338717LL;
-  }
+        s ^= s >> 12, s ^= s << 25, s ^= s >> 27;
+        return s * 2685821657736338717LL;
+    }
 
-public:
-  PRNG(uint64_t seed) : s(seed) { assert(seed); }
+   public:
+    PRNG(uint64_t seed) :
+        s(seed) {
+        assert(seed);
+    }
 
-  template<typename T> T rand() { return T(rand64()); }
+    template<typename T>
+    T rand() {
+        return T(rand64());
+    }
 
-  /// Special generator used to fast init magic numbers.
-  /// Output values only have 1/8th of their bits set on average.
-  template<typename T> T sparse_rand()
-  { return T(rand64() & rand64() & rand64()); }
+    /// Special generator used to fast init magic numbers.
+    /// Output values only have 1/8th of their bits set on average.
+    template<typename T>
+    T sparse_rand() {
+        return T(rand64() & rand64() & rand64());
+    }
 };
 
 inline uint64_t mul_hi64(uint64_t a, uint64_t b) {
 #if defined(__GNUC__) && defined(IS_64BIT)
     __extension__ typedef unsigned __int128 uint128;
-    return ((uint128)a * (uint128)b) >> 64;
+    return ((uint128) a * (uint128) b) >> 64;
 #else
-    uint64_t aL = (uint32_t)a, aH = a >> 32;
-    uint64_t bL = (uint32_t)b, bH = b >> 32;
+    uint64_t aL = (uint32_t) a, aH = a >> 32;
+    uint64_t bL = (uint32_t) b, bH = b >> 32;
     uint64_t c1 = (aL * bL) >> 32;
     uint64_t c2 = aH * bL + c1;
-    uint64_t c3 = aL * bH + (uint32_t)c2;
+    uint64_t c3 = aL * bH + (uint32_t) c2;
     return aH * bH + (c2 >> 32) + (c3 >> 32);
 #endif
 }
@@ -131,7 +144,7 @@ inline uint64_t mul_hi64(uint64_t a, uint64_t b) {
 /// Peter Österlund.
 
 namespace WinProcGroup {
-  void bindThisThread(size_t idx);
+void bindThisThread(size_t idx);
 }
 
-#endif // #ifndef MISC_H_INCLUDED
+#endif  // #ifndef MISC_H_INCLUDED
