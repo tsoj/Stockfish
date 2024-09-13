@@ -1417,7 +1417,6 @@ moves_loop: // When in check, search starts from here
     Depth ttDepth;
     Value bestValue, value, ttValue, futilityValue, futilityBase, oldAlpha;
     bool ttHit, pvHit, givesCheck, captureOrPromotion;
-    int moveCount;
 
     if (PvNode)
     {
@@ -1430,7 +1429,6 @@ moves_loop: // When in check, search starts from here
     (ss+1)->ply = ss->ply + 1;
     bestMove = MOVE_NONE;
     ss->inCheck = pos.checkers();
-    moveCount = 0;
 
     // Check for an immediate draw or maximum ply reached
     if (   pos.is_draw(ss->ply)
@@ -1520,8 +1518,6 @@ moves_loop: // When in check, search starts from here
       givesCheck = pos.gives_check(move);
       captureOrPromotion = pos.capture_or_promotion(move);
 
-      moveCount++;
-
       // Futility pruning
       if (   !ss->inCheck
           && !givesCheck
@@ -1555,7 +1551,6 @@ moves_loop: // When in check, search starts from here
       // Check for legality just before making the move
       if (!pos.legal(move))
       {
-          moveCount--;
           continue;
       }
 
