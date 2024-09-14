@@ -17,17 +17,14 @@ enum class Phase : size_t {
     endgame = 1
 };
 
-enum Relativity : size_t {
-    relativeToUs    = 0,
-    relativeToEnemy = 1
-};
 struct BaeParamsSinglePhase {
     // clang-format off
     std::array<std::array<std::array<std::array<std::array<std::array<std::array<Value, 64>, 6>, 64>, 6> , 2> , 4>, 2> pieceRelativePst;
     std::array<std::array<Value, 19683>, 30> pawnStructureBonus;
-    std::array<Value, 59049> pieceComboBonus;//*: array[3*3*3*3*3 * 3*3*3*3*3, ValueType]
+    std::array<Value, 59049> pieceComboBonus;
     // clang-format on
 };
+
 class BaeParams {
     std::vector<BaeParamsSinglePhase> params = std::vector<BaeParamsSinglePhase>(2);
 
@@ -89,7 +86,7 @@ const BaeParams baeParams = []() {
     }
 
     return baeParams;
-}();  // TODO(tsoj) initialize
+}();
 
 class EvalState {
     std::array<Value, 2> value = {VALUE_ZERO, VALUE_ZERO};
@@ -98,16 +95,11 @@ class EvalState {
     Value& operator[](const Phase phase) { return value[static_cast<size_t>(phase)]; }
 };
 
-
-// std::string s = #param; \
-// s.erase(std::remove(s.begin(), s.end(), '\n'), s.cend()); \
-// std::cout << s << ": " << value << std::endl; \
-
 #define ADD_VALUE(evalState, goodFor, param) \
     for (Phase phase : {Phase::opening, Phase::endgame}) \
     { \
         Value value = baeParams[phase].param; \
-        if ((goodFor) == BLACK) \
+        if constexpr ((goodFor) == BLACK) \
         { \
             value = -value; \
         } \
@@ -219,11 +211,8 @@ Square color_conditional_mirror_vertically(const Square square, const Color colo
         } \
     }
 
-template<PieceType ourPiece>
-void piece_relative_pst(const Position&  pos,
-                        EvalState* const evalState,
-                        const Square     ourSquareIn,
-                        const Color      us) {
+template<PieceType ourPiece, Color us>
+void piece_relative_pst(const Position& pos, EvalState* const evalState, const Square ourSquareIn) {
 
     const Square ourSquare = color_conditional_mirror_vertically(ourSquareIn, us);
     const Square enemyKingSquare =
@@ -233,10 +222,9 @@ void piece_relative_pst(const Position&  pos,
 
 
     FOR_PIECE_RANGE({
-        for (const Relativity relativity : {relativeToUs, relativeToEnemy})
+        for (const size_t relativity : {0, 1})
         {
-            const Square* otherSquares =
-              pos.squares<otherPiece>(relativity == relativeToUs ? us : ~us);
+            const Square* otherSquares = pos.squares<otherPiece>(relativity == 0 ? us : ~us);
             for (Square otherSquareIn = *otherSquares; otherSquareIn != SQ_NONE;
                  otherSquareIn        = *++otherSquares)
             {
@@ -253,35 +241,36 @@ void piece_relative_pst(const Position&  pos,
 
 #undef FOR_PIECE_RANGE
 
-template<PieceType piece>
-void evaluate_piece(const Position&  pos,
-                    EvalState* const evalState,
-                    const Square     square,
-                    const Color      color) {
+template<PieceType piece, Color color>
+void evaluate_piece(const Position& pos, EvalState* const evalState, const Square square) {
     if constexpr (piece == PAWN)
     {
         if (pos.pawn_passed(color, square))
         {
-            piece_relative_pst<PAWN>(pos, evalState, square, color);
+            piece_relative_pst<PAWN, color>(pos, evalState, square);
         }
     }
     else
     {
-        piece_relative_pst<piece>(pos, evalState, square, color);
+        piece_relative_pst<piece, color>(pos, evalState, square);
+    }
+}
+
+template<PieceType piece, Color color>
+void evaluate_piece_type_from_whites_perspective(const Position& pos, EvalState* const evalState) {
+
+    const Square* squares = pos.squares<piece>(color);
+    for (Square square = *squares; square != SQ_NONE; square = *++squares)
+    {
+        evaluate_piece<piece, color>(pos, evalState, square);
     }
 }
 
 template<PieceType piece>
 void evaluate_piece_type_from_whites_perspective(const Position& pos, EvalState* const evalState) {
 
-    for (const Color color : {WHITE, BLACK})
-    {
-        const Square* squares = pos.squares<piece>(color);
-        for (Square square = *squares; square != SQ_NONE; square = *++squares)
-        {
-            evaluate_piece<piece>(pos, evalState, square, color);
-        }
-    }
+    evaluate_piece_type_from_whites_perspective<piece, WHITE>(pos, evalState);
+    evaluate_piece_type_from_whites_perspective<piece, BLACK>(pos, evalState);
 }
 
 void evaluate_piece_type_from_whites_perspective(const Position& pos, EvalState* const evalState) {
@@ -366,11 +355,6 @@ void piece_combo_bonus_white_perspective(const Position& pos, EvalState* const e
     if (std::max(popcount(pos.pieces(WHITE, PAWN)), popcount(pos.pieces(BLACK, PAWN))) <= 2)
     {
         const size_t index = piece_combo_index(pos);
-
-        // if(index >= 59049)
-        // {
-        //     std::cout << pos.fen() << std::endl;
-        // }
         assert(index < 59049);
         ADD_VALUE(evalState, WHITE, pieceComboBonus[index]);
     }
@@ -390,8 +374,6 @@ Value absolute_evaluate(const Position& pos) {
     const int phase = popcount(pos.pieces());
     Value     result =
       (evalState[Phase::opening] * phase + evalState[Phase::endgame] * (32 - phase)) / 32;
-    // result /= 2;
-    // std::cout << result << std::endl;
     result *= 12;
     result /= 10;
     assert(abs(result) < VALUE_KNOWN_WIN);
