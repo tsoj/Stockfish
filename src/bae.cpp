@@ -3,9 +3,6 @@
 #include <cassert>
 #include <initializer_list>
 #include <vector>
-#include <iostream>
-#include <map>
-
 
 #include "bae.h"
 #include "bitboard.h"
@@ -14,26 +11,6 @@
 #include "bae_params.h"
 
 namespace {
-
-
-const std::map<PieceType, std::string> pieceToString = {{PAWN, "pawn"},     {KNIGHT, "knight"},
-                                                        {BISHOP, "bishop"}, {ROOK, "rook"},
-                                                        {QUEEN, "queen"},   {KING, "king"}};
-
-const std::map<Color, std::string> colorToString = {{WHITE, "white"}, {BLACK, "black"}};
-
-const std::map<Square, std::string> squareToString = {
-  {SQ_A1, "a1"}, {SQ_B1, "b1"}, {SQ_C1, "c1"}, {SQ_D1, "d1"}, {SQ_E1, "e1"}, {SQ_F1, "f1"},
-  {SQ_G1, "g1"}, {SQ_H1, "h1"}, {SQ_A2, "a2"}, {SQ_B2, "b2"}, {SQ_C2, "c2"}, {SQ_D2, "d2"},
-  {SQ_E2, "e2"}, {SQ_F2, "f2"}, {SQ_G2, "g2"}, {SQ_H2, "h2"}, {SQ_A3, "a3"}, {SQ_B3, "b3"},
-  {SQ_C3, "c3"}, {SQ_D3, "d3"}, {SQ_E3, "e3"}, {SQ_F3, "f3"}, {SQ_G3, "g3"}, {SQ_H3, "h3"},
-  {SQ_A4, "a4"}, {SQ_B4, "b4"}, {SQ_C4, "c4"}, {SQ_D4, "d4"}, {SQ_E4, "e4"}, {SQ_F4, "f4"},
-  {SQ_G4, "g4"}, {SQ_H4, "h4"}, {SQ_A5, "a5"}, {SQ_B5, "b5"}, {SQ_C5, "c5"}, {SQ_D5, "d5"},
-  {SQ_E5, "e5"}, {SQ_F5, "f5"}, {SQ_G5, "g5"}, {SQ_H5, "h5"}, {SQ_A6, "a6"}, {SQ_B6, "b6"},
-  {SQ_C6, "c6"}, {SQ_D6, "d6"}, {SQ_E6, "e6"}, {SQ_F6, "f6"}, {SQ_G6, "g6"}, {SQ_H6, "h6"},
-  {SQ_A7, "a7"}, {SQ_B7, "b7"}, {SQ_C7, "c7"}, {SQ_D7, "d7"}, {SQ_E7, "e7"}, {SQ_F7, "f7"},
-  {SQ_G7, "g7"}, {SQ_H7, "h7"}, {SQ_A8, "a8"}, {SQ_B8, "b8"}, {SQ_C8, "c8"}, {SQ_D8, "d8"},
-  {SQ_E8, "e8"}, {SQ_F8, "f8"}, {SQ_G8, "g8"}, {SQ_H8, "h8"}};
 
 enum class Phase : size_t {
     opening = 0,
@@ -77,37 +54,15 @@ const BaeParams baeParams = []() {
             const size_t shift = charWidth * i;
             assert(sizeof(Eval::rawBaeContent) > n + 1);
             const char hexString[] = {Eval::rawBaeContent[n], Eval::rawBaeContent[n + 1], '\0'};
-            // const char   hexString[] = {'0', 'F', '\0'};
-            uint16_t tmp = std::strtol(hexString, nullptr, 16);
-            // std::cout << "a: " << tmp << std::endl;
+            uint16_t   tmp         = std::strtol(hexString, nullptr, 16);
             tmp <<= shift;
             bits |= *reinterpret_cast<int16_t*>(&tmp);
             n += 2;
         }
-
-        const Value result = static_cast<Value>(bits);
-        // std::cout << result << std::endl;
-        // if (n >= 6162*2)
-        // {
-        //     exit(1);
-        // }
-        return result;
+        return static_cast<Value>(bits);
     };
     for (Phase phase : {Phase::opening, Phase::endgame})
     {
-        // clang-format off
-        // for (size_t a = 0; a < 2; ++a)
-        // for (size_t b = 0; b < 4; ++b)
-        // for (size_t c = 0; c < 2; ++c)
-        // for (size_t d = 0; d < 6; ++d)
-        // for (size_t e = 0; e < 64; ++e)
-        // for (size_t f = 0; f < 6; ++f)
-        // for (size_t g = 0; g < 64; ++g)
-        // {
-        //     baeParams[phase].pieceRelativePst.at(a).at(b).at(c).at(d).at(e).at(f).at(g) = nextValue();
-        // }
-        // clang-format on
-
         // clang-format off
         for(auto& a : baeParams[phase].pieceRelativePst)
         for(auto& b : a)
@@ -159,7 +114,7 @@ class EvalState {
         (*(evalState))[phase] += value; \
     }
 
-Square colorConditionalMirrorVertically(const Square square, const Color color) {
+Square color_conditional_mirror_vertically(const Square square, const Color color) {
     if (color == BLACK)
     {
         return flip_rank(square);
@@ -265,13 +220,14 @@ Square colorConditionalMirrorVertically(const Square square, const Color color) 
     }
 
 template<PieceType ourPiece>
-void pieceRelativePst(const Position&  pos,
-                      EvalState* const evalState,
-                      const Square     ourSquareIn,
-                      const Color      us) {
+void piece_relative_pst(const Position&  pos,
+                        EvalState* const evalState,
+                        const Square     ourSquareIn,
+                        const Color      us) {
 
-    const Square ourSquare       = colorConditionalMirrorVertically(ourSquareIn, us);
-    const Square enemyKingSquare = colorConditionalMirrorVertically(lsb(pos.pieces(~us, KING)), us);
+    const Square ourSquare = color_conditional_mirror_vertically(ourSquareIn, us);
+    const Square enemyKingSquare =
+      color_conditional_mirror_vertically(lsb(pos.pieces(~us, KING)), us);
     const size_t roughEnemyKingFile = (static_cast<size_t>(enemyKingSquare) % 8) / 2;
     const size_t roughEnemyKingRank = (static_cast<size_t>(enemyKingSquare) / 8) / 4;
 
@@ -284,7 +240,7 @@ void pieceRelativePst(const Position&  pos,
             for (Square otherSquareIn = *otherSquares; otherSquareIn != SQ_NONE;
                  otherSquareIn        = *++otherSquares)
             {
-                const Square otherSquare = colorConditionalMirrorVertically(otherSquareIn, us);
+                const Square otherSquare = color_conditional_mirror_vertically(otherSquareIn, us);
 
                 ADD_VALUE(
                   evalState, us,
@@ -298,50 +254,47 @@ void pieceRelativePst(const Position&  pos,
 #undef FOR_PIECE_RANGE
 
 template<PieceType piece>
-void evaluatePiece(const Position&  pos,
-                   EvalState* const evalState,
-                   const Square     square,
-                   const Color      color) {
+void evaluate_piece(const Position&  pos,
+                    EvalState* const evalState,
+                    const Square     square,
+                    const Color      color) {
     if constexpr (piece == PAWN)
     {
         if (pos.pawn_passed(color, square))
         {
-            pieceRelativePst<PAWN>(pos, evalState, square, color);
+            piece_relative_pst<PAWN>(pos, evalState, square, color);
         }
     }
     else
     {
-        pieceRelativePst<piece>(pos, evalState, square, color);
+        piece_relative_pst<piece>(pos, evalState, square, color);
     }
 }
 
 template<PieceType piece>
-void evaluatePieceTypeFromWhitesPerspective(const Position& pos, EvalState* const evalState) {
+void evaluate_piece_type_from_whites_perspective(const Position& pos, EvalState* const evalState) {
 
     for (const Color color : {WHITE, BLACK})
     {
         const Square* squares = pos.squares<piece>(color);
         for (Square square = *squares; square != SQ_NONE; square = *++squares)
         {
-            // std::cout << "Evaluating piece " << pieceToString.at(piece) << " of color "
-            //           << colorToString.at(color) << " at " << squareToString.at(square)
-            //           << std::endl;
-            evaluatePiece<piece>(pos, evalState, square, color);
+            evaluate_piece<piece>(pos, evalState, square, color);
         }
     }
 }
 
-void evaluatePieceTypeFromWhitesPerspective(const Position& pos, EvalState* const evalState) {
+void evaluate_piece_type_from_whites_perspective(const Position& pos, EvalState* const evalState) {
 
-    evaluatePieceTypeFromWhitesPerspective<PAWN>(pos, evalState);
-    evaluatePieceTypeFromWhitesPerspective<KNIGHT>(pos, evalState);
-    evaluatePieceTypeFromWhitesPerspective<BISHOP>(pos, evalState);
-    evaluatePieceTypeFromWhitesPerspective<ROOK>(pos, evalState);
-    evaluatePieceTypeFromWhitesPerspective<QUEEN>(pos, evalState);
-    evaluatePieceTypeFromWhitesPerspective<KING>(pos, evalState);
+    evaluate_piece_type_from_whites_perspective<PAWN>(pos, evalState);
+    evaluate_piece_type_from_whites_perspective<KNIGHT>(pos, evalState);
+    evaluate_piece_type_from_whites_perspective<BISHOP>(pos, evalState);
+    evaluate_piece_type_from_whites_perspective<ROOK>(pos, evalState);
+    evaluate_piece_type_from_whites_perspective<QUEEN>(pos, evalState);
+    evaluate_piece_type_from_whites_perspective<KING>(pos, evalState);
 }
 
-size_t pawnMaskIndex(const Position& pos, const Square square) {
+size_t pawn_mask_index(const Position& pos, const Square square) {
     const Bitboard whitePawns = pos.pieces(WHITE, PAWN) >> (square - SQ_B2);
     const Bitboard blackPawns = pos.pieces(BLACK, PAWN) >> (square - SQ_B2);
 
@@ -375,8 +328,8 @@ size_t pawnMaskIndex(const Position& pos, const Square square) {
     return result;
 }
 
-void evaluate3x3PawnStructureFromWhitesPerspective(const Position&  pos,
-                                                   EvalState* const evalState) {
+void evaluate_3x3_pawn_structure_from_whites_perspective(const Position&  pos,
+                                                         EvalState* const evalState) {
     for (const Square square : {
            SQ_B3, SQ_C3, SQ_D3, SQ_E3, SQ_F3, SQ_G3, SQ_B4, SQ_C4, SQ_D4, SQ_E4, SQ_F4, SQ_G4,
            SQ_B5, SQ_C5, SQ_D5, SQ_E5, SQ_F5, SQ_G5, SQ_B6, SQ_C6, SQ_D6, SQ_E6, SQ_F6, SQ_G6,
@@ -386,14 +339,14 @@ void evaluate3x3PawnStructureFromWhitesPerspective(const Position&  pos,
 
         if (popcount(mask3x3 & pos.pieces(PAWN)) >= 2)
         {
-            const size_t index = pawnMaskIndex(pos, square);
+            const size_t index = pawn_mask_index(pos, square);
             assert(index < 19683);
             ADD_VALUE(evalState, WHITE, pawnStructureBonus[square - SQ_B3][index]);
         }
     }
 }
 
-size_t pieceComboIndex(const Position& pos) {
+size_t piece_combo_index(const Position& pos) {
     size_t result  = 0;
     size_t counter = 1;
     for (const Color color : {WHITE, BLACK})
@@ -409,10 +362,10 @@ size_t pieceComboIndex(const Position& pos) {
     return result;
 }
 
-void pieceComboBonusWhitePerspective(const Position& pos, EvalState* const evalState) {
+void piece_combo_bonus_white_perspective(const Position& pos, EvalState* const evalState) {
     if (std::max(popcount(pos.pieces(WHITE, PAWN)), popcount(pos.pieces(BLACK, PAWN))) <= 2)
     {
-        const size_t index = pieceComboIndex(pos);
+        const size_t index = piece_combo_index(pos);
 
         // if(index >= 59049)
         // {
@@ -426,9 +379,9 @@ void pieceComboBonusWhitePerspective(const Position& pos, EvalState* const evalS
 #undef ADD_VALUE
 
 void absolute_evaluate(const Position& pos, EvalState* const evalState) {
-    evaluatePieceTypeFromWhitesPerspective(pos, evalState);
-    evaluate3x3PawnStructureFromWhitesPerspective(pos, evalState);
-    pieceComboBonusWhitePerspective(pos, evalState);
+    evaluate_piece_type_from_whites_perspective(pos, evalState);
+    evaluate_3x3_pawn_structure_from_whites_perspective(pos, evalState);
+    piece_combo_bonus_white_perspective(pos, evalState);
 }
 
 Value absolute_evaluate(const Position& pos) {
@@ -447,7 +400,7 @@ Value absolute_evaluate(const Position& pos) {
 
 }  // namespace
 
-Value Eval::evaluate_bae(const Position& pos) {
+Value Eval::evaluate(const Position& pos) {
     Value result = absolute_evaluate(pos);
     if (pos.side_to_move() == BLACK)
     {

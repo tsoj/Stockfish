@@ -26,7 +26,6 @@
 #include <string>
 
 #include "bae.h"
-#include "evaluate.h"
 #include "movegen.h"
 #include "position.h"
 #include "search.h"
@@ -177,7 +176,7 @@ void bench(Position& pos, istream& args, StateListPtr& states) {
                 nodes += Threads.nodes_searched();
             }
             else
-                sync_cout << "\n" << Eval::trace(pos) << sync_endl;
+                sync_cout << "\n" << Eval::evaluate(pos) << sync_endl;
         }
         else if (token == "setoption")
             setoption(is);
@@ -286,7 +285,7 @@ void UCI::loop(int argc, char* argv[]) {
         else if (token == "d")
             sync_cout << pos << sync_endl;
         else if (token == "eval")
-            sync_cout << "From whites perspective: " << Eval::evaluate_bae(pos) * (pos.side_to_move() == BLACK ? -1 : 1) << sync_endl;
+            sync_cout << "From whites perspective: " << Eval::evaluate(pos) * (pos.side_to_move() == BLACK ? -1 : 1) << sync_endl;
         else if (token == "compiler")
             sync_cout << compiler_info() << sync_endl;
         else

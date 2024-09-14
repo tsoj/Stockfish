@@ -1,5 +1,5 @@
 ifndef NAME
-	NAME = Stockfish
+	NAME = Stockfish-BAE
 endif
 
 ifndef COMP
