@@ -12,6 +12,7 @@ FLAGS += -Wno-deprecated-enum-enum-conversion -Wno-sign-conversion -Wno-float-co
 		 -Wno-implicit-int-float-conversion -Wno-deprecated-enum-float-conversion -Wno-double-promotion \
 		 -Wno-shorten-64-to-32 -Wno-implicit-int-conversion
 
+LFLAGS = -static
 
 ifdef ARCH
 	FLAGS += -march=$(ARCH)
@@ -30,10 +31,6 @@ endif
 
 ifeq ($(SANITIZE_THREAD),yes)
 	FLAGS += -fsanitize=thread
-endif
-
-ifeq ($(STATIC),yes)
-	LFLAGS += -static
 endif
 
 ifndef SRC_DIR

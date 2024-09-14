@@ -23,6 +23,7 @@
 #define BITBOARD_H_INCLUDED
 
 #include <string>
+#include <bit>
 
 #include "types.h"
 
@@ -332,100 +333,19 @@ inline Bitboard attacks_bb(PieceType pt, Square s, Bitboard occupied) {
 
 /// popcount() counts the number of non-zero bits in a bitboard
 
-inline int popcount(Bitboard b) {
-
-#ifndef USE_POPCNT
-
-    union {
-        Bitboard bb;
-        uint16_t u[4];
-    } v = {b};
-    return PopCnt16[v.u[0]] + PopCnt16[v.u[1]] + PopCnt16[v.u[2]] + PopCnt16[v.u[3]];
-
-#elif defined(_MSC_VER) || defined(__INTEL_COMPILER)
-
-    return (int) _mm_popcnt_u64(b);
-
-#else  // Assumed gcc or compatible compiler
-
-    return __builtin_popcountll(b);
-
-#endif
-}
+inline int popcount(Bitboard b) { return std::popcount(b); }
 
 /// lsb() and msb() return the least/most significant bit in a non-zero bitboard
 
-#if defined(__GNUC__)  // GCC, Clang, ICC
-
 inline Square lsb(Bitboard b) {
     assert(b);
-    return Square(__builtin_ctzll(b));
+    return Square(std::countr_zero(b));
 }
 
 inline Square msb(Bitboard b) {
     assert(b);
-    return Square(63 ^ __builtin_clzll(b));
+    return Square(std::countl_zero(b));
 }
-
-#elif defined(_MSC_VER)  // MSVC
-
-    #ifdef _WIN64  // MSVC, WIN64
-
-inline Square lsb(Bitboard b) {
-    assert(b);
-    unsigned long idx;
-    _BitScanForward64(&idx, b);
-    return (Square) idx;
-}
-
-inline Square msb(Bitboard b) {
-    assert(b);
-    unsigned long idx;
-    _BitScanReverse64(&idx, b);
-    return (Square) idx;
-}
-
-    #else  // MSVC, WIN32
-
-inline Square lsb(Bitboard b) {
-    assert(b);
-    unsigned long idx;
-
-    if (b & 0xffffffff)
-    {
-        _BitScanForward(&idx, int32_t(b));
-        return Square(idx);
-    }
-    else
-    {
-        _BitScanForward(&idx, int32_t(b >> 32));
-        return Square(idx + 32);
-    }
-}
-
-inline Square msb(Bitboard b) {
-    assert(b);
-    unsigned long idx;
-
-    if (b >> 32)
-    {
-        _BitScanReverse(&idx, int32_t(b >> 32));
-        return Square(idx + 32);
-    }
-    else
-    {
-        _BitScanReverse(&idx, int32_t(b));
-        return Square(idx);
-    }
-}
-
-    #endif
-
-#else  // Compiler is neither GCC nor MSVC compatible
-
-    #error "Compiler not supported."
-
-#endif
 
 /// pop_lsb() finds and clears the least significant bit in a non-zero bitboard
 

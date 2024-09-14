@@ -1,11 +1,14 @@
-# Stockfish BAE
+
+<div align="center">
+<p><h1>Stockfish BAE</h1>
+<i><h4>A free and strong UCI chess engine with BAE</h4></i>
+<img src="logo.png" width="256px" style="border-radius: 20px;">
+</h1>
+</div>
 
 Stockfish BAE is a fork of the last Stockfish with classical eval (from July 11 2020). In Stockfish BAE this classical eval has been completely replaced by BAE (big array eval).
 
 ## Overview
-
-[![Build Status](https://travis-ci.org/official-stockfish/Stockfish.svg?branch=master)](https://travis-ci.org/official-stockfish/Stockfish)
-[![Build Status](https://ci.appveyor.com/api/projects/status/github/official-stockfish/Stockfish?branch=master&svg=true)](https://ci.appveyor.com/project/mcostalba/stockfish/branch/master)
 
 [Stockfish](https://stockfishchess.org) is a free, powerful UCI chess engine
 derived from Glaurung 2.1. It is not a complete chess program and requires a
@@ -175,27 +178,11 @@ Stockfish has support for 32 or 64-bit CPUs, certain hardware
 instructions, big-endian machines such as Power PC, and other platforms.
 
 On Unix-like systems, it should be easy to compile Stockfish
-directly from the source code with the included Makefile in the folder
-`src`. In general it is recommended to run `make help` to see a list of make
-targets with corresponding descriptions.
+directly from the source code with the included Makefile.
 
-```
-    cd src
-    make help
-    make build ARCH=x86-64-modern
-```
-
-When not using the Makefile to compile (for instance with Microsoft MSVC) you
-need to manually set/unset some switches in the compiler command line; see
-file *types.h* for a quick reference.
-
-When reporting an issue or a bug, please tell us which version and
-compiler you used to create your executable. These informations can
-be found by typing the following commands in a console:
-
-```
-    ./stockfish
-    compiler
+```bash
+make clean
+make RELEASE=yes
 ```
 
 ## Understanding the code base and participating in the project
