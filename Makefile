@@ -55,7 +55,10 @@ OBJ = $(CPP:$(SRC_DIR)%.cpp=$(BUILD_DIR)%.o)
 
 build: $(BUILD_DIR)$(NAME)
 
-$(BUILD_DIR)$(NAME): $(OBJ)
+src/bae_params.h: embed_eval_binary.py bae_params.bin
+	python ./embed_eval_binary.py
+
+$(BUILD_DIR)$(NAME): src/bae_params.h $(OBJ)
 	$(COMP) -o $(BUILD_DIR)$(NAME) $(OBJ) $(FLAGS) $(LFLAGS)
 
 -include $(OBJ:%.o=%.d)
@@ -69,5 +72,8 @@ $(BUILD_DIR)%.o: $(SRC_DIR)%.cpp Makefile
 .PHONY : clean
 
 clean:
-	rm $(OBJ) $(OBJ:%.o=%.d) $(RELEASE_BUILD_DIR)$(NAME)
-	rm $(OBJ) $(OBJ:%.o=%.d) $(DEBUG_BUILD_DIR)$(NAME)
+	$(if $(RELEASE_BUILD_DIR),,$(error RELEASE_BUILD_DIR is not set))
+	$(if $(DEBUG_BUILD_DIR),,$(error DEBUG_BUILD_DIR is not set))
+	-rm -rf ./$(RELEASE_BUILD_DIR)
+	-rm -rf ./$(DEBUG_BUILD_DIR)
+	-rm src/bae_params.h
