@@ -6,22 +6,22 @@ ifndef COMP
 	COMP = clang++
 endif
 
-FLAGS = -std=c++20 -O3 -flto -pthread
+FLAGS = -std=c++20
 FLAGS += -Wall -Wextra -Wpedantic -Wshadow -Wdouble-promotion -Wundef -fno-common -Wconversion
 FLAGS += -Wno-deprecated-enum-enum-conversion -Wno-sign-conversion -Wno-float-conversion \
 		 -Wno-implicit-int-float-conversion -Wno-deprecated-enum-float-conversion -Wno-double-promotion \
 		 -Wno-shorten-64-to-32 -Wno-implicit-int-conversion
 
-LFLAGS = -flto
 
 ifdef ARCH
 	FLAGS += -march=$(ARCH)
 endif
 
 ifeq ($(RELEASE),yes)
-	FLAGS += -DNDEBUG
+	FLAGS += -O3 -flto -DNDEBUG
+	LFLAGS = -flto
 else
-	FLAGS += -fno-omit-frame-pointer -g
+	FLAGS += -Og -fno-omit-frame-pointer -g
 endif
 
 ifeq ($(SANITIZE),yes)

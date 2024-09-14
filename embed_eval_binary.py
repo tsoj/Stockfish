@@ -6,7 +6,7 @@ def generate_cpp_header(data, output_path):
     with open(output_path, 'w') as file:
         file.write('#pragma once\n\n')
         file.write('namespace Eval { constexpr char rawBaeContent[] = R"(')
-        file.write(''.join(f'\\x{byte:02x}' for byte in data))
+        file.write(''.join(f'{byte:02x}' for byte in data))
         file.write(')"; }\n')
 
 if __name__ == "__main__":
