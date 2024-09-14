@@ -374,8 +374,7 @@ Value absolute_evaluate(const Position& pos) {
     const int phase = popcount(pos.pieces());
     Value     result =
       (evalState[Phase::opening] * phase + evalState[Phase::endgame] * (32 - phase)) / 32;
-    result *= 12;
-    result /= 10;
+    result *= 2; // to make the scaling be closer to what the classical eval does
     assert(abs(result) < VALUE_KNOWN_WIN);
     return result;
 }
