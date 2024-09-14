@@ -1,3 +1,7 @@
+# Stockfish BAE
+
+Stockfish BAE is a fork of the last Stockfish with classical eval (from July 11 2020). In Stockfish BAE this classical eval has been completely replaced by BAE (big array eval).
+
 ## Overview
 
 [![Build Status](https://travis-ci.org/official-stockfish/Stockfish.svg?branch=master)](https://travis-ci.org/official-stockfish/Stockfish)
