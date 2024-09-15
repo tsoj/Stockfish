@@ -5961,32 +5961,27 @@ struct PackedMoveScoreListReader {
             }
             else
             {
-                auto       moveId = extractBitsLE8(usedBitsSafe(destinationsCount));
-                const auto to = chess::Square(chess::nthSetBitIndex(destinations.bits(), moveId));
+                const auto   moveId = extractBitsLE8(usedBitsSafe(destinationsCount));
+                const Square to     = Square(chess::nthSetBitIndex(destinations, moveId));
                 if (to == epSquare)
                 {
-                    move = chess::Move::enPassant(from, to);
+                    move = make<ENPASSANT>(from, to);
                     break;
                 }
                 else
                 {
-                    move = chess::Move::normal(from, to);
+                    move = make_move(from, to);
                     break;
                 }
             }
         }
         case KING : {
-            const chess::CastlingRights ourCastlingRightsMask = sideToMove == chess::Color::White
-                                                                ? chess::CastlingRights::White
-                                                                : chess::CastlingRights::Black;
+            const CastlingRights ourCastlingRightsMask = pos.castling_rights(sideToMove);
 
-            const chess::CastlingRights castlingRights = pos.castlingRights();
-
-            const chess::Bitboard attacks =
-              chess::bb::pseudoAttacks<chess::PieceType::King>(from) & ~ourPieces;
-            const std::size_t attacksSize = attacks.count();
+            const Bitboard    attacks     = attacks_bb<KING>(from, 0) & ~ourPieces;
+            const std::size_t attacksSize = popcount(attacks);
             const std::size_t numCastlings =
-              std::popcount(static_cast<uint64_t>(ordinal(castlingRights & ourCastlingRightsMask)));
+              std::popcount(static_cast<uint64_t>(ourCastlingRightsMask));
 
             const auto moveId = extractBitsLE8(usedBitsSafe(attacksSize + numCastlings));
 
@@ -5994,21 +5989,20 @@ struct PackedMoveScoreListReader {
             {
                 const std::size_t idx = moveId - attacksSize;
 
-                const chess::CastleType castleType =
-                  idx == 0
-                      && chess::contains(
-                        castlingRights,
-                        chess::CastlingTraits::castlingRights[sideToMove][chess::CastleType::Long])
-                    ? chess::CastleType::Long
-                    : chess::CastleType::Short;
+                CastlingRights castleType =
+                  idx == 0 && (ourCastlingRightsMask & QUEEN_SIDE) != 0 ? QUEEN_SIDE : KING_SIDE;
 
-                move = chess::Move::castle(castleType, sideToMove);
+                castleType = static_cast<CastlingRights>(
+                  castleType & (sideToMove == WHITE ? WHITE_CASTLING : BLACK_CASTLING));
+
+                move = make<CASTLING>(pos.square<KING>(sideToMove),
+                                      pos.castling_rook_square(castleType));
                 break;
             }
             else
             {
-                auto to = chess::Square(chess::nthSetBitIndex(attacks.bits(), moveId));
-                move    = chess::Move::normal(from, to);
+                const Square to = Square(chess::nthSetBitIndex(attacks, moveId));
+                move            = make_move(from, to);
                 break;
             }
             break;
