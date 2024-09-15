@@ -219,6 +219,100 @@ struct XCompressedPosition {
 static_assert(sizeof(XCompressedPosition) == 24);
 static_assert(std::is_trivially_copyable_v<XCompressedPosition>);
 
+[[nodiscard]] inline Position XCompressedPosition::decompress() const {
+    Position pos;
+
+    const auto decompressPiece = [&pos](Square sq, uint8_t nibble) {
+        switch (nibble)
+        {
+        case 0 :
+        case 1 :
+        case 2 :
+        case 3 :
+        case 4 :
+        case 5 :
+        case 6 :
+        case 7 :
+        case 8 :
+        case 9 :
+        case 10 :
+        case 11 : {
+            pos.put_piece(static_cast<Piece>(W_PAWN + nibble), sq);
+            return;
+        }
+
+        case 12 : {
+            const Rank rank = rank_of(sq);
+            if (rank == RANK_4)
+            {
+                pos.put_piece(W_PAWN, sq);
+                pos.st->epSquare = sq + SOUTH;
+            }
+            else
+            {
+                assert(rank == RANK_4);
+                pos.put_piece(B_PAWN, sq);
+                pos.st->epSquare = sq + NORTH;
+            }
+            return;
+        }
+
+        case 13 : {
+            pos.put_piece(W_ROOK, sq);
+            if (sq == SQ_A1)
+            {
+                pos.set_castling_right(WHITE, SQ_A1);
+            }
+            else
+            {
+                assert(sq == SQ_H1);
+                pos.set_castling_right(WHITE, SQ_H1);
+            }
+            return;
+        }
+
+        case 14 : {
+            pos.put_piece(B_ROOK, sq);
+            if (sq == SQ_A8)
+            {
+                pos.set_castling_right(BLACK, SQ_A8);
+            }
+            else
+            {
+                assert(sq == SQ_H8);
+                pos.set_castling_right(BLACK, SQ_H8);
+            }
+            return;
+        }
+
+        case 15 : {
+            pos.put_piece(B_KING, sq);
+            pos.sideToMove = BLACK;
+            return;
+        }
+        }
+
+        return;
+    };
+
+    Bitboard occ = m_occupied;
+
+    for (int i = 0;; ++i)
+    {
+        if (occ == 0)
+            break;
+        decompressPiece(lsb(occ), m_packedState[i] & 0xF);
+        occ &= occ - 1;
+
+        if (occ == 0)
+            break;
+        decompressPiece(lsb(occ), m_packedState[i] >> 4);
+        occ &= occ - 1;
+    }
+
+    return pos;
+}
+
 
 struct XCompressedMove {
    private:
@@ -285,7 +379,7 @@ struct XCompressedMove {
             for (const auto& m : MoveList<LEGAL>(pos))
             {
                 if (from_sq(m) == from && to_sq(m) == to && type_of(m) == type
-                    && (type != PROMOTION || promotion_type(m) == promotedPiece))
+                    && (type != PROMOTION || promotion_type(m) == type_of(promotedPiece)))
                 {
                     return m;
                 }
@@ -655,6 +749,7 @@ struct CompressedTrainingDataEntryReader {
         m_isEnd(false) {
         if (!m_inputFile.hasNextChunk())
         {
+            std::cerr << "\"" << path << "\" contains nothing" << std::endl;
             m_isEnd = true;
         }
         else
