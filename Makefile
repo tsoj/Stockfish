@@ -14,6 +14,10 @@ FLAGS += -Wno-deprecated-enum-enum-conversion -Wno-sign-conversion -Wno-float-co
 
 LFLAGS = -static
 
+ifeq ($(EVAL_TUNING),yes)
+	FLAGS += -DEVAL_TUNING
+endif
+
 ifdef ARCH
 	FLAGS += -march=$(ARCH)
 endif

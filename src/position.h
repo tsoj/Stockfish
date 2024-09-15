@@ -79,7 +79,9 @@ class Position {
     // FEN string input/output
     Position&         set(const std::string& fenStr, bool isChess960, StateInfo* si, Thread* th);
     Position&         set(const std::string& code, Color c, StateInfo* si);
+    void              shallow_copy(const Position& position);
     const std::string fen() const;
+
 
     // Position representation
     Bitboard pieces(PieceType pt) const;
@@ -164,7 +166,6 @@ class Position {
     bool pos_is_ok() const;
     void flip();
 
-   private:
     // Initialization helpers (used while setting up a position)
     void set_castling_right(Color c, Square rfrom);
     void set_state(StateInfo* si) const;
@@ -178,20 +179,21 @@ class Position {
     void do_castling(Color us, Square from, Square& to, Square& rfrom, Square& rto);
 
     // Data members
-    Piece      board[SQUARE_NB];
-    Bitboard   byTypeBB[PIECE_TYPE_NB];
-    Bitboard   byColorBB[COLOR_NB];
-    int        pieceCount[PIECE_NB];
-    Square     pieceList[PIECE_NB][16];
-    int        index[SQUARE_NB];
-    int        castlingRightsMask[SQUARE_NB];
-    Square     castlingRookSquare[CASTLING_RIGHT_NB];
-    Bitboard   castlingPath[CASTLING_RIGHT_NB];
-    int        gamePly;
-    Color      sideToMove;
-    Thread*    thisThread;
-    StateInfo* st;
-    bool       chess960;
+    Piece                      board[SQUARE_NB];
+    Bitboard                   byTypeBB[PIECE_TYPE_NB];
+    Bitboard                   byColorBB[COLOR_NB];
+    int                        pieceCount[PIECE_NB];
+    Square                     pieceList[PIECE_NB][16];
+    int                        index[SQUARE_NB];
+    int                        castlingRightsMask[SQUARE_NB];
+    Square                     castlingRookSquare[CASTLING_RIGHT_NB];
+    Bitboard                   castlingPath[CASTLING_RIGHT_NB];
+    int                        gamePly;
+    Color                      sideToMove;
+    Thread*                    thisThread;
+    StateInfo*                 st;
+    std::unique_ptr<StateInfo> own_st;
+    bool                       chess960;
 };
 
 extern std::ostream& operator<<(std::ostream& os, const Position& pos);

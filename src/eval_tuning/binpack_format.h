@@ -37,6 +37,9 @@
 #include <iomanip>
 #include <bit>
 
+#include "../position.h"
+#include "../movegen.h"
+#include "../types.h"
 
 struct parser_settings {
     bool        filter_checks   = true;
@@ -5521,13 +5524,13 @@ struct HuffmanedPiece {
 
 // NOTE: Order adjusted for this library because originally NO_PIECE had index 0
 constexpr HuffmanedPiece huffman_table[] = {
+  {0b0000, 1},  // NO_PIECE 0
   {0b0001, 4},  // PAWN     1
   {0b0011, 4},  // KNIGHT   3
   {0b0101, 4},  // BISHOP   5
   {0b0111, 4},  // ROOK     7
   {0b1001, 4},  // QUEEN    9
   {-1, -1},     // KING - unused
-  {0b0000, 1},  // NO_PIECE 0
 };
 
 // Class for compressing/decompressing sfen
@@ -5613,23 +5616,9 @@ struct SfenPacker {
 
     BitStream stream;
 
-    // Output the board pieces to stream.
-    void write_board_piece_to_stream(chess::Piece pc) {
-        // piece type
-        chess::PieceType pr = pc.type();
-        auto             c  = huffman_table[static_cast<int>(pr)];
-        stream.write_n_bit(c.code, c.bits);
-
-        if (pc == chess::Piece::none())
-            return;
-
-        // first and second flag
-        stream.write_one_bit(static_cast<int>(pc.color()));
-    }
-
     // Read one board piece from stream
-    [[nodiscard]] chess::Piece read_board_piece_from_stream() {
-        int pr   = static_cast<int>(chess::PieceType::None);
+    [[nodiscard]] Piece read_board_piece_from_stream() {
+        int pr   = static_cast<int>(NO_PIECE_TYPE);
         int code = 0, bits = 0;
         while (true)
         {
@@ -5638,65 +5627,63 @@ struct SfenPacker {
 
             assert(bits <= 6);
 
-            for (pr = static_cast<int>(chess::PieceType::Pawn);
-                 pr <= static_cast<int>(chess::PieceType::None); ++pr)
+            for (pr = static_cast<int>(NO_PIECE_TYPE); pr <= static_cast<int>(KING); ++pr)
                 if (huffman_table[pr].code == code && huffman_table[pr].bits == bits)
                     goto Found;
         }
 Found:;
-        if (pr == static_cast<int>(chess::PieceType::None))
-            return chess::Piece::none();
+        if (pr == static_cast<int>(NO_PIECE_TYPE))
+            return NO_PIECE;
 
         // first and second flag
-        chess::Color c = (chess::Color) stream.read_one_bit();
+        Color c = (Color) stream.read_one_bit();
 
-        return chess::Piece(static_cast<chess::PieceType>(pr), c);
+        return make_piece(c, static_cast<PieceType>(pr));
     }
 };
 
 
-[[nodiscard]] inline chess::Position pos_from_packed_sfen(const PackedSfen& sfen) {
+[[nodiscard]] inline Position pos_from_packed_sfen(const PackedSfen& sfen) {
     SfenPacker packer;
     auto&      stream = packer.stream;
     stream.set_data(const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(&sfen)));
 
-    chess::Position pos{};
+    Position pos{};
 
     // Active color
-    pos.setSideToMove((chess::Color) stream.read_one_bit());
+    pos.sideToMove = ((Color) stream.read_one_bit());
 
     // First the position of the ball
-    pos.place(chess::Piece(chess::PieceType::King, chess::Color::White),
-              static_cast<chess::Square>(stream.read_n_bit(6)));
-    pos.place(chess::Piece(chess::PieceType::King, chess::Color::Black),
-              static_cast<chess::Square>(stream.read_n_bit(6)));
+    pos.put_piece(W_KING, static_cast<Square>(stream.read_n_bit(6)));
+    pos.put_piece(B_KING, static_cast<Square>(stream.read_n_bit(6)));
 
     // Piece placement
-    for (chess::Rank r = chess::rank8; r >= chess::rank1; --r)
+    for (Rank r = RANK_8; r >= RANK_1; --r)
     {
-        for (chess::File f = chess::fileA; f <= chess::fileH; ++f)
+        for (File f = FILE_A; f <= FILE_H; ++f)
         {
-            auto sq = chess::Square(f, r);
+            auto sq = make_square(f, r);
 
+            Piece piece = NO_PIECE;
             // it seems there are already balls
-            chess::Piece pc;
-            if (pos.pieceAt(sq).type() != chess::PieceType::King)
+
+            if (type_of(pos.piece_on(sq)) != KING)
             {
-                assert(pos.pieceAt(sq) == chess::Piece::none());
-                pc = packer.read_board_piece_from_stream();
+                assert(pos.piece_on(sq) == NO_PIECE);
+                piece = packer.read_board_piece_from_stream();
             }
             else
             {
-                pc = pos.pieceAt(sq);
+                piece = pos.piece_on(sq);
             }
 
             // There may be no pieces, so skip in that case.
-            if (pc == chess::Piece::none())
+            if(piece == NO_PIECE)
                 continue;
 
-            if (pc.type() != chess::PieceType::King)
+            if (type_of(piece) != KING)
             {
-                pos.place(pc, sq);
+                pos.put_piece(piece, sq);
             }
 
             assert(stream.get_cursor() <= 256);
@@ -5851,20 +5838,17 @@ struct CompressedTrainingDataFile {
 }
 
 struct TrainingDataEntry {
-    chess::Position pos;
-    chess::Move     move;
-    int16_t    score;
-    uint16_t        ply;
-    int16_t    result;
+    Position pos;
+    Move     move;
+    int16_t  score;
+    uint16_t ply;
+    int16_t  result;
 
-    [[nodiscard]] bool isValid() const { return pos.isMoveLegal(move); }
+    [[nodiscard]] bool isValid() const { return pos.legal(move); }
 
-    [[nodiscard]] bool isCapturingMove() const {
-        return pos.pieceAt(move.to) != chess::Piece::none()
-            && pos.pieceAt(move.to).color() != pos.pieceAt(move.from).color();  // Exclude castling
-    }
+    [[nodiscard]] bool isCapturingMove() const { return pos.capture(move); }
 
-    [[nodiscard]] bool isInCheck() const { return pos.isCheck(); }
+    [[nodiscard]] bool isInCheck() const { return pos.checkers() != 0; }
 };
 
 [[nodiscard]] inline TrainingDataEntry
@@ -5986,8 +5970,8 @@ struct PackedMoveScoreListReader {
     [[nodiscard]] bool hasNext() const { return m_numReadPlies < numPlies; }
 
     [[nodiscard]] std::pair<chess::Move, int16_t> nextMoveScore(const chess::Position& pos) {
-        chess::Move  move;
-        int16_t score;
+        chess::Move move;
+        int16_t     score;
 
         const chess::Color    sideToMove  = pos.sideToMove();
         const chess::Bitboard ourPieces   = pos.piecesBB(sideToMove);
@@ -6070,7 +6054,7 @@ struct PackedMoveScoreListReader {
               chess::bb::pseudoAttacks<chess::PieceType::King>(from) & ~ourPieces;
             const std::size_t attacksSize = attacks.count();
             const std::size_t numCastlings =
-              std::popcount(ordinal(castlingRights & ourCastlingRightsMask));
+              std::popcount(static_cast<uint64_t>(ordinal(castlingRights & ourCastlingRightsMask)));
 
             const auto moveId = extractBitsLE8(usedBitsSafe(attacksSize + numCastlings));
 
@@ -6117,10 +6101,10 @@ struct PackedMoveScoreListReader {
     [[nodiscard]] std::size_t numReadBytes() { return m_readOffset + (m_readBitsLeft != 8); }
 
    private:
-    std::size_t  m_readBitsLeft = 8;
-    std::size_t  m_readOffset   = 0;
-    int16_t m_lastScore    = 0;
-    uint16_t     m_numReadPlies = 0;
+    std::size_t m_readBitsLeft = 8;
+    std::size_t m_readOffset   = 0;
+    int16_t     m_lastScore    = 0;
+    uint16_t    m_numReadPlies = 0;
 };
 
 struct PackedMoveScoreList {
@@ -6239,7 +6223,7 @@ struct PackedMoveScoreList {
               chess::bb::pseudoAttacks<chess::PieceType::King>(move.from) & ~ourPieces;
             const auto attacksSize = attacks.count();
             const auto numCastlingRights =
-              std::popcount(ordinal(castlingRights & ourCastlingRightsMask));
+              std::popcount(static_cast<uint64_t>(ordinal(castlingRights & ourCastlingRightsMask)));
 
             numMoves += attacksSize;
             numMoves += numCastlingRights;
@@ -6289,8 +6273,8 @@ struct PackedMoveScoreList {
     }
 
    private:
-    std::size_t  m_bitsLeft  = 0;
-    int16_t m_lastScore = 0;
+    std::size_t m_bitsLeft  = 0;
+    int16_t     m_lastScore = 0;
 };
 
 
@@ -6532,63 +6516,6 @@ inline chess::Square popLsb(uint64_t& bitboard) {
 
 constexpr int bulletformatpiece[12] = {0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13};
 
-inline void emitBulletFormatEntry(std::vector<char>& buffer, const TrainingDataEntry& plain) {
-    // extract stm and nstm
-    const auto stm = plain.pos.sideToMove();
-    // disgusting fuckery to invert stm
-    const auto nstm = chess::Color(static_cast<int>(plain.pos.sideToMove()) ^ 1);
-    // determine if we need to flip stuff to be stm agnostic
-    const bool should_invert = stm == chess::Color::Black;
-    // Create the struct we are going to populate
-    ChessBoard board;
-    // extract score
-    board.score = plain.score;
-    // extract result, convert it to the format bullet wants
-    board.result = plain.result + 1;
-    // extract the board occupancy
-    uint64_t occupancy = plain.pos.piecesBB().bits();
-    if (should_invert)
-        // use std::byteswap when the compiler on wsl decides to cooperate
-        occupancy = __builtin_bswap64(occupancy);
-    board.occupancy = occupancy;
-    // get the king squares
-    board.king_square     = int(should_invert ? plain.pos.kingSquare(stm).flippedVertically()
-                                              : plain.pos.kingSquare(stm));
-    board.opp_king_square = int(should_invert ? plain.pos.kingSquare(nstm)
-                                              : plain.pos.kingSquare(nstm).flippedVertically());
-    // extract the pieces:
-    int index = 0;
-    // explicitely zero out the piece array
-    std::memset(board.pieces, 0, sizeof(board.pieces));
-    // get a copy of the occupancy bb to loop over
-    auto loopocc = board.occupancy;
-    while (loopocc)
-    {
-        // get and remove set bit
-        auto piece_square = popLsb(loopocc);
-        if (should_invert)
-            piece_square = piece_square.flippedVertically();
-        auto piece = int(plain.pos.pieceAt(piece_square));
-        piece      = bulletformatpiece[piece];
-        if (should_invert)
-            piece = piece ^ 8;
-        const bool m_high = index % 2;
-        if (m_high)
-            board.pieces[index / 2] = (board.pieces[index / 2] & 0x0F) | (piece << 4);
-        else
-            board.pieces[index / 2] = (board.pieces[index / 2] & 0xF0) | (piece & 0x0F);
-        index++;
-    }
-    // Match bullet padding so the data is a byte perfect replica
-    board.padding[0] = 127;
-    board.padding[1] = 0;
-    board.padding[2] = 0;
-
-    // force this bad boy to fit in the buffer and dump it
-    const char* data = reinterpret_cast<const char*>(&board);
-    buffer.insert(buffer.end(), data, data + sizeof(board));
-}
-
 inline void emitPlainEntry(std::string& buffer, const TrainingDataEntry& plain) {
     // extract the result and score
     auto score = plain.score;
@@ -6734,7 +6661,7 @@ inline void convertBinpackToBin(std::string             inputPath,
             continue;
         }
 
-        emitBulletFormatEntry(buffer, e);
+        // emitBulletFormatEntry(buffer, e);
 
         ++numProcessedPositions;
 

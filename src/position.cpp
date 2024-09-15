@@ -24,6 +24,7 @@
 #include <cstddef>  // For offsetof()
 #include <cstring>  // For std::memset, std::memcmp
 #include <iomanip>
+#include <memory>
 #include <sstream>
 
 #include "bitboard.h"
@@ -195,9 +196,15 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si, Th
     std::istringstream ss(fenStr);
 
     std::memset(this, 0, sizeof(Position));
-    std::memset(si, 0, sizeof(StateInfo));
-    std::fill_n(&pieceList[0][0], sizeof(pieceList) / sizeof(Square), SQ_NONE);
+    if (si == nullptr)
+    {
+        own_st = std::make_unique<StateInfo>();
+        si     = own_st.get();
+    }
+
     st = si;
+    std::memset(st, 0, sizeof(StateInfo));
+    std::fill_n(&pieceList[0][0], sizeof(pieceList) / sizeof(Square), SQ_NONE);
 
     ss >> std::noskipws;
 
@@ -1271,4 +1278,29 @@ bool Position::pos_is_ok() const {
         }
 
     return true;
+}
+
+
+void Position::shallow_copy(const Position& position) {
+    // clang-format off
+    std::memcpy(&this->board, &position.board, sizeof(board));
+    std::memcpy(&this->byTypeBB, &position.byTypeBB, sizeof(byTypeBB));
+    std::memcpy(&this->byColorBB, &position.byColorBB, sizeof(byColorBB));
+    std::memcpy(&this->pieceCount, &position.pieceCount, sizeof(pieceCount));
+    std::memcpy(&this->pieceList, &position.pieceList, sizeof(pieceList));
+    std::memcpy(&this->index, &position.index, sizeof(index));
+    std::memcpy(&this->castlingRightsMask, &position.castlingRightsMask, sizeof(castlingRightsMask));
+    std::memcpy(&this->castlingRookSquare, &position.castlingRookSquare, sizeof(castlingRookSquare));
+    std::memcpy(&this->castlingPath, &position.castlingPath, sizeof(castlingPath));
+    std::memcpy(&this->gamePly, &position.gamePly, sizeof(gamePly));
+    std::memcpy(&this->sideToMove, &position.sideToMove, sizeof(sideToMove));
+    std::memcpy(&this->chess960, &position.chess960, sizeof(chess960));
+    // clang-format on
+
+    thisThread = nullptr;
+
+    assert(position.st != nullptr);
+    own_st           = std::make_unique<StateInfo>(*(position.st));
+    own_st->previous = nullptr;
+    st               = own_st.get();
 }

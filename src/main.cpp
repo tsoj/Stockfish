@@ -30,6 +30,11 @@
 #include "tt.h"
 #include "uci.h"
 
+
+#ifdef EVAL_TUNING
+    #include "eval_tuning/eval_tune.h"
+#endif
+
 int main(int argc, char* argv[]) {
 
     std::cout << engine_info() << std::endl;
@@ -43,7 +48,11 @@ int main(int argc, char* argv[]) {
     Threads.set(size_t(Options["Threads"]));
     Search::clear();  // After threads are up
 
+#ifdef EVAL_TUNING
+    eval_tune();
+#else
     UCI::loop(argc, argv);
+#endif
 
     Threads.set(0);
     return 0;
