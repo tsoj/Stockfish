@@ -27,6 +27,7 @@
 #include <memory>
 #include <sstream>
 
+#include "bae.h"
 #include "bitboard.h"
 #include "misc.h"
 #include "movegen.h"
@@ -148,6 +149,32 @@ void Position::init() {
     assert(count == 3668);
 }
 
+void Position::set_empty(StateInfo* si, Thread* th) {
+    std::memset(board, 0, sizeof(board));
+    std::memset(byTypeBB, 0, sizeof(byTypeBB));
+    std::memset(byColorBB, 0, sizeof(byColorBB));
+    std::memset(pieceCount, 0, sizeof(pieceCount));
+    std::fill_n(&pieceList[0][0], sizeof(pieceList) / sizeof(Square), SQ_NONE);
+    std::memset(index, 0, sizeof(index));
+    std::memset(castlingRightsMask, 0, sizeof(castlingRightsMask));
+    std::memset(castlingRookSquare, 0, sizeof(castlingRookSquare));
+    std::memset(castlingPath, 0, sizeof(castlingPath));
+    gamePly    = 0;
+    sideToMove = WHITE;
+    thisThread = th;
+    st         = si;
+    own_st     = nullptr;
+    chess960   = false;
+
+    if (st == nullptr)
+    {
+        own_st = std::make_unique<StateInfo>();
+        st     = own_st.get();
+    }
+
+    std::memset(st, 0, sizeof(StateInfo));
+}
+
 /// Position::set() initializes the position object with the given FEN string.
 /// This function is not very robust - make sure that input FENs are correct,
 /// this is assumed to be the responsibility of the GUI.
@@ -195,16 +222,7 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si, Th
     Square             sq = SQ_A8;
     std::istringstream ss(fenStr);
 
-    std::memset(this, 0, sizeof(Position));
-    if (si == nullptr)
-    {
-        own_st = std::make_unique<StateInfo>();
-        si     = own_st.get();
-    }
-
-    st = si;
-    std::memset(st, 0, sizeof(StateInfo));
-    std::fill_n(&pieceList[0][0], sizeof(pieceList) / sizeof(Square), SQ_NONE);
+    set_empty(si, th);
 
     ss >> std::noskipws;
 
@@ -1281,7 +1299,7 @@ bool Position::pos_is_ok() const {
 }
 
 
-void Position::shallow_copy(const Position& position) {
+void Position::shallow_copy_from(const Position& position) {
     // clang-format off
     std::memcpy(&this->board, &position.board, sizeof(board));
     std::memcpy(&this->byTypeBB, &position.byTypeBB, sizeof(byTypeBB));

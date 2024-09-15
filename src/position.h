@@ -72,14 +72,15 @@ class Position {
    public:
     static void init();
 
-    Position()                           = default;
-    Position(const Position&)            = delete;
-    Position& operator=(const Position&) = delete;
+    Position() { set_empty(); }
+    Position(const Position& pos) { shallow_copy_from(pos); }
+    Position& operator=(const Position& pos) { shallow_copy_from(pos); };
 
     // FEN string input/output
+    void              set_empty(StateInfo* si = nullptr, Thread* th = nullptr);
     Position&         set(const std::string& fenStr, bool isChess960, StateInfo* si, Thread* th);
     Position&         set(const std::string& code, Color c, StateInfo* si);
-    void              shallow_copy(const Position& position);
+    void              shallow_copy_from(const Position& position);
     const std::string fen() const;
 
 

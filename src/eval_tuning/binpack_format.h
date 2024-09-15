@@ -1660,6 +1660,9 @@ struct BitboardIterator {
     }
 };
 
+// TODO(tsoj)
+// check if there ar no remainders of Bitboard constructors over colors or squares
+// and also no operators, and maybe other stuff
 struct Bitboard {
     // bits counted from the LSB
     // order is A1 B2 ... G8 H8
@@ -5350,31 +5353,37 @@ struct StockfishMove {
         return sfm;
     }
 
-    [[nodiscard]] chess::Move toMove() const {
-        const chess::Square to   = static_cast<chess::Square>((m_raw & (0b111111 << 0) >> 0));
-        const chess::Square from = static_cast<chess::Square>((m_raw & (0b111111 << 6)) >> 6);
+    [[nodiscard]] Move toMove(const Position& pos) const {
+        const Square to   = static_cast<Square>((m_raw & (0b111111 << 0) >> 0));
+        const Square from = static_cast<Square>((m_raw & (0b111111 << 6)) >> 6);
 
-        const unsigned         promotionIndex = (m_raw & (0b11 << 12)) >> 12;
-        const chess::PieceType promotionType  = static_cast<chess::PieceType>(
-          static_cast<int>(chess::PieceType::Knight) + promotionIndex);
+        const unsigned  promotionIndex = (m_raw & (0b11 << 12)) >> 12;
+        const PieceType promotionType =
+          static_cast<PieceType>(static_cast<int>(KNIGHT) + promotionIndex);
 
-        const unsigned  moveFlag = (m_raw & (0b11 << 14)) >> 14;
-        chess::MoveType type     = chess::MoveType::Normal;
-        if (moveFlag == 1)
-            type = chess::MoveType::Promotion;
-        else if (moveFlag == 2)
-            type = chess::MoveType::EnPassant;
-        else if (moveFlag == 3)
-            type = chess::MoveType::Castle;
+        const unsigned moveFlag = (m_raw & (0b11 << 14)) >> 14;
+        const MoveType type     = [moveFlag]() {
+            if (moveFlag == 1)
+                return PROMOTION;
+            else if (moveFlag == 2)
+                return ENPASSANT;
+            else if (moveFlag == 3)
+                return CASTLING;
+            else
+                return NORMAL;
+        }();
 
-        if (type == chess::MoveType::Promotion)
+        for (const Move candidate_move : MoveList<LEGAL>(pos))
         {
-            const chess::Color stm =
-              to.rank() == chess::rank8 ? chess::Color::White : chess::Color::Black;
-            return chess::Move{from, to, type, chess::Piece(promotionType, stm)};
+            if (type_of(candidate_move) == type
+                && (type != PROMOTION || promotion_type(candidate_move) == promotionType)
+                && from_sq(candidate_move) == from && to_sq(candidate_move) == to)
+            {
+                return candidate_move;
+            }
         }
 
-        return chess::Move{from, to, type};
+        return MOVE_NONE;
     }
 
     [[nodiscard]] std::string toString() const {
@@ -5550,69 +5559,6 @@ constexpr HuffmanedPiece huffman_table[] = {
 // TODO(someone): Rename SFEN to FEN.
 //
 struct SfenPacker {
-    // Pack sfen and store in data[32].
-    void pack(const chess::Position& pos) {
-        memset(data, 0, 32 /* 256bit */);
-        stream.set_data(data);
-
-        // turn
-        // Side to move.
-        stream.write_one_bit((int) (pos.sideToMove()));
-
-        // 7-bit positions for leading and trailing balls
-        // White king and black king, 6 bits for each.
-        stream.write_n_bit(static_cast<int>(pos.kingSquare(chess::Color::White)), 6);
-        stream.write_n_bit(static_cast<int>(pos.kingSquare(chess::Color::Black)), 6);
-
-        // Write the pieces on the board other than the kings.
-        for (chess::Rank r = chess::rank8; r >= chess::rank1; --r)
-        {
-            for (chess::File f = chess::fileA; f <= chess::fileH; ++f)
-            {
-                chess::Piece pc = pos.pieceAt(chess::Square(f, r));
-                if (pc.type() == chess::PieceType::King)
-                    continue;
-                write_board_piece_to_stream(pc);
-            }
-        }
-
-        // TODO(someone): Support chess960.
-        auto cr = pos.castlingRights();
-        stream.write_one_bit(contains(cr, chess::CastlingRights::WhiteKingSide));
-        stream.write_one_bit(contains(cr, chess::CastlingRights::WhiteQueenSide));
-        stream.write_one_bit(contains(cr, chess::CastlingRights::BlackKingSide));
-        stream.write_one_bit(contains(cr, chess::CastlingRights::BlackQueenSide));
-
-        if (pos.epSquare() == chess::Square::none())
-        {
-            stream.write_one_bit(0);
-        }
-        else
-        {
-            stream.write_one_bit(1);
-            stream.write_n_bit(static_cast<int>(pos.epSquare()), 6);
-        }
-
-        stream.write_n_bit(pos.rule50Counter(), 6);
-
-        stream.write_n_bit(pos.fullMove(), 8);
-
-        // Write high bits of half move. This is a fix for the
-        // limited range of half move counter.
-        // This is backwards compatibile.
-        stream.write_n_bit(pos.fullMove() >> 8, 8);
-
-        // Write the highest bit of rule50 at the end. This is a backwards
-        // compatibile fix for rule50 having only 6 bits stored.
-        // This bit is just ignored by the old parsers.
-        stream.write_n_bit(pos.rule50Counter() >> 6, 1);
-
-        assert(stream.get_cursor() <= 256);
-    }
-
-    // sfen packed by pack() (256bit = 32bytes)
-    // Or sfen to decode with unpack()
-    uint8_t* data;  // uint8_t[32];
 
     BitStream stream;
 
@@ -5649,6 +5595,8 @@ Found:;
     stream.set_data(const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(&sfen)));
 
     Position pos{};
+    pos.set_empty();
+
 
     // Active color
     pos.sideToMove = ((Color) stream.read_one_bit());
@@ -5708,12 +5656,25 @@ Found:;
         }
     }
 
-    // En passant square. Ignore if no pawn capture is possible
+    // En passant square.
+    bool enpassant = false;
     if (stream.read_one_bit())
     {
-        chess::Square ep_square = static_cast<chess::Square>(stream.read_n_bit(6));
-        pos.setEpSquare(ep_square);
+        pos.st->epSquare = static_cast<Square>(stream.read_n_bit(6));
+
+        // En passant square will be considered only if
+        // a) side to move have a pawn threatening epSquare
+        // b) there is an enemy pawn in front of epSquare
+        // c) there is no piece on epSquare or behind epSquare
+        enpassant = pawn_attacks_bb(~pos.side_to_move(), pos.st->epSquare)
+                    & pos.pieces(pos.side_to_move(), PAWN)
+                 && (pos.pieces(~pos.side_to_move(), PAWN)
+                     & (pos.st->epSquare + pawn_push(~pos.side_to_move())))
+                 && !(pos.pieces()
+                      & (pos.st->epSquare | (pos.st->epSquare + pawn_push(pos.side_to_move()))));
     }
+    if (!enpassant)
+        pos.st->epSquare = SQ_NONE;
 
     // Halfmove clock
     uint8_t rule50 = stream.read_n_bit(6);
@@ -5731,8 +5692,8 @@ Found:;
     // In older entries this will just be a zero bit.
     rule50 |= stream.read_n_bit(1) << 6;
 
-    pos.setFullMove(fullmove);
-    pos.setRule50Counter(rule50);
+    pos.st->rule50 = rule50;
+    pos.gamePly    = std::max(2 * (fullmove - 1), 0) + (pos.side_to_move() == BLACK);
 
     assert(stream.get_cursor() <= 256);
 
@@ -5854,35 +5815,12 @@ packedSfenValueToTrainingDataEntry(const nodchip::PackedSfenValue& psv) {
     TrainingDataEntry ret;
 
     ret.pos    = nodchip::pos_from_packed_sfen(psv.sfen);
-    ret.move   = psv.move.toMove();
+    ret.move   = psv.move.toMove(ret.pos);
     ret.score  = psv.score;
     ret.ply    = psv.gamePly;
     ret.result = psv.game_result;
 
     return ret;
-}
-
-[[nodiscard]] inline nodchip::PackedSfenValue
-trainingDataEntryToPackedSfenValue(const TrainingDataEntry& plain) {
-    nodchip::PackedSfenValue ret;
-
-    nodchip::SfenPacker sp;
-    sp.data = reinterpret_cast<uint8_t*>(&ret.sfen);
-    sp.pack(plain.pos);
-
-    ret.score       = plain.score;
-    ret.move        = nodchip::StockfishMove::fromMove(plain.move);
-    ret.gamePly     = plain.ply;
-    ret.game_result = plain.result;
-    ret.padding     = 0xff;  // for consistency with the .bin format.
-
-    return ret;
-}
-
-[[nodiscard]] inline bool isContinuation(const TrainingDataEntry& lhs,
-                                         const TrainingDataEntry& rhs) {
-    return lhs.result == -rhs.result && lhs.ply + 1 == rhs.ply
-        && lhs.pos.afterMove(lhs.move) == rhs.pos;
 }
 
 struct PackedTrainingDataEntry {
@@ -5956,7 +5894,10 @@ struct PackedMoveScoreListReader {
     }
 
     [[nodiscard]] TrainingDataEntry nextEntry() {
-        entry.pos.doMove(entry.move);
+        auto newSt = std::make_unique<StateInfo>();
+        entry.pos.do_move(entry.move, *newSt);
+        entry.pos.own_st = std::move(newSt);
+
         auto [move, score] = nextMoveScore(entry.pos);
         entry.move         = move;
         entry.score        = score;
@@ -5967,62 +5908,55 @@ struct PackedMoveScoreListReader {
 
     [[nodiscard]] bool hasNext() const { return m_numReadPlies < numPlies; }
 
-    [[nodiscard]] std::pair<chess::Move, int16_t> nextMoveScore(const chess::Position& pos) {
-        chess::Move move;
-        int16_t     score;
+    [[nodiscard]] std::pair<Move, int16_t> nextMoveScore(const Position& pos) {
+        Move    move;
+        int16_t score;
 
-        const chess::Color    sideToMove  = pos.sideToMove();
-        const chess::Bitboard ourPieces   = pos.piecesBB(sideToMove);
-        const chess::Bitboard theirPieces = pos.piecesBB(!sideToMove);
-        const chess::Bitboard occupied    = ourPieces | theirPieces;
+        const Color    sideToMove  = pos.side_to_move();
+        const Bitboard ourPieces   = pos.pieces(sideToMove);
+        const Bitboard theirPieces = pos.pieces(~sideToMove);
+        const Bitboard occupied    = ourPieces | theirPieces;
 
-        const auto pieceId = extractBitsLE8(usedBitsSafe(ourPieces.count()));
-        const auto from    = chess::Square(chess::nthSetBitIndex(ourPieces.bits(), pieceId));
+        const auto   pieceId = extractBitsLE8(usedBitsSafe(popcount(ourPieces)));
+        const Square from    = Square(chess::nthSetBitIndex(ourPieces, pieceId));
 
-        const auto pt = pos.pieceAt(from).type();
+        const PieceType pt = type_of(pos.piece_on(from));
         switch (pt)
         {
-        case chess::PieceType::Pawn : {
-            const chess::Rank promotionRank =
-              pos.sideToMove() == chess::Color::White ? chess::rank7 : chess::rank2;
-            const chess::Rank startRank =
-              pos.sideToMove() == chess::Color::White ? chess::rank2 : chess::rank7;
-            const auto forward = sideToMove == chess::Color::White ? chess::FlatSquareOffset(0, 1)
-                                                                   : chess::FlatSquareOffset(0, -1);
+        case PAWN : {
+            const Rank      promotionRank = pos.side_to_move() == WHITE ? RANK_7 : RANK_2;
+            const Rank      startRank     = pos.side_to_move() == WHITE ? RANK_2 : RANK_7;
+            const Direction forward       = sideToMove == WHITE ? NORTH : SOUTH;
 
-            const chess::Square epSquare = pos.epSquare();
+            const Square epSquare = pos.ep_square();
 
-            chess::Bitboard attackTargets = theirPieces;
-            if (epSquare != chess::Square::none())
+            Bitboard attackTargets = theirPieces;
+            if (epSquare != SQ_NONE)
             {
-                attackTargets |= epSquare;
+                attackTargets |= square_bb(epSquare);
             }
 
-            chess::Bitboard destinations =
-              chess::bb::pawnAttacks(chess::Bitboard::square(from), sideToMove) & attackTargets;
+            Bitboard destinations = pawn_attacks_bb(sideToMove, from) & attackTargets;
 
-            const chess::Square sqForward = from + forward;
-            if (!occupied.isSet(sqForward))
+            const Square sqForward = from + forward;
+            if ((occupied & square_bb(sqForward)) == 0)
             {
-                destinations |= sqForward;
-                if (from.rank() == startRank && !occupied.isSet(sqForward + forward))
+                destinations |= square_bb(sqForward);
+                if (rank_of(from) == startRank && (occupied & square_bb(sqForward + forward)) == 0)
                 {
-                    destinations |= sqForward + forward;
+                    destinations |= square_bb(sqForward + forward);
                 }
             }
 
-            const auto destinationsCount = destinations.count();
-            if (from.rank() == promotionRank)
+            const auto destinationsCount = popcount(destinations);
+            if (rank_of(from) == promotionRank)
             {
-                const auto         moveId = extractBitsLE8(usedBitsSafe(destinationsCount * 4ull));
-                const chess::Piece promotedPiece =
-                  chess::Piece(chess::fromOrdinal<chess::PieceType>(
-                                 ordinal(chess::PieceType::Knight) + (moveId % 4ull)),
-                               sideToMove);
-                const auto to =
-                  chess::Square(chess::nthSetBitIndex(destinations.bits(), moveId / 4ull));
+                const auto      moveId = extractBitsLE8(usedBitsSafe(destinationsCount * 4ull));
+                const PieceType promotedPiece = static_cast<PieceType>(KNIGHT + (moveId % 4ull));
+                const Square    to = Square(chess::nthSetBitIndex(destinations, moveId / 4ull));
 
-                move = chess::Move::promotion(from, to, promotedPiece);
+                // move = chess::Move::promotion(from, to, promotedPiece);
+                move = make<PROMOTION>(from, to, promotedPiece);
                 break;
             }
             else
@@ -6041,7 +5975,7 @@ struct PackedMoveScoreListReader {
                 }
             }
         }
-        case chess::PieceType::King : {
+        case KING : {
             const chess::CastlingRights ourCastlingRightsMask = sideToMove == chess::Color::White
                                                                 ? chess::CastlingRights::White
                                                                 : chess::CastlingRights::Black;
@@ -6080,10 +6014,10 @@ struct PackedMoveScoreListReader {
             break;
         }
         default : {
-            const chess::Bitboard attacks = chess::bb::attacks(pt, from, occupied) & ~ourPieces;
-            const auto            moveId  = extractBitsLE8(usedBitsSafe(attacks.count()));
-            auto                  to = chess::Square(chess::nthSetBitIndex(attacks.bits(), moveId));
-            move                     = chess::Move::normal(from, to);
+            const Bitboard attacks = attacks_bb(pt, from, occupied) & ~ourPieces;
+            const auto     moveId  = extractBitsLE8(usedBitsSafe(popcount(attacks)));
+            Square         to      = Square(chess::nthSetBitIndex(popcount(attacks), moveId));
+            move                   = make_move(from, to);
             break;
         }
         }
@@ -6322,87 +6256,6 @@ struct PackedMoveScoreList {
 
     return plain;
 }
-
-struct CompressedTrainingDataEntryWriter {
-    static constexpr std::size_t chunkSize = suggestedChunkSize;
-
-    CompressedTrainingDataEntryWriter(std::string             path,
-                                      std::ios_base::openmode om = std::ios_base::app) :
-        m_outputFile(path, om),
-        m_lastEntry{},
-        m_movelist{},
-        m_packedSize(0),
-        m_packedEntries(chunkSize + maxMovelistSize),
-        m_isFirst(true) {
-        m_lastEntry.ply    = 0xFFFF;  // so it's never a continuation
-        m_lastEntry.result = 0x7FFF;
-    }
-
-    void addTrainingDataEntry(const TrainingDataEntry& e) {
-        bool isCont = isContinuation(m_lastEntry, e);
-        if (isCont)
-        {
-            // add to movelist
-            m_movelist.addMoveScore(e.pos, e.move, e.score);
-        }
-        else
-        {
-            if (!m_isFirst)
-            {
-                writeMovelist();
-            }
-
-            if (m_packedSize >= chunkSize)
-            {
-                m_outputFile.append(m_packedEntries.data(), m_packedSize);
-                m_packedSize = 0;
-            }
-
-            auto packed = packEntry(e);
-            std::memcpy(m_packedEntries.data() + m_packedSize, &packed,
-                        sizeof(PackedTrainingDataEntry));
-            m_packedSize += sizeof(PackedTrainingDataEntry);
-
-            m_movelist.clear(e);
-
-            m_isFirst = false;
-        }
-
-        m_lastEntry = e;
-    }
-
-    ~CompressedTrainingDataEntryWriter() {
-        if (m_packedSize > 0)
-        {
-            if (!m_isFirst)
-            {
-                writeMovelist();
-            }
-
-            m_outputFile.append(m_packedEntries.data(), m_packedSize);
-            m_packedSize = 0;
-        }
-    }
-
-   private:
-    CompressedTrainingDataFile m_outputFile;
-    TrainingDataEntry          m_lastEntry;
-    PackedMoveScoreList        m_movelist;
-    std::size_t                m_packedSize;
-    std::vector<char>          m_packedEntries;
-    bool                       m_isFirst;
-
-    void writeMovelist() {
-        m_packedEntries[m_packedSize++] = m_movelist.numPlies >> 8;
-        m_packedEntries[m_packedSize++] = m_movelist.numPlies;
-        if (m_movelist.numPlies > 0)
-        {
-            std::memcpy(m_packedEntries.data() + m_packedSize, m_movelist.movetext.data(),
-                        m_movelist.movetext.size());
-            m_packedSize += m_movelist.movetext.size();
-        }
-    };
-};
 
 struct CompressedTrainingDataEntryReader {
     static constexpr std::size_t chunkSize = suggestedChunkSize;
