@@ -74,7 +74,14 @@ class Position {
 
     Position() { set_empty(); }
     Position(const Position& pos) { shallow_copy_from(pos); }
-    Position& operator=(const Position& pos) { shallow_copy_from(pos); };
+    Position& operator=(const Position& pos) {
+        if (&pos == this)
+        {
+            return *this;
+        }
+        shallow_copy_from(pos);
+        return *this;
+    };
 
     // FEN string input/output
     void              set_empty(StateInfo* si = nullptr, Thread* th = nullptr);
