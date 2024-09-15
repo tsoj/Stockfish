@@ -5678,7 +5678,7 @@ Found:;
             }
 
             // There may be no pieces, so skip in that case.
-            if(piece == NO_PIECE)
+            if (piece == NO_PIECE)
                 continue;
 
             if (type_of(piece) != KING)
@@ -5691,24 +5691,22 @@ Found:;
     }
 
     // Castling availability.
-    chess::CastlingRights cr = chess::CastlingRights::None;
-    if (stream.read_one_bit())
+    CastlingRights cr = NO_CASTLING;
+
+    for (const Color c : {WHITE, BLACK})
     {
-        cr |= chess::CastlingRights::WhiteKingSide;
+        const Piece rook = make_piece(c, ROOK);
+        for (const Direction direction : {WEST, EAST})
+        {
+            if (stream.read_one_bit())
+            {
+                Square rsq;
+                for (rsq = relative_square(c, SQ_H1); pos.piece_on(rsq) != rook; rsq += direction)
+                {}
+                pos.set_castling_right(c, rsq);
+            }
+        }
     }
-    if (stream.read_one_bit())
-    {
-        cr |= chess::CastlingRights::WhiteQueenSide;
-    }
-    if (stream.read_one_bit())
-    {
-        cr |= chess::CastlingRights::BlackKingSide;
-    }
-    if (stream.read_one_bit())
-    {
-        cr |= chess::CastlingRights::BlackQueenSide;
-    }
-    pos.setCastlingRights(cr);
 
     // En passant square. Ignore if no pawn capture is possible
     if (stream.read_one_bit())
