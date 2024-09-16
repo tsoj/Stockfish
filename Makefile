@@ -6,7 +6,7 @@ ifndef COMP
 	COMP = clang++
 endif
 
-FLAGS = -std=c++20
+FLAGS = -std=c++23
 FLAGS += -Wall -Wextra -Wpedantic -Wshadow -Wdouble-promotion -Wundef -fno-common -Wconversion
 FLAGS += -Wno-deprecated-enum-enum-conversion -Wno-sign-conversion -Wno-float-conversion \
 		 -Wno-implicit-int-float-conversion -Wno-deprecated-enum-float-conversion -Wno-double-promotion \
