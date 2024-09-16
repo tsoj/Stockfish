@@ -1,18 +1,24 @@
 
 #include <array>
 #include <cassert>
+#include <cstdlib>
 #include <initializer_list>
 #include <type_traits>
 #include <vector>
 #include <functional>
 #include <cmath>
 #include <iostream>
+#include <fstream>
+#include <iomanip>
 
 #include "bae.h"
 #include "bitboard.h"
 #include "position.h"
 #include "types.h"
-#include "bae_params.h"
+
+#ifndef EVAL_TUNING
+    #include "bae_params.h"
+#endif
 
 namespace {
 
@@ -75,6 +81,22 @@ class BaeParams {
 };
 
 
+int16_t i16_from_hex(const char* const s) {
+    const char hexString[] = {s[0], s[1], s[2], s[3], '\0'};
+    uint16_t   tmp         = std::strtoul(hexString, nullptr, 16);
+    return *reinterpret_cast<int16_t*>(&tmp);
+}
+
+std::string to_hex(const int16_t a) {
+    const uint16_t     aUnsiged = *reinterpret_cast<const uint16_t*>(&a);
+    std::ostringstream oss;
+    oss << std::setw(4) << std::setfill('0') << std::hex << aUnsiged;
+    std::string result = oss.str();
+    assert(result.size() == 4);
+    assert(i16_from_hex(result.c_str()) == a);
+    return result;
+}
+
 #ifdef EVAL_TUNING
 BaeParams<float> baeParams = []() {
     BaeParams<float> baeParams{};
@@ -88,22 +110,16 @@ const BaeParams<Value> baeParams = []() {
     size_t n = 0;
 
     baeParams.doForAll([&](Value& value) {
-        constexpr size_t charWidth = 8;
+        value = static_cast<Value>(i16_from_hex(&Eval::rawBaeContent[n]));
 
-        int16_t bits = 0;
-
-        for (size_t i = 0; i < sizeof(int16_t); ++i)
+        if (abs(value) > 1000)
         {
-            const size_t shift = charWidth * i;
-            assert(sizeof(Eval::rawBaeContent) > n + 1);
-            const char hexString[] = {Eval::rawBaeContent[n], Eval::rawBaeContent[n + 1], '\0'};
-            uint16_t   tmp         = std::strtol(hexString, nullptr, 16);
-            tmp <<= shift;
-            bits |= *reinterpret_cast<int16_t*>(&tmp);
-            n += 2;
+            std::cout << "----------------" << std::endl;
+            std::cout << "value: " << value << std::endl;
+            std::cout << "asI16: " << i16_from_hex(&Eval::rawBaeContent[n]) << std::endl;
+            std::cout << "asI16 in (): " << i16_from_hex(&(Eval::rawBaeContent[n])) << std::endl;
         }
-
-        value = static_cast<Value>(bits);
+        n += 4;
     });
 
     return baeParams;
@@ -164,6 +180,12 @@ concept EvalState = std::same_as<T, EvalValue> || std::same_as<T, EvalGradient>;
                 value = -value; \
             } \
             (*(evalState))[phase] += value; \
+            if (false) \
+                std::cout << #param << ": baeParams[phase].param: " << baeParams[phase].param \
+                          << std::endl; \
+            if (false) \
+                std::cout << #param << ": (*(evalState))[phase]: " << (*(evalState))[phase] \
+                          << std::endl; \
         } \
     }
 
@@ -439,8 +461,8 @@ Value absolute_evaluate(const Position& pos) {
     const int phase = popcount(pos.pieces());
     Value     result =
       (evalState[Phase::opening] * phase + evalState[Phase::endgame] * (32 - phase)) / 32;
-    result *= 25;  // to make the scaling be closer to what the classical eval does
-    result /= 10;
+    // result *= 25;  // to make the scaling be closer to what the classical eval does
+    // result /= 10;
     // std::cout << "result: " << result << std::endl;
     assert(abs(result) < VALUE_KNOWN_WIN);
     return result;
@@ -473,6 +495,29 @@ float winningProbabilityDerivative(const Value value) {
 
 
 #ifdef EVAL_TUNING
+
+void Eval::writeBaeParams() {
+    std::ofstream out("src/bae_params.h");
+    out << "#pragma once\nnamespace Eval { constexpr char rawBaeContent[] = R\"(";
+
+    baeParams.doForAll([&out](auto& value) {
+        const auto    asI16       = static_cast<int16_t>(value);
+        const auto    asHex       = to_hex(asI16);
+        const int16_t backFromHex = i16_from_hex(asHex.c_str());
+        if (abs(asI16) > 1000)
+        {
+            std::cout << "----------------" << std::endl;
+            std::cout << "value: " << value << std::endl;
+            std::cout << "asI16: " << asI16 << std::endl;
+            std::cout << "asHex: " << asHex << std::endl;
+            std::cout << "backFromHex: " << backFromHex << std::endl;
+        }
+        out << to_hex(static_cast<int16_t>(value));
+    });
+
+    out << ")\"; }\n" << std::flush;
+}
+
 float Eval::update_gradient(const Position& pos,
                             const Value     targetValue,
                             const float     learning_rate) {
@@ -493,6 +538,7 @@ float Eval::update_gradient(const Position& pos,
 
     return currentError;
 }
+
 #endif
 
 Value Eval::evaluate(const Position& pos) {

@@ -56,10 +56,7 @@ OBJ = $(CPP:$(SRC_DIR)%.cpp=$(BUILD_DIR)%.o)
 
 build: $(BUILD_DIR)$(NAME)
 
-src/bae_params.h: embed_eval_binary.py bae_params.bin
-	python ./embed_eval_binary.py
-
-$(BUILD_DIR)$(NAME): src/bae_params.h $(OBJ)
+$(BUILD_DIR)$(NAME): $(OBJ)
 	$(COMP) -o $(BUILD_DIR)$(NAME) $(OBJ) $(FLAGS) $(LFLAGS)
 
 -include $(OBJ:%.o=%.d)
@@ -77,4 +74,3 @@ clean:
 	$(if $(DEBUG_BUILD_DIR),,$(error DEBUG_BUILD_DIR is not set))
 	-rm -rf ./$(RELEASE_BUILD_DIR)
 	-rm -rf ./$(DEBUG_BUILD_DIR)
-	-rm src/bae_params.h

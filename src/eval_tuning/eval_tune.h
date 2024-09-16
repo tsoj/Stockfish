@@ -11,7 +11,7 @@ inline void eval_tune() {
 
     constexpr size_t  positionBufferSize = 1'000'000;
     constexpr float   errorDecay         = 1.0F / 1000000.0F;
-    constexpr int64_t steps              = 10'000'000'000;
+    constexpr int64_t steps              = 20'000'000;//10'000'000'000;
     constexpr float   startLr            = 10.0F;
     constexpr float   finalLr            = 0.05F;
     const double      lrDecay            = std::pow<double>(finalLr / startLr, 1.0 / steps);
@@ -45,6 +45,10 @@ inline void eval_tune() {
         i += 1;
         const size_t index = uniformDist(e1);
 
+        // std::cout << "-------------------------" << std::endl;
+        // std::cout << positionBuffer.at(index).pos.fen() << std::endl;
+        // std::cout << positionBuffer.at(index).score << std::endl;
+
         const float currentError =
           Eval::update_gradient(positionBuffer.at(index).pos, static_cast<Value>(positionBuffer.at(index).score), static_cast<float>(lr));
 
@@ -52,7 +56,7 @@ inline void eval_tune() {
         lr *= lrDecay;
 
         if ((i % 1'000'000) == 0)
-            std::cout << "\r" << i / 1'000'000 << "M/" << steps / 1'000'000 << " steps, lr: " << lr
+            std::cout << "\r" << i / 1'000'000 << "M/" << steps / 1'000'000 << "M steps, lr: " << lr
                       << ", error: " << error << "                     " << std::flush;
 
         if (i >= steps)
@@ -61,6 +65,8 @@ inline void eval_tune() {
         positionBuffer.at(index) = reader.next();
     }
     std::cout << std::endl;
+    Eval::writeBaeParams();
+
     std::cout << "Finished :D" << std::endl;
     // TODO(tsoj) write bae params to file
 }
