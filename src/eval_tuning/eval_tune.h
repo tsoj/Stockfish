@@ -4,7 +4,7 @@
 
 
 inline void eval_tune() {
-    binpack::CompressedTrainingDataEntryReader reader("hello");
+    binpack::CompressedTrainingDataEntryReader reader("test77-dec2021-16tb7p.no-db.min.binpack");
     while (reader.hasNext())
     {
         auto e = reader.next();

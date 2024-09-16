@@ -89,22 +89,23 @@ constexpr std::array<std::array<uint8_t, 8>, 256> nthSetBitIndex = []() {
 }
 
 inline int nthSetBitIndex(uint64_t v, uint64_t n) {
-    uint64_t shift = 0;
 
-    uint64_t p     = std::popcount(v & 0xFFFFFFFFull);
-    uint64_t pmask = static_cast<uint64_t>(p > n) - 1ull;
+    std::uint64_t shift = 0;
+
+    std::uint64_t p = std::popcount(v & 0xFFFFFFFFull);
+    std::uint64_t pmask = static_cast<std::uint64_t>(p > n) - 1ull;
     v >>= 32 & pmask;
     shift += 32 & pmask;
     n -= p & pmask;
 
-    p     = std::popcount(v & 0xFFFFull);
-    pmask = static_cast<uint64_t>(p > n) - 1ull;
+    p = std::popcount(v & 0xFFFFull);
+    pmask = static_cast<std::uint64_t>(p > n) - 1ull;
     v >>= 16 & pmask;
     shift += 16 & pmask;
     n -= p & pmask;
 
-    p     = std::popcount(v & 0xFFull);
-    pmask = static_cast<uint64_t>(p > n) - 1ull;
+    p = std::popcount(v & 0xFFull);
+    pmask = static_cast<std::uint64_t>(p > n) - 1ull;
     shift += 8 & pmask;
     v >>= 8 & pmask;
     n -= p & pmask;
@@ -219,28 +220,49 @@ struct XCompressedPosition {
 static_assert(sizeof(XCompressedPosition) == 24);
 static_assert(std::is_trivially_copyable_v<XCompressedPosition>);
 
-[[nodiscard]] inline Position XCompressedPosition::decompress() const {
-    Position pos;
+inline void set_castling_right(Position* pos, Color c, Square rfrom) {
+    assert(pos != nullptr);
+    Square kfrom = c == WHITE ? SQ_E1 : SQ_E8;
+    ;
+    CastlingRights cr = c & (kfrom < rfrom ? KING_SIDE : QUEEN_SIDE);
 
-    const auto decompressPiece = [&pos](Square sq, uint8_t nibble) {
+    pos->st->castlingRights |= cr;
+    pos->castlingRightsMask[kfrom] |= cr;
+    pos->castlingRightsMask[rfrom] |= cr;
+    pos->castlingRookSquare[cr] = rfrom;
+
+    Square kto = relative_square(c, cr & KING_SIDE ? SQ_G1 : SQ_C1);
+    Square rto = relative_square(c, cr & KING_SIDE ? SQ_F1 : SQ_D1);
+
+    pos->castlingPath[cr] =
+      (between_bb(rfrom, rto) | between_bb(kfrom, kto) | rto | kto) & ~(kfrom | rfrom);
+}
+
+[[nodiscard]] inline Position XCompressedPosition::decompress() const {
+    std::cout << "decompress start" << std::endl;
+    Position pos{};
+    std::cout << "ep square: " << UCI::square(pos.ep_square()) << std::endl;
+
+
+    const auto decompressPiece = [&pos](const Square sq, const uint8_t nibble) {
+        std::cout << "square: " << UCI::square(sq) << ", nibble: " << static_cast<int>(nibble)
+                  << std::endl;
         switch (nibble)
         {
-        case 0 :
-        case 1 :
-        case 2 :
-        case 3 :
-        case 4 :
-        case 5 :
-        case 6 :
-        case 7 :
-        case 8 :
-        case 9 :
-        case 10 :
-        case 11 : {
-            pos.put_piece(static_cast<Piece>(W_PAWN + nibble), sq);
-            return;
-        }
-
+            // clang-format off
+        case 0 : pos.put_piece(W_PAWN, sq); return;
+        case 1 : pos.put_piece(B_PAWN, sq); return;
+        case 2 : pos.put_piece(W_KNIGHT, sq); return;
+        case 3 : pos.put_piece(B_KNIGHT, sq); return;
+        case 4 : pos.put_piece(W_BISHOP, sq); return;
+        case 5 : pos.put_piece(B_BISHOP, sq); return;
+        case 6 : pos.put_piece(W_ROOK, sq); return;
+        case 7 : pos.put_piece(B_ROOK, sq); return;
+        case 8 : pos.put_piece(W_QUEEN, sq); return;
+        case 9 : pos.put_piece(B_QUEEN, sq); return;
+        case 10 : pos.put_piece(W_KING, sq); return;
+        case 11 : pos.put_piece(B_KING, sq); return;
+        // clang-format om
         case 12 : {
             const Rank rank = rank_of(sq);
             if (rank == RANK_4)
@@ -261,12 +283,12 @@ static_assert(std::is_trivially_copyable_v<XCompressedPosition>);
             pos.put_piece(W_ROOK, sq);
             if (sq == SQ_A1)
             {
-                pos.set_castling_right(WHITE, SQ_A1);
+                set_castling_right(&pos, WHITE, SQ_A1);
             }
             else
             {
                 assert(sq == SQ_H1);
-                pos.set_castling_right(WHITE, SQ_H1);
+                set_castling_right(&pos, WHITE, SQ_H1);
             }
             return;
         }
@@ -275,12 +297,12 @@ static_assert(std::is_trivially_copyable_v<XCompressedPosition>);
             pos.put_piece(B_ROOK, sq);
             if (sq == SQ_A8)
             {
-                pos.set_castling_right(BLACK, SQ_A8);
+                set_castling_right(&pos, BLACK, SQ_A8);
             }
             else
             {
                 assert(sq == SQ_H8);
-                pos.set_castling_right(BLACK, SQ_H8);
+                set_castling_right(&pos, BLACK, SQ_H8);
             }
             return;
         }
@@ -309,6 +331,7 @@ static_assert(std::is_trivially_copyable_v<XCompressedPosition>);
         decompressPiece(lsb(occ), m_packedState[i] >> 4);
         occ &= occ - 1;
     }
+    std::cout << "decompress finish" << std::endl;
 
     return pos;
 }
@@ -376,8 +399,12 @@ struct XCompressedMove {
                 }
             }();
 
+
+
+            std::cout << "some pos: " << pos.fen() << std::endl;
             for (const auto& m : MoveList<LEGAL>(pos))
             {
+                std::cout << "legal move: " << UCI::move(m, false) << std::endl;
                 if (from_sq(m) == from && to_sq(m) == to && type_of(m) == type
                     && (type != PROMOTION || promotion_type(m) == type_of(promotedPiece)))
                 {
@@ -576,10 +603,20 @@ struct PackedMoveScoreListReader {
 
     [[nodiscard]] TrainingDataEntry nextEntry() {
         auto newSt = std::make_unique<StateInfo>();
+        Color us = entry.pos.side_to_move();
+        Piece  captured = type_of(entry.move) == ENPASSANT ? make_piece(~us, PAWN) : entry.pos.piece_on(to_sq(entry.move));
+        std::cout << entry.pos.fen() << std::endl;
+        std::cout << UCI::move(entry.move, false) << ", to: " << to_sq(entry.move) << std::endl;
+        std::cout << captured << std::endl;
+        std::cout << type_of(entry.move) << std::endl;
+        assert(captured == NO_PIECE || color_of(captured) == (type_of(entry.move) != CASTLING ? ~us : us));
+        std::cout << "pos before: " << entry.pos.fen() << std::endl;
         entry.pos.do_move(entry.move, *newSt);
+        std::cout << "pos after: " << entry.pos.fen() << std::endl;
         entry.pos.own_st = std::move(newSt);
 
         auto [move, score] = nextMoveScore(entry.pos);
+        std::cout << "next move: " << UCI::move(move, false) << ", to: " << to_sq(move) << std::endl;
         entry.move         = move;
         entry.score        = score;
         entry.ply += 1;
@@ -597,8 +634,10 @@ struct PackedMoveScoreListReader {
         const Bitboard ourPieces   = pos.pieces(sideToMove);
         const Bitboard theirPieces = pos.pieces(~sideToMove);
         const Bitboard occupied    = ourPieces | theirPieces;
+        std::cout << "sideToMove: " << sideToMove << std::endl;
 
         const auto   pieceId = extractBitsLE8(usedBitsSafe(popcount(ourPieces)));
+        std::cout << "pieceId: " << static_cast<int>(pieceId) << std::endl;
         const Square from    = Square(util::nthSetBitIndex(ourPieces, pieceId));
 
         const PieceType pt = type_of(pos.piece_on(from));
@@ -609,19 +648,25 @@ struct PackedMoveScoreListReader {
             const Rank      startRank     = pos.side_to_move() == WHITE ? RANK_2 : RANK_7;
             const Direction forward       = sideToMove == WHITE ? NORTH : SOUTH;
 
+            std::cout << "PAWN" << std::endl;
+            std::cout << pos.fen() << std::endl;
+
             const Square epSquare = pos.ep_square();
 
             Bitboard attackTargets = theirPieces;
             if (epSquare != SQ_NONE)
             {
+                std::cout << "PAWN A" << std::endl;
                 attackTargets |= square_bb(epSquare);
             }
 
             Bitboard destinations = pawn_attacks_bb(sideToMove, from) & attackTargets;
 
             const Square sqForward = from + forward;
+            std::cout << "sqForward: "<< UCI::square(sqForward) << std::endl;
             if ((occupied & square_bb(sqForward)) == 0)
             {
+                std::cout << "PAWN B" << std::endl;
                 destinations |= square_bb(sqForward);
                 if (rank_of(from) == startRank && (occupied & square_bb(sqForward + forward)) == 0)
                 {
@@ -630,6 +675,7 @@ struct PackedMoveScoreListReader {
             }
 
             const auto destinationsCount = popcount(destinations);
+            std::cout << "destinationsCount: "<< destinationsCount << std::endl;
             if (rank_of(from) == promotionRank)
             {
                 const auto      moveId = extractBitsLE8(usedBitsSafe(destinationsCount * 4ull));
@@ -637,6 +683,7 @@ struct PackedMoveScoreListReader {
                 const Square    to = Square(util::nthSetBitIndex(destinations, moveId / 4ull));
 
                 // move = chess::Move::promotion(from, to, promotedPiece);
+                std::cout << "PAWN C" << std::endl;
                 move = make<PROMOTION>(from, to, promotedPiece);
                 break;
             }
@@ -646,11 +693,13 @@ struct PackedMoveScoreListReader {
                 const Square to     = Square(util::nthSetBitIndex(destinations, moveId));
                 if (to == epSquare)
                 {
+                    std::cout << "PAWN D" << std::endl;
                     move = make<ENPASSANT>(from, to);
                     break;
                 }
                 else
                 {
+                    std::cout << "PAWN E, from: " << from << " (" << UCI::square(from) << "), to: " << to << std::endl;
                     move = make_move(from, to);
                     break;
                 }
@@ -691,7 +740,8 @@ struct PackedMoveScoreListReader {
         default : {
             const Bitboard attacks = attacks_bb(pt, from, occupied) & ~ourPieces;
             const auto     moveId  = extractBitsLE8(usedBitsSafe(popcount(attacks)));
-            Square         to      = Square(util::nthSetBitIndex(popcount(attacks), moveId));
+            Square         to      = Square(util::nthSetBitIndex(attacks, moveId));
+            std::cout << "A: from: " << from << ", to: " << to << ", piece type: " << pt << std::endl;
             move                   = make_move(from, to);
             break;
         }
@@ -721,6 +771,7 @@ struct PackedMoveScoreListReader {
     std::size_t offset        = 0;
     auto        compressedPos = XCompressedPosition::readFromBigEndian(packed.bytes);
     plain.pos                 = compressedPos.decompress();
+    std::cout << plain.pos.fen() << std::endl;
     offset += sizeof(compressedPos);
     auto compressedMove = XCompressedMove::readFromBigEndian(packed.bytes + offset);
     plain.move          = compressedMove.decompress(plain.pos);

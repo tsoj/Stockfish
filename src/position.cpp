@@ -173,6 +173,7 @@ void Position::set_empty(StateInfo* si, Thread* th) {
     }
 
     std::memset(st, 0, sizeof(StateInfo));
+    st->epSquare = SQ_NONE;
 }
 
 /// Position::set() initializes the position object with the given FEN string.
@@ -705,7 +706,10 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
     assert(is_ok(m));
     assert(&newSt != st);
 
-    thisThread->nodes.fetch_add(1, std::memory_order_relaxed);
+    if (thisThread != nullptr)
+    {
+        thisThread->nodes.fetch_add(1, std::memory_order_relaxed);
+    }
     Key k = st->key ^ Zobrist::side;
 
     // Copy some fields of the old state to our new StateInfo object except the
@@ -777,7 +781,10 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
         // Update material hash key and prefetch access to materialTable
         k ^= Zobrist::psq[captured][capsq];
         st->materialKey ^= Zobrist::psq[captured][pieceCount[captured]];
-        prefetch(thisThread->materialTable[st->materialKey]);
+        if (thisThread != nullptr)
+        {
+            prefetch(thisThread->materialTable[st->materialKey]);
+        }
 
         // Reset rule 50 counter
         st->rule50 = 0;
