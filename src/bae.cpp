@@ -2,7 +2,10 @@
 #include <array>
 #include <cassert>
 #include <initializer_list>
+#include <type_traits>
 #include <vector>
+#include <functional>
+#include <iostream>
 
 #include "bae.h"
 #include "bitboard.h"
@@ -17,31 +20,74 @@ enum class Phase : size_t {
     endgame = 1
 };
 
+template<typename ValueType>
 struct BaeParamsSinglePhase {
     // clang-format off
-    std::array<std::array<std::array<std::array<std::array<std::array<std::array<Value, 64>, 6>, 64>, 6> , 2> , 4>, 2> pieceRelativePst;
-    std::array<std::array<Value, 19683>, 30> pawnStructureBonus;
-    std::array<Value, 59049> pieceComboBonus;
+    std::array<std::array<std::array<std::array<std::array<std::array<std::array<ValueType, 64>, 6>, 64>, 6> , 2> , 4>, 2> pieceRelativePst;
+    std::array<std::array<ValueType, 19683>, 30> pawnStructureBonus;
+    std::array<ValueType, 59049> pieceComboBonus;
     // clang-format on
 };
 
+template<typename ValueType>
 class BaeParams {
-    std::vector<BaeParamsSinglePhase> params = std::vector<BaeParamsSinglePhase>(2);
+    std::vector<BaeParamsSinglePhase<ValueType>> params =
+      std::vector<BaeParamsSinglePhase<ValueType>>(2);
 
    public:
-    BaeParamsSinglePhase& operator[](const Phase phase) {
+    BaeParamsSinglePhase<ValueType>& operator[](const Phase phase) {
         return params[static_cast<size_t>(phase)];
     }
-    const BaeParamsSinglePhase& operator[](const Phase phase) const {
+    const BaeParamsSinglePhase<ValueType>& operator[](const Phase phase) const {
         return params[static_cast<size_t>(phase)];
+    }
+
+
+    void doForAll(const std::function<void(ValueType&)>& op) {
+        for (auto& singlePhase : params)
+        {
+            // clang-format off
+            for(auto& a : singlePhase.pieceRelativePst)
+            for(auto& b : a)
+            for(auto& c : b)
+            for(auto& d : c)
+            for(auto& e : d)
+            for(auto& f : e)
+            for(auto& g : f)
+            {
+                op(g);
+            }
+
+            for(auto& a : singlePhase.pawnStructureBonus)
+            for(auto& b : a)
+            {
+                op(b);
+            }
+
+            for(auto& a : singlePhase.pieceComboBonus)
+            {
+                op(a);
+            }
+            // clang-format on
+        }
     }
 };
 
-const BaeParams baeParams = []() {
-    BaeParams baeParams{};
-    size_t    n = 0;
 
-    const auto nextValue = [&n]() {
+#ifdef EVAL_TUNING
+BaeParams<float> baeParams = []() {
+    BaeParams<F> baeParams{};
+    std::memset(&baeParams[Phase::opening], 0, sizeof(baeParams[Phase::opening]));
+    std::memset(&baeParams[Phase::endgame], 0, sizeof(baeParams[Phase::endgame]));
+    return baeParams;
+}();
+#else
+const BaeParams<Value> baeParams = []() {
+    BaeParams<Value> baeParams{};
+
+    size_t n = 0;
+
+    baeParams.doForAll([&](Value& value) {
         constexpr size_t charWidth = 8;
 
         int16_t bits = 0;
@@ -56,54 +102,53 @@ const BaeParams baeParams = []() {
             bits |= *reinterpret_cast<int16_t*>(&tmp);
             n += 2;
         }
-        return static_cast<Value>(bits);
-    };
-    for (Phase phase : {Phase::opening, Phase::endgame})
-    {
-        // clang-format off
-        for(auto& a : baeParams[phase].pieceRelativePst)
-        for(auto& b : a)
-        for(auto& c : b)
-        for(auto& d : c)
-        for(auto& e : d)
-        for(auto& f : e)
-        for(auto& g : f)
-        {
-            g = nextValue();
-        }
 
-        for(auto& a : baeParams[phase].pawnStructureBonus)
-        for(auto& b : a)
-        {
-            b = nextValue();
-        }
-
-        for(auto& a : baeParams[phase].pieceComboBonus)
-        {
-            a = nextValue();
-        }
-        // clang-format on
-    }
+        value = static_cast<Value>(bits);
+    });
 
     return baeParams;
 }();
+#endif
 
-class EvalState {
+class EvalValue {
     std::array<Value, 2> value = {VALUE_ZERO, VALUE_ZERO};
 
    public:
     Value& operator[](const Phase phase) { return value[static_cast<size_t>(phase)]; }
 };
 
+
+struct EvalGradient {
+    float g;
+    float gamePhaseFactor;
+};
+
+template<typename T>
+concept EvalState = std::same_as<T, EvalValue> || std::same_as<T, EvalGradient>;
+
 #define ADD_VALUE(evalState, goodFor, param) \
-    for (Phase phase : {Phase::opening, Phase::endgame}) \
+    if constexpr (std::is_same_v<EvalGradient, std::remove_cvref_t<decltype(*evalState)>>) \
     { \
-        Value value = baeParams[phase].param; \
-        if constexpr ((goodFor) == BLACK) \
+        const float f = ((goodFor) == BLACK ? -1.0F : 1.0F) * evalState->g; \
+        baeParams[Phase::opening].param += f * evalState->gamePhaseFactor; \
+        baeParams[Phase::endgame].param += f * (1.0F - evalState->gamePhaseFactor); \
+        if (abs(baeParams[Phase::opening].param) >= 0.1) \
         { \
-            value = -value; \
+            std::cout << "baeParams[Phase::opening].param: " << #param << "; " \
+                      << baeParams[Phase::opening].param << std::endl; \
         } \
-        (*(evalState))[phase] += value; \
+    } \
+    else \
+    { \
+        for (Phase phase : {Phase::opening, Phase::endgame}) \
+        { \
+            Value value = static_cast<Value>(baeParams[phase].param); \
+            if constexpr ((goodFor) == BLACK) \
+            { \
+                value = -value; \
+            } \
+            (*(evalState))[phase] += value; \
+        } \
     }
 
 Square color_conditional_mirror_vertically(const Square square, const Color color) {
@@ -211,7 +256,7 @@ Square color_conditional_mirror_vertically(const Square square, const Color colo
         } \
     }
 
-template<PieceType ourPiece, Color us>
+template<PieceType ourPiece, Color us, EvalState EvalState>
 void piece_relative_pst(const Position& pos, EvalState* const evalState, const Square ourSquareIn) {
 
     const Square ourSquare = color_conditional_mirror_vertically(ourSquareIn, us);
@@ -241,7 +286,7 @@ void piece_relative_pst(const Position& pos, EvalState* const evalState, const S
 
 #undef FOR_PIECE_RANGE
 
-template<PieceType piece, Color color>
+template<PieceType piece, Color color, EvalState EvalState>
 void evaluate_piece(const Position& pos, EvalState* const evalState, const Square square) {
     if constexpr (piece == PAWN)
     {
@@ -256,7 +301,7 @@ void evaluate_piece(const Position& pos, EvalState* const evalState, const Squar
     }
 }
 
-template<PieceType piece, Color color>
+template<PieceType piece, Color color, EvalState EvalState>
 void evaluate_piece_type_from_whites_perspective(const Position& pos, EvalState* const evalState) {
 
     const Square* squares = pos.squares<piece>(color);
@@ -266,13 +311,14 @@ void evaluate_piece_type_from_whites_perspective(const Position& pos, EvalState*
     }
 }
 
-template<PieceType piece>
+template<PieceType piece, EvalState EvalState>
 void evaluate_piece_type_from_whites_perspective(const Position& pos, EvalState* const evalState) {
 
     evaluate_piece_type_from_whites_perspective<piece, WHITE>(pos, evalState);
     evaluate_piece_type_from_whites_perspective<piece, BLACK>(pos, evalState);
 }
 
+template<EvalState EvalState>
 void evaluate_piece_type_from_whites_perspective(const Position& pos, EvalState* const evalState) {
 
     evaluate_piece_type_from_whites_perspective<PAWN>(pos, evalState);
@@ -317,6 +363,7 @@ size_t pawn_mask_index(const Position& pos, const Square square) {
     return result;
 }
 
+template<EvalState EvalState>
 void evaluate_3x3_pawn_structure_from_whites_perspective(const Position&  pos,
                                                          EvalState* const evalState) {
     for (const Square square : {
@@ -351,6 +398,7 @@ size_t piece_combo_index(const Position& pos) {
     return result;
 }
 
+template<EvalState EvalState>
 void piece_combo_bonus_white_perspective(const Position& pos, EvalState* const evalState) {
     if (std::max(popcount(pos.pieces(WHITE, PAWN)), popcount(pos.pieces(BLACK, PAWN))) <= 2)
     {
@@ -362,6 +410,7 @@ void piece_combo_bonus_white_perspective(const Position& pos, EvalState* const e
 
 #undef ADD_VALUE
 
+template<EvalState EvalState>
 void absolute_evaluate(const Position& pos, EvalState* const evalState) {
     evaluate_piece_type_from_whites_perspective(pos, evalState);
     evaluate_3x3_pawn_structure_from_whites_perspective(pos, evalState);
@@ -369,18 +418,66 @@ void absolute_evaluate(const Position& pos, EvalState* const evalState) {
 }
 
 Value absolute_evaluate(const Position& pos) {
-    EvalState evalState{};
+    EvalValue evalState{};
     absolute_evaluate(pos, &evalState);
     const int phase = popcount(pos.pieces());
     Value     result =
       (evalState[Phase::opening] * phase + evalState[Phase::endgame] * (32 - phase)) / 32;
-    result *= 25; // to make the scaling be closer to what the classical eval does
+    result *= 25;  // to make the scaling be closer to what the classical eval does
     result /= 10;
+    // std::cout << "result: " << result << std::endl;
     assert(abs(result) < VALUE_KNOWN_WIN);
     return result;
 }
 
+#ifdef EVAL_TUNING
+float error(const float outcome, const float estimate) {
+    return std::pow(outcome - estimate, 2.0F);
+}
+
+float errorDerivative(const float outcome, const float estimate) {
+    return 2.0F * (outcome - estimate);
+}
+
+constexpr float k = 400.0;
+
+float winningProbability(const Value value) {
+    return 1.0F / (1.0F + std::pow(10.0F, -((static_cast<float>(value)) / k)));
+}
+
+float winningProbabilityDerivative(const Value value) {
+    return (std::log(10.0F) * std::pow(2.0F, -2.0F - ((static_cast<float>(value)) / k))
+            * std::pow(5.0F, -((static_cast<float>(value)) / k)))
+         / std::pow(1.0F + std::pow(10.0F, -((static_cast<float>(value)) / k)), 2.0F);
+}
+#endif
+
+
 }  // namespace
+
+
+#ifdef EVAL_TUNING
+float Eval::update_gradient(const Position& pos,
+                            const Value     targetValue,
+                            const float     learning_rate) {
+    const int   phase              = popcount(pos.pieces());
+    const Value currentValue       = absolute_evaluate(pos);
+    const float targetProbability  = winningProbability(targetValue);
+    const float currentProbability = winningProbability(currentValue);
+    const float currentError       = error(targetProbability, currentProbability);
+
+    EvalGradient evalState{.g               = static_cast<float>(phase) / 32.0F,
+                           .gamePhaseFactor = learning_rate
+                                            * errorDerivative(targetProbability, currentProbability)
+                                            * winningProbabilityDerivative(currentValue)};
+
+    std::cout << evalState.g << ", " << evalState.gamePhaseFactor << std::endl;
+
+    absolute_evaluate(pos, &evalState);
+
+    return currentError;
+}
+#endif
 
 Value Eval::evaluate(const Position& pos) {
     Value result = absolute_evaluate(pos);
