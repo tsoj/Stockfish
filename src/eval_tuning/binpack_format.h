@@ -58,10 +58,11 @@ struct parser_settings {
 };
 
 namespace util {
+
 inline std::size_t usedBits(std::size_t value) {
     if (value == 0)
         return 0;
-    return std::countl_zero(value) + 1;
+    return (63 ^ std::countl_zero(value)) + 1;
 }
 
 namespace lookup {
@@ -92,19 +93,19 @@ inline int nthSetBitIndex(uint64_t v, uint64_t n) {
 
     std::uint64_t shift = 0;
 
-    std::uint64_t p = std::popcount(v & 0xFFFFFFFFull);
+    std::uint64_t p     = std::popcount(v & 0xFFFFFFFFull);
     std::uint64_t pmask = static_cast<std::uint64_t>(p > n) - 1ull;
     v >>= 32 & pmask;
     shift += 32 & pmask;
     n -= p & pmask;
 
-    p = std::popcount(v & 0xFFFFull);
+    p     = std::popcount(v & 0xFFFFull);
     pmask = static_cast<std::uint64_t>(p > n) - 1ull;
     v >>= 16 & pmask;
     shift += 16 & pmask;
     n -= p & pmask;
 
-    p = std::popcount(v & 0xFFull);
+    p     = std::popcount(v & 0xFFull);
     pmask = static_cast<std::uint64_t>(p > n) - 1ull;
     shift += 8 & pmask;
     v >>= 8 & pmask;
@@ -637,8 +638,12 @@ struct PackedMoveScoreListReader {
         std::cout << "sideToMove: " << sideToMove << std::endl;
 
         const auto   pieceId = extractBitsLE8(usedBitsSafe(popcount(ourPieces)));
+        std::cout << "ourPieces: " << static_cast<uint64_t>(ourPieces) << std::endl;
+        std::cout << "ourPieces.count(): " << popcount(ourPieces) << std::endl;
+        std::cout << "usedBitsSafe(popcount(ourPieces)): " << usedBitsSafe(popcount(ourPieces)) << std::endl;
         std::cout << "pieceId: " << static_cast<int>(pieceId) << std::endl;
         const Square from    = Square(util::nthSetBitIndex(ourPieces, pieceId));
+        std::cout << "from: " << from << std::endl;
 
         const PieceType pt = type_of(pos.piece_on(from));
         switch (pt)
