@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <vector>
 #include <functional>
+#include <cmath>
 #include <iostream>
 
 #include "bae.h"
@@ -76,9 +77,8 @@ class BaeParams {
 
 #ifdef EVAL_TUNING
 BaeParams<float> baeParams = []() {
-    BaeParams<F> baeParams{};
-    std::memset(&baeParams[Phase::opening], 0, sizeof(baeParams[Phase::opening]));
-    std::memset(&baeParams[Phase::endgame], 0, sizeof(baeParams[Phase::endgame]));
+    BaeParams<float> baeParams{};
+    baeParams.doForAll([](float& value) { value = 0.0; });
     return baeParams;
 }();
 #else
@@ -119,8 +119,8 @@ class EvalValue {
 
 
 struct EvalGradient {
-    float g;
     float gamePhaseFactor;
+    float g;
 };
 
 template<typename T>
@@ -132,16 +132,32 @@ concept EvalState = std::same_as<T, EvalValue> || std::same_as<T, EvalGradient>;
         const float f = ((goodFor) == BLACK ? -1.0F : 1.0F) * evalState->g; \
         baeParams[Phase::opening].param += f * evalState->gamePhaseFactor; \
         baeParams[Phase::endgame].param += f * (1.0F - evalState->gamePhaseFactor); \
-        if (abs(baeParams[Phase::opening].param) >= 0.1) \
+        if (abs(baeParams[Phase::opening].param) >= 0.1 && false) \
         { \
             std::cout << "baeParams[Phase::opening].param: " << #param << "; " \
                       << baeParams[Phase::opening].param << std::endl; \
+            assert(false); \
+        } \
+        if (abs(baeParams[Phase::endgame].param) >= 0.1 && false) \
+        { \
+            std::cout << "baeParams[Phase::endgame].param: " << #param << "; " \
+                      << baeParams[Phase::endgame].param << std::endl; \
+            std::cout << "f * (1.0F - evalState->gamePhaseFactor): " \
+                      << f * (1.0F - evalState->gamePhaseFactor) << std::endl; \
+            std::cout << "evalState->g: " << evalState->g << std::endl; \
+            assert(false); \
         } \
     } \
     else \
     { \
         for (Phase phase : {Phase::opening, Phase::endgame}) \
         { \
+            if (abs(baeParams[phase].param) >= 0.1 && false) \
+            { \
+                std::cout << "baeParams[Phase::opening].param: " << #param << "; " \
+                          << baeParams[Phase::opening].param << std::endl; \
+                assert(false); \
+            } \
             Value value = static_cast<Value>(baeParams[phase].param); \
             if constexpr ((goodFor) == BLACK) \
             { \
@@ -466,12 +482,12 @@ float Eval::update_gradient(const Position& pos,
     const float currentProbability = winningProbability(currentValue);
     const float currentError       = error(targetProbability, currentProbability);
 
-    EvalGradient evalState{.g               = static_cast<float>(phase) / 32.0F,
-                           .gamePhaseFactor = learning_rate
-                                            * errorDerivative(targetProbability, currentProbability)
-                                            * winningProbabilityDerivative(currentValue)};
+    EvalGradient evalState{.gamePhaseFactor = static_cast<float>(phase) / 32.0F,
+                           .g               = learning_rate
+                              * errorDerivative(targetProbability, currentProbability)
+                              * winningProbabilityDerivative(currentValue)};
 
-    std::cout << evalState.g << ", " << evalState.gamePhaseFactor << std::endl;
+    // std::cout << evalState.gamePhaseFactor << ", " << evalState.g << std::endl;
 
     absolute_evaluate(pos, &evalState);
 
