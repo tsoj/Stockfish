@@ -240,14 +240,14 @@ inline void set_castling_right(Position* pos, Color c, Square rfrom) {
 }
 
 [[nodiscard]] inline Position XCompressedPosition::decompress() const {
-    std::cout << "decompress start" << std::endl;
+    //std::cout << "decompress start" << std::endl;
     Position pos{};
-    std::cout << "ep square: " << UCI::square(pos.ep_square()) << std::endl;
+    //std::cout << "ep square: " << UCI::square(pos.ep_square()) << std::endl;
 
 
     const auto decompressPiece = [&pos](const Square sq, const uint8_t nibble) {
-        std::cout << "square: " << UCI::square(sq) << ", nibble: " << static_cast<int>(nibble)
-                  << std::endl;
+        //std::cout << "square: " << UCI::square(sq) << ", nibble: " << static_cast<int>(nibble)
+        //          << std::endl;
         switch (nibble)
         {
             // clang-format off
@@ -273,7 +273,7 @@ inline void set_castling_right(Position* pos, Color c, Square rfrom) {
             }
             else
             {
-                assert(rank == RANK_4);
+                assert(rank == RANK_5);
                 pos.put_piece(B_PAWN, sq);
                 pos.st->epSquare = sq + NORTH;
             }
@@ -332,7 +332,7 @@ inline void set_castling_right(Position* pos, Color c, Square rfrom) {
         decompressPiece(lsb(occ), m_packedState[i] >> 4);
         occ &= occ - 1;
     }
-    std::cout << "decompress finish" << std::endl;
+    //std::cout << "decompress finish" << std::endl;
 
     return pos;
 }
@@ -402,10 +402,10 @@ struct XCompressedMove {
 
 
 
-            std::cout << "some pos: " << pos.fen() << std::endl;
+            //std::cout << "some pos: " << pos.fen() << std::endl;
             for (const auto& m : MoveList<LEGAL>(pos))
             {
-                std::cout << "legal move: " << UCI::move(m, false) << std::endl;
+                //std::cout << "legal move: " << UCI::move(m, false) << std::endl;
                 if (from_sq(m) == from && to_sq(m) == to && type_of(m) == type
                     && (type != PROMOTION || promotion_type(m) == type_of(promotedPiece)))
                 {
@@ -544,6 +544,7 @@ struct PackedTrainingDataEntry {
 
 static constexpr std::size_t scoreVleBlockSize = 4;
 
+int aoisjdoasi = 0;
 struct PackedMoveScoreListReader {
     TrainingDataEntry entry;
     uint16_t          numPlies;
@@ -602,22 +603,28 @@ struct PackedMoveScoreListReader {
         return v;
     }
 
+
     [[nodiscard]] TrainingDataEntry nextEntry() {
+        aoisjdoasi  += 1;
         auto newSt = std::make_unique<StateInfo>();
         Color us = entry.pos.side_to_move();
         Piece  captured = type_of(entry.move) == ENPASSANT ? make_piece(~us, PAWN) : entry.pos.piece_on(to_sq(entry.move));
-        std::cout << entry.pos.fen() << std::endl;
-        std::cout << UCI::move(entry.move, false) << ", to: " << to_sq(entry.move) << std::endl;
-        std::cout << captured << std::endl;
-        std::cout << type_of(entry.move) << std::endl;
+        if(!(captured == NO_PIECE || color_of(captured) == (type_of(entry.move) != CASTLING ? ~us : us))){
+            std::cout << aoisjdoasi << std::endl;
+            std::cout << entry.pos.fen() << std::endl;
+            std::cout << UCI::move(entry.move, false) << ", to: " << to_sq(entry.move) << std::endl;
+            std::cout << captured << std::endl;
+            std::cout << type_of(entry.move) << std::endl;
+        }
         assert(captured == NO_PIECE || color_of(captured) == (type_of(entry.move) != CASTLING ? ~us : us));
-        std::cout << "pos before: " << entry.pos.fen() << std::endl;
+        //std::cout << "pos before: " << entry.pos.fen() << std::endl;
         entry.pos.do_move(entry.move, *newSt);
-        std::cout << "pos after: " << entry.pos.fen() << std::endl;
+        //std::cout << "pos after: " << entry.pos.fen() << std::endl;
         entry.pos.own_st = std::move(newSt);
 
         auto [move, score] = nextMoveScore(entry.pos);
-        std::cout << "next move: " << UCI::move(move, false) << ", to: " << to_sq(move) << std::endl;
+        assert(entry.pos.legal(move));
+        //std::cout << "next move: " << UCI::move(move, false) << ", to: " << to_sq(move) << std::endl;
         entry.move         = move;
         entry.score        = score;
         entry.ply += 1;
@@ -631,19 +638,22 @@ struct PackedMoveScoreListReader {
         Move    move;
         int16_t score;
 
+        const bool print = false;//aoisjdoasi == 20428910;//20428914;
+
         const Color    sideToMove  = pos.side_to_move();
         const Bitboard ourPieces   = pos.pieces(sideToMove);
         const Bitboard theirPieces = pos.pieces(~sideToMove);
         const Bitboard occupied    = ourPieces | theirPieces;
-        std::cout << "sideToMove: " << sideToMove << std::endl;
+        if(print) std::cout << "pos: " << pos.fen() << std::endl;
+        if(print) std::cout << "sideToMove: " << sideToMove << std::endl;
 
         const auto   pieceId = extractBitsLE8(usedBitsSafe(popcount(ourPieces)));
-        std::cout << "ourPieces: " << static_cast<uint64_t>(ourPieces) << std::endl;
-        std::cout << "ourPieces.count(): " << popcount(ourPieces) << std::endl;
-        std::cout << "usedBitsSafe(popcount(ourPieces)): " << usedBitsSafe(popcount(ourPieces)) << std::endl;
-        std::cout << "pieceId: " << static_cast<int>(pieceId) << std::endl;
+        if(print) std::cout << "ourPieces: " << static_cast<uint64_t>(ourPieces) << std::endl;
+        if(print) std::cout << "ourPieces.count(): " << popcount(ourPieces) << std::endl;
+        if(print) std::cout << "usedBitsSafe(popcount(ourPieces)): " << usedBitsSafe(popcount(ourPieces)) << std::endl;
+        if(print) std::cout << "pieceId: " << static_cast<int>(pieceId) << std::endl;
         const Square from    = Square(util::nthSetBitIndex(ourPieces, pieceId));
-        std::cout << "from: " << from << std::endl;
+        if(print) std::cout << "from: " << from << std::endl;
 
         const PieceType pt = type_of(pos.piece_on(from));
         switch (pt)
@@ -653,34 +663,47 @@ struct PackedMoveScoreListReader {
             const Rank      startRank     = pos.side_to_move() == WHITE ? RANK_2 : RANK_7;
             const Direction forward       = sideToMove == WHITE ? NORTH : SOUTH;
 
-            std::cout << "PAWN" << std::endl;
-            std::cout << pos.fen() << std::endl;
+            if(print) std::cout << "PAWN" << std::endl;
+            if(print) std::cout << pos.fen() << std::endl;
 
             const Square epSquare = pos.ep_square();
 
             Bitboard attackTargets = theirPieces;
+            if(print) std::cout << "attackTargets A: " << attackTargets << std::endl;
             if (epSquare != SQ_NONE)
             {
-                std::cout << "PAWN A" << std::endl;
-                attackTargets |= square_bb(epSquare);
+                for (const auto& m : MoveList<LEGAL>(pos))
+                {
+                    if(type_of(m) == ENPASSANT && to_sq(m) == epSquare)
+                    {
+                        if(print) std::cout << "PAWN A: " << epSquare << " (" << UCI::square(epSquare) << ")" << std::endl;
+                        attackTargets |= square_bb(epSquare);
+                        break;
+
+                    }
+                }
             }
 
             Bitboard destinations = pawn_attacks_bb(sideToMove, from) & attackTargets;
+            if(print) std::cout << "pawn_attacks_bb(sideToMove, from): " << pawn_attacks_bb(sideToMove, from) << std::endl;
+            if(print) std::cout << "attackTargets: " << attackTargets << std::endl;
+            if(print) std::cout << "destinations A: " << destinations << std::endl;
 
             const Square sqForward = from + forward;
-            std::cout << "sqForward: "<< UCI::square(sqForward) << std::endl;
+            if(print) std::cout << "sqForward: "<< UCI::square(sqForward) << std::endl;
             if ((occupied & square_bb(sqForward)) == 0)
             {
-                std::cout << "PAWN B" << std::endl;
+                if(print) std::cout << "PAWN B" << std::endl;
                 destinations |= square_bb(sqForward);
                 if (rank_of(from) == startRank && (occupied & square_bb(sqForward + forward)) == 0)
                 {
                     destinations |= square_bb(sqForward + forward);
                 }
             }
+            if(print) std::cout << "destinations B: " << destinations << std::endl;
 
             const auto destinationsCount = popcount(destinations);
-            std::cout << "destinationsCount: "<< destinationsCount << std::endl;
+            if(print) std::cout << "destinationsCount: "<< destinationsCount << std::endl;
             if (rank_of(from) == promotionRank)
             {
                 const auto      moveId = extractBitsLE8(usedBitsSafe(destinationsCount * 4ull));
@@ -688,7 +711,7 @@ struct PackedMoveScoreListReader {
                 const Square    to = Square(util::nthSetBitIndex(destinations, moveId / 4ull));
 
                 // move = chess::Move::promotion(from, to, promotedPiece);
-                std::cout << "PAWN C" << std::endl;
+                if(print) std::cout << "PAWN C" << std::endl;
                 move = make<PROMOTION>(from, to, promotedPiece);
                 break;
             }
@@ -696,15 +719,22 @@ struct PackedMoveScoreListReader {
             {
                 const auto   moveId = extractBitsLE8(usedBitsSafe(destinationsCount));
                 const Square to     = Square(util::nthSetBitIndex(destinations, moveId));
+
+                        if(print) std::cout << "destinationsCount: " << destinationsCount << std::endl;
+                        if(print) std::cout << "usedBitsSafe(destinationsCount): " << usedBitsSafe(destinationsCount) << std::endl;
+                        if(print) std::cout << "moveId: " << moveId << std::endl;
+                        if(print) std::cout << "destinations.bits(): " << destinations << std::endl;
+                        if(print) std::cout << "chess::nthSetBitIndex(destinations.bits(), moveId): " << util::nthSetBitIndex(destinations, moveId) << std::endl;
+
                 if (to == epSquare)
                 {
-                    std::cout << "PAWN D" << std::endl;
+                    if(print) std::cout << "PAWN D" << std::endl;
                     move = make<ENPASSANT>(from, to);
                     break;
                 }
                 else
                 {
-                    std::cout << "PAWN E, from: " << from << " (" << UCI::square(from) << "), to: " << to << std::endl;
+                    if(print) std::cout << "PAWN E, from: " << from << " (" << UCI::square(from) << "), to: " << to << std::endl;
                     move = make_move(from, to);
                     break;
                 }
@@ -746,7 +776,7 @@ struct PackedMoveScoreListReader {
             const Bitboard attacks = attacks_bb(pt, from, occupied) & ~ourPieces;
             const auto     moveId  = extractBitsLE8(usedBitsSafe(popcount(attacks)));
             Square         to      = Square(util::nthSetBitIndex(attacks, moveId));
-            std::cout << "A: from: " << from << ", to: " << to << ", piece type: " << pt << std::endl;
+            //std::cout << "A: from: " << from << ", to: " << to << ", piece type: " << pt << std::endl;
             move                   = make_move(from, to);
             break;
         }
@@ -756,6 +786,13 @@ struct PackedMoveScoreListReader {
         m_lastScore = -score;
 
         ++m_numReadPlies;
+
+        if(print )
+        {
+            std::cout << from_sq(move) << ", " << to_sq(move) << std::endl;
+            std::cout << UCI::move(move, false) << std::endl;
+            exit(1);
+        }
 
         return {move, score};
     }
@@ -776,7 +813,7 @@ struct PackedMoveScoreListReader {
     std::size_t offset        = 0;
     auto        compressedPos = XCompressedPosition::readFromBigEndian(packed.bytes);
     plain.pos                 = compressedPos.decompress();
-    std::cout << plain.pos.fen() << std::endl;
+    //std::cout << plain.pos.fen() << std::endl;
     offset += sizeof(compressedPos);
     auto compressedMove = XCompressedMove::readFromBigEndian(packed.bytes + offset);
     plain.move          = compressedMove.decompress(plain.pos);

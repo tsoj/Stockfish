@@ -23,7 +23,7 @@ ifdef ARCH
 endif
 
 ifeq ($(RELEASE),yes)
-	FLAGS += -O3 -flto -DNDEBUG
+	FLAGS += -O3 -flto # -DNDEBUG
 	LFLAGS = -flto
 else
 	FLAGS += -Og -fno-omit-frame-pointer -g
