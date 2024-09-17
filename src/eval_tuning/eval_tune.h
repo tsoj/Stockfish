@@ -15,8 +15,9 @@ struct BufferEntry {
 
 inline void eval_tune() {
 
+    constexpr int64_t reportFrequency    = 1'000'000;
     constexpr size_t  positionBufferSize = 1'000'000;
-    constexpr float   errorDecay         = 1.0F / 10'000'000.0F;
+    constexpr float   errorDecay         = 1.0F / static_cast<float>(reportFrequency);
     constexpr int64_t maxSteps           = 20'000'000'000;
     constexpr float   startLr            = 1.0F;
     constexpr float   finalLr            = 0.001F;
@@ -29,7 +30,7 @@ inline void eval_tune() {
 
     int64_t currentStep = 0;
 
-    for (int epoch = 0; currentStep < maxSteps; ++epoch)
+    for (int64_t epoch = 0; currentStep < maxSteps; ++epoch)
     {
 
         binpack::CompressedTrainingDataEntryReader reader(
@@ -76,7 +77,7 @@ inline void eval_tune() {
             error = errorDecay * currentError + (1.0F - errorDecay) * error;
             lr *= lrDecay;
 
-            if ((currentStep % 1'000'000) == 0)
+            if ((currentStep % reportFrequency) == 0)
             {
                 const auto currentTime = std::chrono::steady_clock::now();
                 const auto passedSeconds =
