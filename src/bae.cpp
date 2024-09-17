@@ -429,12 +429,7 @@ Value absolute_evaluate(const EvalPosition& pos) {
     EvalValue evalState{};
     absolute_evaluate(pos, &evalState);
     const int phase = popcount(pos.all());
-    Value     result =
-      (evalState[Phase::opening] * phase + evalState[Phase::endgame] * (32 - phase)) / 32;
-    result *= 25;  // to make the scaling be closer to what the classical eval does
-    result /= 10;
-    assert(abs(result) < VALUE_KNOWN_WIN);
-    return result;
+    return (evalState[Phase::opening] * phase + evalState[Phase::endgame] * (32 - phase)) / 32;
 }
 
 #ifdef EVAL_TUNING

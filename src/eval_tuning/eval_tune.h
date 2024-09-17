@@ -3,18 +3,23 @@
 #include <cmath>
 #include <random>
 #include <chrono>
+#include <optional>
 
 #include "binpack_format.h"
 #include "../bae.h"
 
+struct BufferEntry {
+    Eval::EvalPosition pos;
+    Value              score;
+};
 
 inline void eval_tune() {
 
     constexpr size_t  positionBufferSize = 1'000'000;
-    constexpr float   errorDecay         = 1.0F / 1000000.0F;
-    constexpr int64_t maxSteps           = 300'000'000'000;
-    constexpr float   startLr            = 10.0F;
-    constexpr float   finalLr            = 0.05F;
+    constexpr float   errorDecay         = 1.0F / 10'000'000.0F;
+    constexpr int64_t maxSteps           = 20'000'000'000;
+    constexpr float   startLr            = 1.0F;
+    constexpr float   finalLr            = 0.001F;
     const double      lrDecay            = std::pow<double>(finalLr / startLr, 1.0 / maxSteps);
 
     // Starting learning rate must be strictly bigger than the final learning rate
@@ -24,18 +29,31 @@ inline void eval_tune() {
 
     int64_t currentStep = 0;
 
-    while (currentStep < maxSteps)
+    for (int epoch = 0; currentStep < maxSteps; ++epoch)
     {
 
         binpack::CompressedTrainingDataEntryReader reader(
           "test77-dec2021-16tb7p.no-db.min.binpack");
-        std::vector<std::pair<Eval::EvalPosition, Value>> positionBuffer(positionBufferSize);
+
+        const auto getNextEntry = [&reader]() -> std::optional<BufferEntry> {
+            while (reader.hasNext())
+            {
+                const auto e = reader.next();
+                if (e.isInCheck() || e.isCapturingMove() || std::abs(e.score) > 10'000)
+                {
+                    continue;
+                }
+
+                return BufferEntry{Eval::toEvalPosition(e.pos), static_cast<Value>(e.score)};
+            }
+            return std::nullopt;
+        };
+
+        std::vector<BufferEntry> positionBuffer(positionBufferSize);
         for (auto& entry : positionBuffer)
         {
             assert(reader.hasNext());
-            const auto data = reader.next();
-            entry.first     = Eval::toEvalPosition(data.pos);
-            entry.second    = static_cast<Value>(data.score);
+            entry = getNextEntry().value();
         }
 
         std::default_random_engine            e1{};
@@ -47,14 +65,13 @@ inline void eval_tune() {
         double     lr        = startLr;
 
         std::cout << std::endl;
-        while (reader.hasNext())
+        while (true)
         {
             currentStep += 1;
             const size_t index = uniformDist(e1);
 
             const float currentError = Eval::update_gradient(
-              positionBuffer.at(index).first, static_cast<Value>(positionBuffer.at(index).second),
-              static_cast<float>(lr));
+              positionBuffer.at(index).pos, positionBuffer.at(index).score, static_cast<float>(lr));
 
             error = errorDecay * currentError + (1.0F - errorDecay) * error;
             lr *= lrDecay;
@@ -74,17 +91,21 @@ inline void eval_tune() {
 
 
                 if (currentStep >= maxSteps)
+                {
                     break;
+                }
             }
-
-            const auto data                 = reader.next();
-            positionBuffer.at(index).first  = Eval::toEvalPosition(data.pos);
-            positionBuffer.at(index).second = static_cast<Value>(data.score);
+            auto nextEntry = getNextEntry();
+            if (!nextEntry.has_value())
+            {
+                break;
+            }
+            positionBuffer.at(index) = nextEntry.value();
         }
         std::cout << std::endl;
         Eval::writeBaeParams();
 
-        std::cout << "Finished Epoch :D" << std::endl;
+        std::cout << "Finished epoch " << epoch << std::endl;
     }
     std::cout << "Finished everything :D" << std::endl;
     // TODO(tsoj) write bae params to file

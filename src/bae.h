@@ -112,6 +112,9 @@ inline EvalPosition toEvalPosition(const Position& pos) {
 
 inline Value evaluate(const Position& pos) {
     Value result = absolute_evaluate(toEvalPosition(pos));
+    result *= 25;  // to make the scaling be closer to what the classical eval does
+    result /= 10;
+    assert(abs(result) < VALUE_KNOWN_WIN);
     if (pos.side_to_move() == BLACK)
     {
         result = -result;

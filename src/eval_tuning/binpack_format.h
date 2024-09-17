@@ -42,21 +42,6 @@
 #include "../types.h"
 #include "../uci.h"
 
-struct parser_settings {
-    bool        filter_checks   = true;
-    bool        filter_captures = true;
-    bool        filter_score    = false;
-    int         max_score;
-    bool        filter_win = false;
-    int         win_filter_score;
-    bool        filter_loss = false;
-    int         loss_filter_score;
-    bool        filter_ply = false;
-    int         min_ply;
-    bool        position_limit = false;
-    std::size_t max_pos_count;
-};
-
 namespace util {
 
 inline std::size_t usedBits(std::size_t value) {
@@ -961,160 +946,6 @@ inline void emitPlainEntry(std::string& buffer, const TrainingDataEntry& plain) 
     buffer += str.str();
     buffer += "\n";
 }
-
-inline void convertBinpackToPlain(std::string             inputPath,
-                                  std::string             outputPath,
-                                  std::ios_base::openmode om,
-                                  parser_settings         settings) {
-    constexpr std::size_t bufferSize = MiB;
-
-    std::cout << "Converting " << inputPath << " to " << outputPath << '\n';
-
-    CompressedTrainingDataEntryReader reader(inputPath);
-    std::ofstream                     outputFile(outputPath, om);
-    const auto                        base                  = outputFile.tellp();
-    std::size_t                       numProcessedPositions = 0;
-    std::string                       buffer;
-    buffer.reserve(bufferSize * 2);
-
-    while (reader.hasNext())
-    {
-        auto e = reader.next();
-
-        // filter captures , positions where stm is in check
-        if (e.isInCheck() || e.isCapturingMove())
-            continue;
-        // optionally filter positions where the score is too big
-        if (settings.filter_score && std::abs(e.score) > settings.max_score)
-            continue;
-
-        emitPlainEntry(buffer, e);
-
-        ++numProcessedPositions;
-
-        if (buffer.size() > bufferSize)
-        {
-            outputFile << buffer;
-            buffer.clear();
-
-            const auto cur = outputFile.tellp();
-            std::cout << "Processed " << (cur - base) << " bytes and " << numProcessedPositions
-                      << " positions.\n";
-        }
-    }
-
-    if (!buffer.empty())
-    {
-        outputFile << buffer;
-
-        const auto cur = outputFile.tellp();
-        std::cout << "Processed " << (cur - base) << " bytes and " << numProcessedPositions
-                  << " positions.\n";
-    }
-
-    std::cout << "Finished. Converted " << numProcessedPositions << " positions.\n";
-}
-
-inline void convertBinpackToBin(std::string             inputPath,
-                                std::string             outputPath,
-                                std::ios_base::openmode om,
-                                parser_settings         settings) {
-    constexpr std::size_t bufferSize = MiB;
-
-    std::cout << "Converting " << inputPath << " to " << outputPath << '\n';
-
-    CompressedTrainingDataEntryReader reader(inputPath);
-    std::ofstream                     outputFile(outputPath, std::ios_base::binary | om);
-    const auto                        base                  = outputFile.tellp();
-    std::size_t                       numProcessedPositions = 0;
-    std::vector<char>                 buffer;
-    buffer.reserve(bufferSize * 2);
-    uint64_t filtered_checks_counter   = 0;
-    uint64_t filtered_captures_counter = 0;
-    uint64_t filtered_scores_counter   = 0;
-    uint64_t filtered_plies_counter    = 0;
-    uint64_t filtered_wins_counter     = 0;
-    uint64_t filtered_losses_counter   = 0;
-
-    while (reader.hasNext())
-    {
-        auto e = reader.next();
-        // optionally filter positions where the ply count is too small
-        if (settings.filter_ply && e.ply < settings.min_ply)
-        {
-            filtered_plies_counter++;
-            continue;
-        }
-        // optionally filter positions where the score is too big
-        if (settings.filter_score && std::abs(e.score) > settings.max_score)
-        {
-            filtered_scores_counter++;
-            continue;
-        }
-        // filter captures , positions where stm is in check
-        if (settings.filter_captures && e.isCapturingMove())
-        {
-            filtered_captures_counter++;
-            continue;
-        }
-        if (settings.filter_checks && e.isInCheck())
-        {
-            filtered_checks_counter++;
-            continue;
-        }
-        // optionally filter positions in won games with very low scores
-        if (settings.filter_win && e.result == 1 && e.score < settings.win_filter_score)
-        {
-            filtered_wins_counter++;
-            continue;
-        }
-        // optionally filter positions in lost games with very high scores
-        if (settings.filter_loss && e.result == -1 && e.score > settings.loss_filter_score)
-        {
-            filtered_losses_counter++;
-            continue;
-        }
-
-        // emitBulletFormatEntry(buffer, e);
-
-        ++numProcessedPositions;
-
-        if (buffer.size() > bufferSize)
-        {
-            outputFile.write(buffer.data(), buffer.size());
-            buffer.clear();
-
-            const auto cur = outputFile.tellp();
-            std::cout << "Processed " << (cur - base) << " bytes and " << numProcessedPositions
-                      << " positions.\n";
-        }
-
-        if (settings.position_limit && numProcessedPositions >= settings.max_pos_count)
-        {
-            break;
-        }
-    }
-
-    if (!buffer.empty())
-    {
-        outputFile.write(buffer.data(), buffer.size());
-
-        const auto cur = outputFile.tellp();
-        std::cout << "Processed " << (cur - base) << " bytes and " << numProcessedPositions
-                  << " positions.\n";
-    }
-
-    std::cout << "Finished. Converted " << numProcessedPositions << " positions.\n";
-
-    // Print filtering recap
-    std::cout << "Checks filtered: " << filtered_checks_counter << " \n";
-    std::cout << "Captures filtered: " << filtered_captures_counter << " \n";
-    std::cout << "Scores filtered: " << filtered_scores_counter << " \n";
-    std::cout << "Plies filtered: " << filtered_plies_counter << " \n";
-    std::cout << "Wins filtered: " << filtered_wins_counter << " \n";
-    std::cout << "Losses filtered: " << filtered_losses_counter << " \n";
-}
-
 inline void validateBinpack(std::string inputPath) {
     constexpr std::size_t reportSize = 1000000;
 
@@ -1151,4 +982,4 @@ inline void validateBinpack(std::string inputPath) {
 
     std::cout << "Finished. Validated " << numProcessedPositions << " positions.\n";
 }
-}
+} // namespace binpack
