@@ -42,6 +42,8 @@
 #include "../types.h"
 #include "../uci.h"
 
+#include "dataloader.h"
+
 namespace util {
 
 inline std::size_t usedBits(std::size_t value) {
@@ -946,7 +948,7 @@ inline void emitPlainEntry(std::string& buffer, const TrainingDataEntry& plain) 
     buffer += str.str();
     buffer += "\n";
 }
-inline void validateBinpack(std::string inputPath) {
+inline void validateBinpack(const std::string& inputPath) {
     constexpr std::size_t reportSize = 1000000;
 
     std::cout << "Validating " << inputPath << '\n';
@@ -983,3 +985,32 @@ inline void validateBinpack(std::string inputPath) {
     std::cout << "Finished. Validated " << numProcessedPositions << " positions.\n";
 }
 } // namespace binpack
+
+
+
+
+class BinpackReader {
+   public:
+    explicit BinpackReader(const std::filesystem::path& path) : m_reader(path.string()) {
+        std::cout << "Opened " << path << std::endl;
+    }
+
+    std::optional<BufferEntry> next() {
+        while (m_reader.hasNext())
+        {
+            const auto e = m_reader.next();
+            if (e.isInCheck() || e.isCapturingMove() || std::abs(e.score) > 10'000)
+            {
+                continue;
+            }
+
+            return BufferEntry{Eval::toEvalPosition(e.pos), Eval::winningProbability(static_cast<Value>(e.score))};
+        }
+        return std::nullopt;
+    }
+
+   private:
+    binpack::CompressedTrainingDataEntryReader m_reader;
+};
+
+using BinpackDataloader = Dataloader<BinpackReader>;

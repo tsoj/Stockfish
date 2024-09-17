@@ -5,7 +5,9 @@
 #include <chrono>
 #include <optional>
 
-#include "dataloader.h"
+#include "binpack_format.h"
+#include "nalwald_format.h"
+#include "epd_format.h"
 #include "../bae.h"
 
 // struct BufferEntry {
@@ -27,7 +29,17 @@ inline void eval_tune() {
     // lrDecay should be smaller than one if the learning rate should decrease
     assert(finalLr == startLr || lrDecay < 1.0F);
 
-    BinpackDataloader dataloader("test77-dec2021-16tb7p.no-db.min.binpack", positionBufferSize);
+    // BinpackDataloader dataloader("test77-dec2021-16tb7p.no-db.min.binpack", positionBufferSize);
+    // NalwaldDataloader dataloader("/home/tsoj/Dokumente/Projects/Nalwald/res/trainingSets", positionBufferSize);
+    // EpdDataloader dataloader("/home/tsoj/Dokumente/Projects/Nalwald/res/trainingSets", positionBufferSize);
+
+    // clang-format off
+    AggregatedDataloader dataloader({
+        {std::make_shared<BinpackDataloader>("test77-dec2021-16tb7p.no-db.min.binpack", positionBufferSize), 10.0},
+        {std::make_shared<NalwaldDataloader>("/home/tsoj/Dokumente/Projects/Nalwald/res/trainingSets", positionBufferSize), 10.0},
+        {std::make_shared<EpdDataloader>("/home/tsoj/Dokumente/Projects/Nalwald/res/trainingSets", positionBufferSize), 1.0},
+    });
+    // clang-format on
 
     const auto startTime = std::chrono::steady_clock::now();
     double     lr        = startLr;

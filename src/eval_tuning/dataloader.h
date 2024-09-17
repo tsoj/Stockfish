@@ -2,19 +2,17 @@
 
 #include <filesystem>
 #include <cmath>
+#include <memory>
 #include <random>
-#include <chrono>
 #include <optional>
+#include <iostream>
 
 #include "../bae.h"
-#include "binpack_format.h"
 
 struct BufferEntry {
     Eval::EvalPosition pos;
-    Value              score;
+    float              targetProbability;
 };
-
-// class Dataloader{}
 
 template<typename T>
 concept Datareader = requires(T t, std::filesystem::path path) {
@@ -22,39 +20,20 @@ concept Datareader = requires(T t, std::filesystem::path path) {
     { t.next() } -> std::same_as<std::optional<BufferEntry>>;
 };
 
-class BinpackDatareader {
+class AbstractDataloader {
    public:
-    explicit BinpackDatareader(const std::filesystem::path& path) :
-        m_reader(path.string()) {}
-
-    std::optional<BufferEntry> next() {
-        while (m_reader.hasNext())
-        {
-            const auto e = m_reader.next();
-            if (e.isInCheck() || e.isCapturingMove() || std::abs(e.score) > 10'000)
-            {
-                continue;
-            }
-
-            return BufferEntry{Eval::toEvalPosition(e.pos), static_cast<Value>(e.score)};
-        }
-        return std::nullopt;
-    }
-
-   private:
-    binpack::CompressedTrainingDataEntryReader m_reader;
+    virtual BufferEntry next() = 0;
 };
 
-
 template<Datareader Datareader>
-class Dataloader {
+class Dataloader: public AbstractDataloader {
    public:
     explicit Dataloader(const std::filesystem::path& path, size_t bufferSize = 1'000'000) :
         m_path(path),
         m_buffer(bufferSize),
         m_uniformDist(0, bufferSize - 1) {}
 
-    BufferEntry next() {
+    inline BufferEntry next() final {
         if (!m_reader.has_value())
         {
             m_reader = Datareader(m_path.string());
@@ -75,7 +54,7 @@ class Dataloader {
         }
         else
         {
-            std::cout << "Finished epoch " << m_epoch << std::endl;
+            std::cout << "\nFinished epoch " << m_epoch << std::endl;
             m_reader = std::nullopt;
             m_epoch += 1;
         }
@@ -91,4 +70,44 @@ class Dataloader {
     size_t                                m_epoch = 0;
 };
 
-using BinpackDataloader = Dataloader<BinpackDatareader>;
+
+class AggregatedDataloader: public AbstractDataloader {
+   public:
+    explicit AggregatedDataloader(
+      std::vector<std::pair<std::shared_ptr<AbstractDataloader>, float>>&& loaders) :
+        m_loaders(std::move(loaders)) {
+        float totalWeight = 0.0;
+        for (auto& [loader, value] : m_loaders)
+        {
+            const float weight = value;
+            value += totalWeight;
+            totalWeight += weight;
+        }
+        m_uniformDist = std::uniform_real_distribution<float>(0.0, totalWeight);
+    }
+
+    inline BufferEntry next() final {
+        assert(!m_loaders.empty());
+
+        const float index = m_uniformDist(m_e1);
+
+        for (const auto& [loader, value] : m_loaders)
+        {
+            if (index <= value)
+            {
+                return loader->next();
+            }
+        }
+
+        std::cerr << "WARNING: index outside of biggest loader. Index: " << index
+                  << ", loader value: " << m_loaders.back().second;
+
+        return m_loaders.back().first->next();
+    }
+
+
+   private:
+    std::vector<std::pair<std::shared_ptr<AbstractDataloader>, float>> m_loaders;
+    std::default_random_engine                                         m_e1;
+    std::uniform_real_distribution<float>                              m_uniformDist;
+};

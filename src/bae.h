@@ -99,7 +99,8 @@ class BBIter {
 
 
 #ifdef EVAL_TUNING
-float update_gradient(const EvalPosition& pos, Value targetValue, float learning_rate);
+float winningProbability(Value value);
+float update_gradient(const EvalPosition& pos, float targetProbability, float learning_rate);
 void  writeBaeParams();
 #endif
 

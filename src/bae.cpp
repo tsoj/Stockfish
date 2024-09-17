@@ -380,13 +380,16 @@ void evaluate_3x3_pawn_structure_from_whites_perspective(const EvalPosition& pos
            Square::b6, Square::c6, Square::d6, Square::e6, Square::f6, Square::g6,
          })
     {
-        const Bitboard mask3x3 = attacks_bb<KING>(static_cast<::Square>(square)) | square_to_bb(square);
+        const Bitboard mask3x3 =
+          attacks_bb<KING>(static_cast<::Square>(square)) | square_to_bb(square);
 
         if (popcount(mask3x3 & pos[Piece::pawn]) >= 2)
         {
             const size_t index = pawn_mask_index(pos, square);
             assert(index < 19683);
-            ADD_VALUE(evalState, Color::white, pawnStructureBonus[(static_cast<size_t>(square) - static_cast<size_t>(Square::b3))][index]);
+            ADD_VALUE(evalState, Color::white,
+                      pawnStructureBonus[(static_cast<size_t>(square)
+                                          - static_cast<size_t>(Square::b3))][index]);
         }
     }
 }
@@ -396,7 +399,8 @@ size_t piece_combo_index(const EvalPosition& pos) {
     size_t counter = 1;
     for (const Color color : {Color::white, Color::black})
     {
-        for (const Piece piece : {Piece::pawn, Piece::knight, Piece::bishop, Piece::rook, Piece::queen})
+        for (const Piece piece :
+             {Piece::pawn, Piece::knight, Piece::bishop, Piece::rook, Piece::queen})
         {
             const size_t pieceCount = std::min(2, popcount(pos[color, piece]));
             result += pieceCount * counter;
@@ -408,7 +412,8 @@ size_t piece_combo_index(const EvalPosition& pos) {
 
 template<EvalState EvalState>
 void piece_combo_bonus_white_perspective(const EvalPosition& pos, EvalState* const evalState) {
-    if (std::max(popcount(pos[Color::white, Piece::pawn]), popcount(pos[Color::black, Piece::pawn])) <= 2)
+    if (std::max(popcount(pos[Color::white, Piece::pawn]), popcount(pos[Color::black, Piece::pawn]))
+        <= 2)
     {
         const size_t index = piece_combo_index(pos);
         assert(index < 59049);
@@ -443,9 +448,6 @@ float errorDerivative(const float outcome, const float estimate) {
 
 constexpr float k = 400.0;
 
-float winningProbability(const Value value) {
-    return 1.0F / (1.0F + std::pow(10.0F, -((static_cast<float>(value)) / k)));
-}
 
 float winningProbabilityDerivative(const Value value) {
     return (std::log(10.0F) * std::pow(2.0F, -2.0F - ((static_cast<float>(value)) / k))
@@ -466,10 +468,15 @@ void writeBaeParams() {
     out << ")\"; }\n" << std::flush;
 }
 
-float update_gradient(const EvalPosition& pos, const Value targetValue, const float learning_rate) {
+float winningProbability(const Value value) {
+    return 1.0F / (1.0F + std::pow(10.0F, -((static_cast<float>(value)) / k)));
+}
+
+float update_gradient(const EvalPosition& pos,
+                      const float         targetProbability,
+                      const float         learning_rate) {
     const int   phase              = popcount(pos.all());
     const Value currentValue       = absolute_evaluate(pos);
-    const float targetProbability  = winningProbability(targetValue);
     const float currentProbability = winningProbability(currentValue);
     const float currentError       = error(targetProbability, currentProbability);
 
