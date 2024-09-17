@@ -27,7 +27,9 @@ inline void eval_tune() {
     // lrDecay should be smaller than one if the learning rate should decrease
     assert(finalLr == startLr || lrDecay < 1.0F);
 
-    int64_t currentStep = 0;
+    const auto startTime   = std::chrono::steady_clock::now();
+    double     lr          = startLr;
+    int64_t    currentStep = 0;
 
     for (int64_t epoch = 0; currentStep < maxSteps; ++epoch)
     {
@@ -60,9 +62,7 @@ inline void eval_tune() {
         std::uniform_int_distribution<size_t> uniformDist(0, positionBuffer.size() - 1);
 
 
-        const auto startTime = std::chrono::steady_clock::now();
-        double     lr        = startLr;
-        double     errorSum  = 0.0;
+        double errorSum = 0.0;
 
         std::cout << std::endl;
         while (true)
