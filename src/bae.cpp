@@ -478,7 +478,11 @@ float update_gradient(const EvalPosition& pos, const Value targetValue, const fl
                               * errorDerivative(targetProbability, currentProbability)
                               * winningProbabilityDerivative(currentValue)};
 
-    // std::cout << evalState.gamePhaseFactor << ", " << evalState.g << std::endl;
+    // std::cout << "targetValue: " << targetValue << std::endl;
+    // std::cout << "currentValue: " << currentValue << std::endl;
+    // std::cout << "targetProbability: " << targetProbability << std::endl;
+    // std::cout << "currentProbability: " << currentProbability << std::endl;
+    // std::cout << "currentError: " << currentError << std::endl;
 
     absolute_evaluate(pos, &evalState);
 

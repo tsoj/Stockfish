@@ -17,9 +17,8 @@ inline void eval_tune() {
 
     constexpr int64_t reportFrequency    = 1'000'000;
     constexpr size_t  positionBufferSize = 1'000'000;
-    constexpr float   errorDecay         = 1.0F / static_cast<float>(reportFrequency);
     constexpr int64_t maxSteps           = 20'000'000'000;
-    constexpr float   startLr            = 1.0F;
+    constexpr float   startLr            = 10.0F;
     constexpr float   finalLr            = 0.001F;
     const double      lrDecay            = std::pow<double>(finalLr / startLr, 1.0 / maxSteps);
 
@@ -62,8 +61,8 @@ inline void eval_tune() {
 
 
         const auto startTime = std::chrono::steady_clock::now();
-        float      error     = 1.0;
         double     lr        = startLr;
+        double     errorSum  = 0.0;
 
         std::cout << std::endl;
         while (true)
@@ -71,10 +70,9 @@ inline void eval_tune() {
             currentStep += 1;
             const size_t index = uniformDist(e1);
 
-            const float currentError = Eval::update_gradient(
+            errorSum += Eval::update_gradient(
               positionBuffer.at(index).pos, positionBuffer.at(index).score, static_cast<float>(lr));
 
-            error = errorDecay * currentError + (1.0F - errorDecay) * error;
             lr *= lrDecay;
 
             if ((currentStep % reportFrequency) == 0)
@@ -86,10 +84,11 @@ inline void eval_tune() {
                   (passedSeconds * maxSteps) / currentStep - passedSeconds;
 
                 std::cout << "\r" << currentStep / 1'000'000 << "M/" << maxSteps / 1'000'000
-                          << "M steps, lr: " << lr << ", error: " << error
+                          << "M steps, lr: " << lr << ", error: " << errorSum / reportFrequency
                           << ", estimated remaining time: " << estimatedRemainingSeconds / 60
                           << " min                     " << std::flush;
 
+                errorSum = 0.0;
 
                 if (currentStep >= maxSteps)
                 {
@@ -109,5 +108,4 @@ inline void eval_tune() {
         std::cout << "Finished epoch " << epoch << std::endl;
     }
     std::cout << "Finished everything :D" << std::endl;
-    // TODO(tsoj) write bae params to file
 }
