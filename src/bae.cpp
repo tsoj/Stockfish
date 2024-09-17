@@ -265,7 +265,7 @@ void piece_relative_pst(const EvalPosition& pos,
 
     const Square ourSquare = color_conditional_mirror_vertically(ourSquareIn, us);
     const Square enemyKingSquare =
-      color_conditional_mirror_vertically(bb_to_square(pos(~us, Piece::king)), us);
+      color_conditional_mirror_vertically(bb_to_square(pos[~us, Piece::king]), us);
     const size_t roughEnemyKingFile = (static_cast<size_t>(enemyKingSquare) % 8) / 2;
     const size_t roughEnemyKingRank = (static_cast<size_t>(enemyKingSquare) / 8) / 4;
 
@@ -273,7 +273,7 @@ void piece_relative_pst(const EvalPosition& pos,
     FOR_PIECE_RANGE({
         for (const size_t relativity : {0, 1})
         {
-            for (const Square otherSquareIn : BBIter(pos(relativity == 0 ? us : ~us, otherPiece)))
+            for (const Square otherSquareIn : BBIter(pos[relativity == 0 ? us : ~us, otherPiece]))
             {
                 const Square otherSquare = color_conditional_mirror_vertically(otherSquareIn, us);
 
@@ -308,7 +308,7 @@ template<Piece piece, Color color, EvalState EvalState>
 void evaluate_piece_type_from_whites_perspective(const EvalPosition& pos,
                                                  EvalState* const    evalState) {
 
-    for (const Square square : BBIter(pos(color, piece)))
+    for (const Square square : BBIter(pos[color, piece]))
     {
         evaluate_piece<piece, color>(pos, evalState, square);
     }
@@ -336,9 +336,9 @@ void evaluate_piece_type_from_whites_perspective(const EvalPosition& pos,
 
 size_t pawn_mask_index(const EvalPosition& pos, const Square square) {
     const Bitboard whitePawns =
-      pos(Color::white, Piece::pawn) >> (static_cast<int>(square) - static_cast<int>(Square::b2));
+      pos[Color::white, Piece::pawn] >> (static_cast<int>(square) - static_cast<int>(Square::b2));
     const Bitboard blackPawns =
-      pos(Color::black, Piece::pawn) >> (static_cast<int>(square) - static_cast<int>(Square::b2));
+      pos[Color::black, Piece::pawn] >> (static_cast<int>(square) - static_cast<int>(Square::b2));
 
     size_t result  = 0;
     size_t counter = 1;
@@ -398,7 +398,7 @@ size_t piece_combo_index(const EvalPosition& pos) {
     {
         for (const Piece piece : {Piece::pawn, Piece::knight, Piece::bishop, Piece::rook, Piece::queen})
         {
-            const size_t pieceCount = std::min(2, popcount(pos(color, piece)));
+            const size_t pieceCount = std::min(2, popcount(pos[color, piece]));
             result += pieceCount * counter;
             counter *= 3;
         }
@@ -408,7 +408,7 @@ size_t piece_combo_index(const EvalPosition& pos) {
 
 template<EvalState EvalState>
 void piece_combo_bonus_white_perspective(const EvalPosition& pos, EvalState* const evalState) {
-    if (std::max(popcount(pos(Color::white, Piece::pawn)), popcount(pos(Color::black, Piece::pawn))) <= 2)
+    if (std::max(popcount(pos[Color::white, Piece::pawn]), popcount(pos[Color::black, Piece::pawn])) <= 2)
     {
         const size_t index = piece_combo_index(pos);
         assert(index < 59049);

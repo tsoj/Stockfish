@@ -63,7 +63,7 @@ class EvalPosition {
 
     inline BB operator[](Piece piece) const { return pieces[static_cast<size_t>(piece)]; }
     inline BB operator[](Color color) const { return colors[static_cast<size_t>(color)]; }
-    inline BB operator()(Color color, Piece piece) const { return (*this)[piece] & (*this)[color]; }
+    inline BB operator[](Color color, Piece piece) const { return (*this)[piece] & (*this)[color]; }
 
     inline BB all() const { return colors[0] | colors[1]; }
 
@@ -71,7 +71,7 @@ class EvalPosition {
         const auto sfc              = static_cast<::Color>(c);
         const auto sfsq             = static_cast<::Square>(s);
         const auto passed_pawn_span = pawn_attack_span(sfc, sfsq) | forward_file_bb(sfc, sfsq);
-        return ((*this)(~c, Piece::pawn) & passed_pawn_span) == 0;
+        return ((*this)[~c, Piece::pawn] & passed_pawn_span) == 0;
     }
 };
 
