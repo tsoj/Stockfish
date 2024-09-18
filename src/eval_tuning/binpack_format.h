@@ -1004,7 +1004,9 @@ class BinpackReader {
                 continue;
             }
 
-            return BufferEntry{Eval::toEvalPosition(e.pos), Eval::winningProbability(static_cast<Value>(e.score))};
+
+
+            return BufferEntry{Eval::toEvalPosition(e.pos), Eval::winningProbability(static_cast<Value>(e.score) * (e.pos.side_to_move() == BLACK ? -1 : 1))};
         }
         return std::nullopt;
     }

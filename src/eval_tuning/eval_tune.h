@@ -19,7 +19,7 @@ inline void eval_tune() {
 
     constexpr int64_t reportFrequency    = 1'000'000;
     constexpr size_t  positionBufferSize = 100'000'000;
-    constexpr int64_t maxSteps           = 20'000'000'000;
+    constexpr int64_t maxSteps           = 15'000'000'000;
     constexpr float   startLr            = 10.0F;
     constexpr float   finalLr            = 0.05F;
     const double      lrDecay            = std::pow<double>(finalLr / startLr, 1.0 / maxSteps);
@@ -35,9 +35,9 @@ inline void eval_tune() {
 
     // clang-format off
     AggregatedDataloader dataloader({
-        // {std::make_shared<BinpackDataloader>("test77-dec2021-16tb7p.no-db.min.binpack", positionBufferSize), 10.0},
-        {std::make_shared<NalwaldDataloader>("/home/tsoj/Dokumente/Projects/Nalwald/res/trainingSets", positionBufferSize), 0.85},
-        {std::make_shared<EpdDataloader>("/home/tsoj/Dokumente/Projects/Nalwald/res/trainingSets", positionBufferSize), 0.15},
+        {std::make_shared<BinpackDataloader>("test77-dec2021-16tb7p.no-db.min.binpack", positionBufferSize), 0.85},
+        // {std::make_shared<NalwaldDataloader>("/home/tsoj/Dokumente/Projects/Nalwald/res/trainingSets", positionBufferSize), 0.85},
+        // {std::make_shared<EpdDataloader>("/home/tsoj/Dokumente/Projects/Nalwald/res/trainingSets", positionBufferSize), 0.15},
     });
     // clang-format on
 
