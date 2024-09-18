@@ -18,7 +18,7 @@
 inline void eval_tune() {
 
     constexpr int64_t reportFrequency    = 1'000'000;
-    constexpr size_t  positionBufferSize = 1'000'000;
+    constexpr size_t  positionBufferSize = 100'000'000;
     constexpr int64_t maxSteps           = 20'000'000'000;
     constexpr float   startLr            = 10.0F;
     constexpr float   finalLr            = 0.05F;
@@ -41,7 +41,9 @@ inline void eval_tune() {
     });
     // clang-format on
 
-    const auto startTime = std::chrono::steady_clock::now();
+    // we only set the start timestamp when we first need to, to avoid measuring the big
+    // amount of time that's need to fill the dataloader buffers
+    std::optional<std::chrono::steady_clock::time_point> startTime = std::nullopt;
     double     lr        = startLr;
     double     errorSum  = 0.0;
 
@@ -58,9 +60,13 @@ inline void eval_tune() {
 
         if ((currentStep % reportFrequency) == 0)
         {
+            if(!startTime.has_value())
+            {
+                startTime = std::chrono::steady_clock::now();
+            }
             const auto currentTime = std::chrono::steady_clock::now();
             const auto passedSeconds =
-              std::chrono::duration_cast<std::chrono::seconds>(currentTime - startTime).count();
+              std::chrono::duration_cast<std::chrono::seconds>(currentTime - startTime.value()).count();
             const auto estimatedRemainingSeconds =
               (passedSeconds * maxSteps) / currentStep - passedSeconds;
 

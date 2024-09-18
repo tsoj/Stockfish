@@ -7,7 +7,7 @@
 
 #include "dataloader.h"
 
-inline BufferEntry readEPDPosition(const std::string& line) {
+[[nodiscard]] inline BufferEntry readEPDPosition(const std::string& line) {
 
 
     std::istringstream iss(line);
@@ -60,7 +60,7 @@ class EpdReader {
         }
     }
 
-    inline std::optional<BufferEntry> next() {
+    [[nodiscard]] inline std::optional<BufferEntry> next() {
         if (m_fileStreams.empty())
         {
             return std::nullopt;

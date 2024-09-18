@@ -8,13 +8,13 @@
 
 
 template<typename T>
-inline T read(std::istream& stream) {
+[[nodiscard]] inline T read(std::istream& stream) {
     T value;
     stream.read(reinterpret_cast<char*>(&value), sizeof(T));
     return value;
 }
 
-inline BufferEntry readNalwaldPosition(std::istream& stream) {
+[[nodiscard]] inline BufferEntry readNalwaldPosition(std::istream& stream) {
 
     const Eval::BB pawns   = read<uint64_t>(stream);
     const Eval::BB knights = read<uint64_t>(stream);
@@ -67,7 +67,7 @@ class NalwaldReader {
         }
     }
 
-    inline std::optional<BufferEntry> next() {
+    [[nodiscard]] inline std::optional<BufferEntry> next() {
         if (m_fileStreams.empty())
         {
             return std::nullopt;
@@ -76,8 +76,8 @@ class NalwaldReader {
 
         if (m_fileStreams.at(m_index).peek() == EOF)
         {
-            m_index = 0;
             m_fileStreams.erase(m_fileStreams.begin() + static_cast<int64_t>(m_index));
+            m_index = 0;
             return next();
         }
 

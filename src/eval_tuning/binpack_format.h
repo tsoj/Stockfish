@@ -995,7 +995,7 @@ class BinpackReader {
         std::cout << "Opened " << path << std::endl;
     }
 
-    std::optional<BufferEntry> next() {
+    [[nodiscard]] std::optional<BufferEntry> next() {
         while (m_reader.hasNext())
         {
             const auto e = m_reader.next();

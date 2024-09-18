@@ -22,29 +22,50 @@ concept Datareader = requires(T t, std::filesystem::path path) {
 
 class AbstractDataloader {
    public:
-    virtual BufferEntry next() = 0;
+    [[nodiscard]] virtual BufferEntry next() = 0;
 };
 
 template<Datareader Datareader>
 class Dataloader: public AbstractDataloader {
    public:
-    explicit Dataloader(const std::filesystem::path& path, size_t bufferSize = 1'000'000) :
+    explicit Dataloader(const std::filesystem::path& path, size_t bufferSize) :
         m_path(path),
-        m_buffer(bufferSize),
-        m_uniformDist(0, bufferSize - 1) {}
+        m_maxBufferSize(bufferSize) {
 
-    inline BufferEntry next() final {
+        assert(m_maxBufferSize > 0);
+    }
+
+    [[nodiscard]] inline BufferEntry next() final {
         if (!m_reader.has_value())
         {
-            m_reader = Datareader(m_path.string());
-            assert(!m_buffer.empty());
-            for (auto& entry : m_buffer)
+            if (!m_buffer.empty())
             {
-                entry = m_reader->next().value();
+                m_uniformDist = std::nullopt;
+                auto result   = m_buffer.back();
+                m_buffer.pop_back();
+                return result;
             }
+
+            std::cout << "\nStarting epoch " << m_epoch << std::endl;
+            m_epoch += 1;
+
+            m_reader = Datareader(m_path.string());
+            assert(m_buffer.empty());
+            while (auto entry = m_reader->next())
+            {
+                m_buffer.push_back(entry.value());
+                if (m_buffer.size() >= m_maxBufferSize)
+                {
+                    break;
+                }
+            }
+            assert(!m_buffer.empty());
+            assert(m_buffer.size() <= m_maxBufferSize);
+            std::shuffle(std::begin(m_buffer), std::end(m_buffer), m_e1);
+            m_uniformDist = std::uniform_int_distribution<size_t>(0, m_buffer.size() - 1);
         }
 
-        const size_t index  = m_uniformDist(m_e1);
+        const size_t index  = m_uniformDist.value()(m_e1);
         BufferEntry  result = m_buffer.at(index);
 
         const auto newEntry = m_reader->next();
@@ -54,20 +75,19 @@ class Dataloader: public AbstractDataloader {
         }
         else
         {
-            std::cout << "\nFinished epoch " << m_epoch << std::endl;
             m_reader = std::nullopt;
-            m_epoch += 1;
         }
         return result;
     }
 
    private:
-    std::filesystem::path                 m_path;
-    std::vector<BufferEntry>              m_buffer;
-    std::optional<Datareader>             m_reader{std::nullopt};
-    std::default_random_engine            m_e1;
-    std::uniform_int_distribution<size_t> m_uniformDist;
-    size_t                                m_epoch = 0;
+    std::filesystem::path                                m_path;
+    std::vector<BufferEntry>                             m_buffer;
+    std::optional<Datareader>                            m_reader{std::nullopt};
+    std::default_random_engine                           m_e1;
+    std::optional<std::uniform_int_distribution<size_t>> m_uniformDist{std::nullopt};
+    size_t                                               m_epoch = 0;
+    size_t                                               m_maxBufferSize;
 };
 
 
@@ -86,7 +106,7 @@ class AggregatedDataloader: public AbstractDataloader {
         m_uniformDist = std::uniform_real_distribution<float>(0.0, totalWeight);
     }
 
-    inline BufferEntry next() final {
+    [[nodiscard]] inline BufferEntry next() final {
         assert(!m_loaders.empty());
 
         const float index = m_uniformDist(m_e1);
