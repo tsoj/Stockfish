@@ -1004,9 +1004,17 @@ class BinpackReader {
                 continue;
             }
 
+            const float probability = Eval::winningProbability(static_cast<Value>(e.score) * (e.pos.side_to_move() == BLACK ? -1 : 1));
+            float outcome = binpack::convert_result(e.result);
+            if(e.pos.side_to_move() == BLACK)
+            {
+                outcome = binpack::invert_wdl(outcome);
+            }
 
-
-            return BufferEntry{Eval::toEvalPosition(e.pos), Eval::winningProbability(static_cast<Value>(e.score) * (e.pos.side_to_move() == BLACK ? -1 : 1))};
+            outcome = outcome / 2.0 + probability / 2.0;
+            assert(outcome <= 1.0);
+            assert(outcome >= 0.0);
+            return BufferEntry{Eval::toEvalPosition(e.pos), outcome};
         }
         return std::nullopt;
     }
