@@ -28,9 +28,7 @@
 #include <thread>
 #include <vector>
 
-#include "material.h"
 #include "movepick.h"
-#include "pawns.h"
 #include "position.h"
 #include "search.h"
 #include "thread_win32_osx.h"
@@ -58,8 +56,6 @@ class Thread {
     void         wait_for_search_finished();
     int          best_move_count(Move move) const;
 
-    Pawns::Table          pawnsTable;
-    Material::Table       materialTable;
     size_t                pvIdx, pvLast;
     uint64_t              ttHitAverage;
     int                   selDepth, nmpMinPly;
