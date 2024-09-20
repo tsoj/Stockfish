@@ -122,4 +122,4 @@ inline Value evaluate(const Position& pos) {
     }
     return result + Tempo;
 }
-}
+}  // namespace Eval

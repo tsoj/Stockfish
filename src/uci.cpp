@@ -285,7 +285,8 @@ void UCI::loop(int argc, char* argv[]) {
         else if (token == "d")
             sync_cout << pos << sync_endl;
         else if (token == "eval")
-            sync_cout << "From whites perspective: " << Eval::evaluate(pos) * (pos.side_to_move() == BLACK ? -1 : 1) << sync_endl;
+            sync_cout << "From whites perspective: "
+                      << Eval::evaluate(pos) * (pos.side_to_move() == BLACK ? -1 : 1) << sync_endl;
         else if (token == "compiler")
             sync_cout << compiler_info() << sync_endl;
         else
