@@ -120,6 +120,6 @@ inline Value evaluate(const Position& pos) {
     {
         result = -result;
     }
-    return result;
+    return result + Tempo;
 }
 }
