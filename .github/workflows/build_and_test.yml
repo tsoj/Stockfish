@@ -8,25 +8,13 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
-    - name: Set up C++ environment
-      uses: actions/setup-cpp@v1
-      with:
-        compiler: clang
+    - name: Eval tuning build
+      run: make clean && make EVAL_TUNING=yes
 
-    - name: Install dependencies
-      run: sudo apt-get install -y make
+    - name: Sanitized debug build
+      run: make clean && make SANITIZE=yes && ./debug_build/Stockfish-BAE go depth 20
 
-    - name: Build project
-      run: |
-        make clean
-        make EVAL_TUNING=yes
-
-        make clean
-        make SANITIZE=yes
-        ./debug_build/Stockfish-BAE go depth 20
-
-        make clean
-        make RELEASE=yes
-        ./release_build/Stockfish-BAE go depth 20
+    - name: Release build
+      run: make clean && make RELEASE=yes && ./release_build/Stockfish-BAE go depth 20
