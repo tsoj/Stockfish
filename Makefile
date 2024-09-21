@@ -10,9 +10,8 @@ FLAGS = -std=c++23
 FLAGS += -Wall -Wextra -Wpedantic -Wshadow -Wdouble-promotion -Wundef -fno-common -Wconversion
 FLAGS += -Wno-deprecated-enum-enum-conversion -Wno-sign-conversion -Wno-float-conversion \
 		 -Wno-implicit-int-float-conversion -Wno-deprecated-enum-float-conversion -Wno-double-promotion \
-		 -Wno-shorten-64-to-32 -Wno-implicit-int-conversion
-
-LFLAGS = -static
+		 -Wno-shorten-64-to-32 -Wno-implicit-int-conversion -Wno-overlength-strings
+LFLAGS =
 
 ifeq ($(EVAL_TUNING),yes)
 	FLAGS += -DEVAL_TUNING
@@ -31,6 +30,8 @@ endif
 
 ifeq ($(SANITIZE),yes)
 	FLAGS += -fsanitize=undefined -fsanitize=address -fsanitize=leak
+else
+	LFLAGS += -static
 endif
 
 ifeq ($(SANITIZE_THREAD),yes)

@@ -35,7 +35,7 @@
     #include "eval_tuning/eval_tune.h"
 #endif
 
-int main(int argc, char* argv[]) {
+int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 
     std::cout << engine_info() << std::endl;
 

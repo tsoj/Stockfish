@@ -1,0 +1,32 @@
+name: Build and test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up C++ environment
+      uses: actions/setup-cpp@v1
+      with:
+        compiler: clang
+
+    - name: Install dependencies
+      run: sudo apt-get install -y make
+
+    - name: Build project
+      run: |
+        make clean
+        make EVAL_TUNING=yes
+
+        make clean
+        make SANITIZE=yes
+        ./debug_build/Stockfish-BAE go depth 20
+
+        make clean
+        make RELEASE=yes
+        ./release_build/Stockfish-BAE go depth 20
