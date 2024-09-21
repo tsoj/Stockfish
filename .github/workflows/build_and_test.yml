@@ -4,23 +4,28 @@ on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
-    - name: Get latest clang
-      run: |
-        wget https://apt.llvm.org/llvm.sh
-        chmod +x llvm.sh
-        sudo ./llvm.sh 18
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        update: true
+        install: >-
+          base-devel
+          clang64
 
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Eval tuning build
-      run: make clean && make COMP="clang-18 -stdlib=libc++" EVAL_TUNING=yes
+      shell: msys2 {0}
+      run: make clean && make EVAL_TUNING=yes
 
     - name: Sanitized debug build
-      run: make clean && make COMP="clang-18 -stdlib=libc++" SANITIZE=yes && ./debug_build/Stockfish-BAE go depth 20
+      shell: msys2 {0}
+      run: make clean && make SANITIZE=yes && ./debug_build/Stockfish-BAE go depth 20
 
     - name: Release build
-      run: make clean && make COMP="clang-18 -stdlib=libc++" RELEASE=yes && ./release_build/Stockfish-BAE go depth 20
+      shell: msys2 {0}
+      run: make clean && make RELEASE=yes && ./release_build/Stockfish-BAE go depth 20
