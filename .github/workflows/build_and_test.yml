@@ -8,16 +8,19 @@ jobs:
 
     steps:
     - name: Get latest clang
-      run: sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" && clang -v
+      run: |
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 18
 
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Eval tuning build
-      run: make clean && make EVAL_TUNING=yes
+      run: make clean && make COMP=clang++18 EVAL_TUNING=yes
 
     - name: Sanitized debug build
-      run: make clean && make SANITIZE=yes && ./debug_build/Stockfish-BAE go depth 20
+      run: make clean && make COMP=clang++18 SANITIZE=yes && ./debug_build/Stockfish-BAE go depth 20
 
     - name: Release build
-      run: make clean && make RELEASE=yes && ./release_build/Stockfish-BAE go depth 20
+      run: make clean && make COMP=clang++18 RELEASE=yes && ./release_build/Stockfish-BAE go depth 20
