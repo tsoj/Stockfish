@@ -369,6 +369,7 @@ struct XCompressedMove {
                     return ENPASSANT;
                 default :
                     assert(false);
+                    return NORMAL;
                 }
             }();
             const Square from          = Square((m_packed >> (16 - 2 - 6)) & squareMask);
@@ -401,6 +402,7 @@ struct XCompressedMove {
             }
 
             assert(false);
+            return MOVE_NONE;
         }
     }
 
@@ -1011,7 +1013,7 @@ class BinpackReader {
                 outcome = binpack::invert_wdl(outcome);
             }
 
-            outcome = outcome / 2.0 + probability / 2.0;
+            outcome = outcome / 2.0F + probability / 2.0F;
             assert(outcome <= 1.0);
             assert(outcome >= 0.0);
             return BufferEntry{Eval::toEvalPosition(e.pos), outcome};

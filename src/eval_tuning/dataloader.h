@@ -34,6 +34,7 @@ class Dataloader: public AbstractDataloader {
 
         assert(m_maxBufferSize > 0);
     }
+    virtual ~Dataloader() = default;
 
     [[nodiscard]] inline BufferEntry next() final {
         if (!m_reader.has_value())
