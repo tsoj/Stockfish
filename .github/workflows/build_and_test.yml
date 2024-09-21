@@ -8,7 +8,7 @@ jobs:
 
     steps:
     - name: Get latest clang
-      run: bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" && clang -v
+      run: sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" && clang -v
 
     - name: Checkout code
       uses: actions/checkout@v4
