@@ -10,10 +10,11 @@ jobs:
     - name: Setup MSYS2
       uses: msys2/setup-msys2@v2
       with:
+        msystem: clang64
         update: true
         install: >-
-          base-devel
-          clang64
+          git
+          make
 
     - name: Checkout code
       uses: actions/checkout@v4
