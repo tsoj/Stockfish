@@ -24,7 +24,7 @@ endif
 
 ifeq ($(RELEASE),yes)
 	FLAGS += -O3 -flto -DNDEBUG
-	LFLAGS = -flto
+	LFLAGS += -flto
 else
 	FLAGS += -Og -fno-omit-frame-pointer -g
 endif
