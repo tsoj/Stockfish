@@ -7,14 +7,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Get latest clang
+      run: bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)" && clang -v
+
     - name: Checkout code
       uses: actions/checkout@v4
-
-    - name: Set up Clang
-      uses: egor-tensin/setup-clang@v1
-      with:
-        version: latest
-        platform: x64
 
     - name: Eval tuning build
       run: make clean && make EVAL_TUNING=yes
