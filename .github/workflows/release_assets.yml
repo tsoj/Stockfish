@@ -1,0 +1,35 @@
+name: Release Assets
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  release_assets:
+    runs-on: windows-latest
+
+    steps:
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: CLANG64
+        update: true
+        install: >-
+          mingw-w64-clang-x86_64-clang
+          make
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Release build
+      shell: msys2 {0}
+      run: make clean && make RELEASE=yes && mv ./release_build/Stockfish-BAE ./release_build/Stockfish-BAE.exe
+
+
+    - name: Upload release asset
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          ./release_build/Stockfish-BAE.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
