@@ -10,10 +10,10 @@ jobs:
     - name: Setup MSYS2
       uses: msys2/setup-msys2@v2
       with:
-        msystem: mingw64
+        msystem: CLANG64
         update: true
         install: >-
-          mingw-w64-x86_64-clang
+          mingw-w64-clang-x86_64-clang
           make
 
     - name: Checkout code
