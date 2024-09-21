@@ -23,7 +23,7 @@ jobs:
 
     - name: Release build
       shell: msys2 {0}
-      run: make clean && make RELEASE=yes && mv ./release_build/Stockfish-BAE ./release_build/Stockfish-BAE.exe
+      run: make clean && make RELEASE=yes
 
 
     - name: Upload release asset
