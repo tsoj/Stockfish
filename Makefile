@@ -6,13 +6,17 @@ ifndef COMP
 	COMP = clang++
 endif
 
-FLAGS = -std=c++20
+FLAGS = -std=c++23
 FLAGS += -Wall -Wextra -Wpedantic -Wshadow -Wdouble-promotion -Wundef -fno-common -Wconversion
 FLAGS += -Wno-deprecated-enum-enum-conversion -Wno-sign-conversion -Wno-float-conversion \
 		 -Wno-implicit-int-float-conversion -Wno-deprecated-enum-float-conversion -Wno-double-promotion \
-		 -Wno-shorten-64-to-32 -Wno-implicit-int-conversion
+		 -Wno-shorten-64-to-32 -Wno-implicit-int-conversion -Wno-overlength-strings
 
-LFLAGS = -static
+LFLAGS = -pthread
+
+ifeq ($(EVAL_TUNING),yes)
+	FLAGS += -DEVAL_TUNING
+endif
 
 ifdef ARCH
 	FLAGS += -march=$(ARCH)
@@ -20,13 +24,15 @@ endif
 
 ifeq ($(RELEASE),yes)
 	FLAGS += -O3 -flto -DNDEBUG
-	LFLAGS = -flto
+	LFLAGS += -flto
 else
 	FLAGS += -Og -fno-omit-frame-pointer -g
 endif
 
 ifeq ($(SANITIZE),yes)
-	FLAGS += -fsanitize=undefined -fsanitize=address -fsanitize=leak
+	FLAGS += -fsanitize=undefined -fsanitize=address
+else ifneq ($(SHARED),yes)
+	LFLAGS += -static
 endif
 
 ifeq ($(SANITIZE_THREAD),yes)
@@ -52,10 +58,7 @@ OBJ = $(CPP:$(SRC_DIR)%.cpp=$(BUILD_DIR)%.o)
 
 build: $(BUILD_DIR)$(NAME)
 
-src/bae_params.h: embed_eval_binary.py bae_params.bin
-	python ./embed_eval_binary.py
-
-$(BUILD_DIR)$(NAME): src/bae_params.h $(OBJ)
+$(BUILD_DIR)$(NAME): $(OBJ)
 	$(COMP) -o $(BUILD_DIR)$(NAME) $(OBJ) $(FLAGS) $(LFLAGS)
 
 -include $(OBJ:%.o=%.d)
@@ -73,4 +76,3 @@ clean:
 	$(if $(DEBUG_BUILD_DIR),,$(error DEBUG_BUILD_DIR is not set))
 	-rm -rf ./$(RELEASE_BUILD_DIR)
 	-rm -rf ./$(DEBUG_BUILD_DIR)
-	-rm src/bae_params.h

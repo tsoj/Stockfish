@@ -1,4 +1,6 @@
 debug_build/
 release_build/
-src/bae_params.h
 perf.data*
+compile_commands.json
+.cache/
+*.binpack

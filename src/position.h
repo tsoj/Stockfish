@@ -72,14 +72,24 @@ class Position {
    public:
     static void init();
 
-    Position()                           = default;
-    Position(const Position&)            = delete;
-    Position& operator=(const Position&) = delete;
+    Position() { set_empty(); }
+    Position(const Position& pos) { shallow_copy_from(pos); }
+    Position& operator=(const Position& pos) {
+        if (&pos == this)
+        {
+            return *this;
+        }
+        shallow_copy_from(pos);
+        return *this;
+    };
 
     // FEN string input/output
+    void              set_empty(StateInfo* si = nullptr, Thread* th = nullptr);
     Position&         set(const std::string& fenStr, bool isChess960, StateInfo* si, Thread* th);
     Position&         set(const std::string& code, Color c, StateInfo* si);
+    void              shallow_copy_from(const Position& position);
     const std::string fen() const;
+
 
     // Position representation
     Bitboard pieces(PieceType pt) const;
@@ -157,7 +167,6 @@ class Position {
     bool    has_game_cycle(int ply) const;
     bool    has_repeated() const;
     int     rule50_count() const;
-    Score   psq_score() const;
     Value   non_pawn_material(Color c) const;
     Value   non_pawn_material() const;
 
@@ -165,7 +174,6 @@ class Position {
     bool pos_is_ok() const;
     void flip();
 
-   private:
     // Initialization helpers (used while setting up a position)
     void set_castling_right(Color c, Square rfrom);
     void set_state(StateInfo* si) const;
@@ -179,26 +187,22 @@ class Position {
     void do_castling(Color us, Square from, Square& to, Square& rfrom, Square& rto);
 
     // Data members
-    Piece      board[SQUARE_NB];
-    Bitboard   byTypeBB[PIECE_TYPE_NB];
-    Bitboard   byColorBB[COLOR_NB];
-    int        pieceCount[PIECE_NB];
-    Square     pieceList[PIECE_NB][16];
-    int        index[SQUARE_NB];
-    int        castlingRightsMask[SQUARE_NB];
-    Square     castlingRookSquare[CASTLING_RIGHT_NB];
-    Bitboard   castlingPath[CASTLING_RIGHT_NB];
-    int        gamePly;
-    Color      sideToMove;
-    Score      psq;
-    Thread*    thisThread;
-    StateInfo* st;
-    bool       chess960;
+    Piece                      board[SQUARE_NB];
+    Bitboard                   byTypeBB[PIECE_TYPE_NB];
+    Bitboard                   byColorBB[COLOR_NB];
+    int                        pieceCount[PIECE_NB];
+    Square                     pieceList[PIECE_NB][16];
+    int                        index[SQUARE_NB];
+    int                        castlingRightsMask[SQUARE_NB];
+    Square                     castlingRookSquare[CASTLING_RIGHT_NB];
+    Bitboard                   castlingPath[CASTLING_RIGHT_NB];
+    int                        gamePly;
+    Color                      sideToMove;
+    Thread*                    thisThread;
+    StateInfo*                 st;
+    std::unique_ptr<StateInfo> own_st;
+    bool                       chess960;
 };
-
-namespace PSQT {
-extern Score psq[PIECE_NB][SQUARE_NB];
-}
 
 extern std::ostream& operator<<(std::ostream& os, const Position& pos);
 
@@ -302,8 +306,6 @@ inline Key Position::pawn_key() const { return st->pawnKey; }
 
 inline Key Position::material_key() const { return st->materialKey; }
 
-inline Score Position::psq_score() const { return psq; }
-
 inline Value Position::non_pawn_material(Color c) const { return st->nonPawnMaterial[c]; }
 
 inline Value Position::non_pawn_material() const {
@@ -344,7 +346,6 @@ inline void Position::put_piece(Piece pc, Square s) {
     index[s]                = pieceCount[pc]++;
     pieceList[pc][index[s]] = s;
     pieceCount[make_piece(color_of(pc), ALL_PIECES)]++;
-    psq += PSQT::psq[pc][s];
 }
 
 inline void Position::remove_piece(Square s) {
@@ -363,7 +364,6 @@ inline void Position::remove_piece(Square s) {
     pieceList[pc][index[lastSquare]] = lastSquare;
     pieceList[pc][pieceCount[pc]]    = SQ_NONE;
     pieceCount[make_piece(color_of(pc), ALL_PIECES)]--;
-    psq -= PSQT::psq[pc][s];
 }
 
 inline void Position::move_piece(Square from, Square to) {
@@ -379,7 +379,6 @@ inline void Position::move_piece(Square from, Square to) {
     board[to]                = pc;
     index[to]                = index[from];
     pieceList[pc][index[to]] = to;
-    psq += PSQT::psq[pc][to] - PSQT::psq[pc][from];
 }
 
 inline void Position::do_move(Move m, StateInfo& newSt) { do_move(m, newSt, gives_check(m)); }

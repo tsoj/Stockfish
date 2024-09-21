@@ -24,8 +24,10 @@
 #include <cstddef>  // For offsetof()
 #include <cstring>  // For std::memset, std::memcmp
 #include <iomanip>
+#include <memory>
 #include <sstream>
 
+#include "bae.h"
 #include "bitboard.h"
 #include "misc.h"
 #include "movegen.h"
@@ -147,6 +149,33 @@ void Position::init() {
     assert(count == 3668);
 }
 
+void Position::set_empty(StateInfo* si, Thread* th) {
+    std::memset(board, 0, sizeof(board));
+    std::memset(byTypeBB, 0, sizeof(byTypeBB));
+    std::memset(byColorBB, 0, sizeof(byColorBB));
+    std::memset(pieceCount, 0, sizeof(pieceCount));
+    std::fill_n(&pieceList[0][0], sizeof(pieceList) / sizeof(Square), SQ_NONE);
+    std::memset(index, 0, sizeof(index));
+    std::memset(castlingRightsMask, 0, sizeof(castlingRightsMask));
+    std::memset(castlingRookSquare, 0, sizeof(castlingRookSquare));
+    std::memset(castlingPath, 0, sizeof(castlingPath));
+    gamePly    = 0;
+    sideToMove = WHITE;
+    thisThread = th;
+    st         = si;
+    own_st     = nullptr;
+    chess960   = false;
+
+    if (st == nullptr)
+    {
+        own_st = std::make_unique<StateInfo>();
+        st     = own_st.get();
+    }
+
+    std::memset(st, 0, sizeof(StateInfo));
+    st->epSquare = SQ_NONE;
+}
+
 /// Position::set() initializes the position object with the given FEN string.
 /// This function is not very robust - make sure that input FENs are correct,
 /// this is assumed to be the responsibility of the GUI.
@@ -194,10 +223,7 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si, Th
     Square             sq = SQ_A8;
     std::istringstream ss(fenStr);
 
-    std::memset(this, 0, sizeof(Position));
-    std::memset(si, 0, sizeof(StateInfo));
-    std::fill_n(&pieceList[0][0], sizeof(pieceList) / sizeof(Square), SQ_NONE);
-    st = si;
+    set_empty(si, th);
 
     ss >> std::noskipws;
 
@@ -680,7 +706,10 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
     assert(is_ok(m));
     assert(&newSt != st);
 
-    thisThread->nodes.fetch_add(1, std::memory_order_relaxed);
+    if (thisThread != nullptr)
+    {
+        thisThread->nodes.fetch_add(1, std::memory_order_relaxed);
+    }
     Key k = st->key ^ Zobrist::side;
 
     // Copy some fields of the old state to our new StateInfo object except the
@@ -752,7 +781,6 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
         // Update material hash key and prefetch access to materialTable
         k ^= Zobrist::psq[captured][capsq];
         st->materialKey ^= Zobrist::psq[captured][pieceCount[captured]];
-        prefetch(thisThread->materialTable[st->materialKey]);
 
         // Reset rule 50 counter
         st->rule50 = 0;
@@ -1271,4 +1299,29 @@ bool Position::pos_is_ok() const {
         }
 
     return true;
+}
+
+
+void Position::shallow_copy_from(const Position& position) {
+    // clang-format off
+    std::memcpy(&this->board, &position.board, sizeof(board));
+    std::memcpy(&this->byTypeBB, &position.byTypeBB, sizeof(byTypeBB));
+    std::memcpy(&this->byColorBB, &position.byColorBB, sizeof(byColorBB));
+    std::memcpy(&this->pieceCount, &position.pieceCount, sizeof(pieceCount));
+    std::memcpy(&this->pieceList, &position.pieceList, sizeof(pieceList));
+    std::memcpy(&this->index, &position.index, sizeof(index));
+    std::memcpy(&this->castlingRightsMask, &position.castlingRightsMask, sizeof(castlingRightsMask));
+    std::memcpy(&this->castlingRookSquare, &position.castlingRookSquare, sizeof(castlingRookSquare));
+    std::memcpy(&this->castlingPath, &position.castlingPath, sizeof(castlingPath));
+    std::memcpy(&this->gamePly, &position.gamePly, sizeof(gamePly));
+    std::memcpy(&this->sideToMove, &position.sideToMove, sizeof(sideToMove));
+    std::memcpy(&this->chess960, &position.chess960, sizeof(chess960));
+    // clang-format on
+
+    thisThread = nullptr;
+
+    assert(position.st != nullptr);
+    own_st           = std::make_unique<StateInfo>(*(position.st));
+    own_st->previous = nullptr;
+    st               = own_st.get();
 }

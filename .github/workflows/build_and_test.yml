@@ -1,0 +1,32 @@
+name: Build and test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: CLANG64
+        update: true
+        install: >-
+          mingw-w64-clang-x86_64-clang
+          make
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Eval tuning build
+      shell: msys2 {0}
+      run: make clean && make SHARED=yes EVAL_TUNING=yes
+
+    - name: Sanitized debug build
+      shell: msys2 {0}
+      run: make clean && make SHARED=yes SANITIZE=yes && ./debug_build/Stockfish-BAE go depth 20
+
+    - name: Release build
+      shell: msys2 {0}
+      run: make clean && make SHARED=yes RELEASE=yes && ./release_build/Stockfish-BAE go depth 20
