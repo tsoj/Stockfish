@@ -11,7 +11,8 @@ FLAGS += -Wall -Wextra -Wpedantic -Wshadow -Wdouble-promotion -Wundef -fno-commo
 FLAGS += -Wno-deprecated-enum-enum-conversion -Wno-sign-conversion -Wno-float-conversion \
 		 -Wno-implicit-int-float-conversion -Wno-deprecated-enum-float-conversion -Wno-double-promotion \
 		 -Wno-shorten-64-to-32 -Wno-implicit-int-conversion -Wno-overlength-strings
-LFLAGS =
+
+LFLAGS = -pthread
 
 ifeq ($(EVAL_TUNING),yes)
 	FLAGS += -DEVAL_TUNING
