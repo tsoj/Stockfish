@@ -3,7 +3,7 @@ ifndef NAME
 endif
 
 ifndef COMP
-	COMP = clang
+	COMP = clang++
 endif
 
 FLAGS = -std=c++23
