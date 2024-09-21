@@ -21,12 +21,12 @@ jobs:
 
     - name: Eval tuning build
       shell: msys2 {0}
-      run: make clean && make EVAL_TUNING=yes
+      run: make clean && make SHARED=yes EVAL_TUNING=yes
 
     - name: Sanitized debug build
       shell: msys2 {0}
-      run: make clean && make SANITIZE=yes && ./debug_build/Stockfish-BAE go depth 20
+      run: make clean && make SHARED=yes SANITIZE=yes && ./debug_build/Stockfish-BAE go depth 20
 
     - name: Release build
       shell: msys2 {0}
-      run: make clean && make RELEASE=yes && ./release_build/Stockfish-BAE go depth 20
+      run: make clean && make SHARED=yes RELEASE=yes && ./release_build/Stockfish-BAE go depth 20

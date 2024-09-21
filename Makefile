@@ -29,8 +29,8 @@ else
 endif
 
 ifeq ($(SANITIZE),yes)
-	FLAGS += -fsanitize=undefined -fsanitize=address -fsanitize=leak
-else
+	FLAGS += -fsanitize=undefined -fsanitize=address
+else ifneq ($(SHARED),yes)
 	LFLAGS += -static
 endif
 
