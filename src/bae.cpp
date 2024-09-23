@@ -49,7 +49,7 @@ class BaeParams {
     }
 
 
-    void doForAll(const std::function<void(ValueType&)>& op) {
+    void do_for_all(const std::function<void(ValueType&)>& op) {
         for (auto& singlePhase : params)
         {
             // clang-format off
@@ -80,14 +80,14 @@ class BaeParams {
 };
 
 
-int16_t i16_from_hex(const char* const s) {
+[[nodiscard]] int16_t i16_from_hex(const char* const s) {
     const char hexString[] = {s[0], s[1], s[2], s[3], '\0'};
     uint16_t   tmp         = std::strtoul(hexString, nullptr, 16);
     return *reinterpret_cast<int16_t*>(&tmp);
 }
 
 #ifdef EVAL_TUNING
-std::string to_hex(const int16_t a) {
+[[nodiscard]] std::string to_hex(const int16_t a) {
     const uint16_t     aUnsiged = *reinterpret_cast<const uint16_t*>(&a);
     std::ostringstream oss;
     oss << std::setw(4) << std::setfill('0') << std::hex << aUnsiged;
@@ -101,7 +101,7 @@ std::string to_hex(const int16_t a) {
 #ifdef EVAL_TUNING
 BaeParams<float> baeParams = []() {
     BaeParams<float> baeParams{};
-    baeParams.doForAll([](float& value) { value = 0.0; });
+    baeParams.do_for_all([](float& value) { value = 0.0; });
     return baeParams;
 }();
 #else
@@ -110,7 +110,7 @@ const BaeParams<Value> baeParams = []() {
 
     size_t n = 0;
 
-    baeParams.doForAll([&](Value& value) {
+    baeParams.do_for_all([&](Value& value) {
         value = static_cast<Value>(i16_from_hex(&Eval::rawBaeContent[n]));
         n += 4;
     });
@@ -120,6 +120,7 @@ const BaeParams<Value> baeParams = []() {
 #endif
 
 class EvalValue {
+   private:
     std::array<Value, 2> value = {VALUE_ZERO, VALUE_ZERO};
 
    public:
@@ -268,8 +269,8 @@ void piece_relative_pst(const EvalPosition& pos,
     const Square ourSquare = color_conditional_mirror_vertically(ourSquareIn, us);
     const Square enemyKingSquare =
       color_conditional_mirror_vertically(bb_to_square(pos[~us, Piece::king]), us);
-    const size_t roughEnemyKingFile = (static_cast<size_t>(enemyKingSquare) % 8) / 2;
-    const size_t roughEnemyKingRank = (static_cast<size_t>(enemyKingSquare) / 8) / 4;
+    const size_t roughEnemyKingFile = file(enemyKingSquare) / 2;
+    const size_t roughEnemyKingRank = rank(enemyKingSquare) / 4;
 
 
     FOR_PIECE_RANGE({
@@ -346,15 +347,15 @@ size_t pawn_mask_index(const EvalPosition& pos, const Square square) {
     size_t counter = 1;
 
     for (const Bitboard bit : {
-           square_bb(SQ_A3),
-           square_bb(SQ_B3),
-           square_bb(SQ_C3),
-           square_bb(SQ_A2),
-           square_bb(SQ_B2),
-           square_bb(SQ_C2),
-           square_bb(SQ_A1),
-           square_bb(SQ_B1),
-           square_bb(SQ_C1),
+           square_to_bb(Square::a3),
+           square_to_bb(Square::b3),
+           square_to_bb(Square::c3),
+           square_to_bb(Square::a2),
+           square_to_bb(Square::b2),
+           square_to_bb(Square::c2),
+           square_to_bb(Square::a1),
+           square_to_bb(Square::b1),
+           square_to_bb(Square::c1),
          })
     {
         if ((whitePawns & bit) != 0)
@@ -465,7 +466,7 @@ void writeBaeParams() {
     std::ofstream out("src/bae_params.h");
     out << "#pragma once\nnamespace Eval { constexpr char rawBaeContent[] = R\"(";
 
-    baeParams.doForAll([&out](auto& value) { out << to_hex(static_cast<int16_t>(value)); });
+    baeParams.do_for_all([&out](auto& value) { out << to_hex(static_cast<int16_t>(value)); });
 
     out << ")\"; }\n" << std::flush;
 }

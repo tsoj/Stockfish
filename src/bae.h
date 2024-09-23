@@ -50,6 +50,9 @@ inline Square bb_to_square(BB bb) {
 
 inline BB square_to_bb(Square sq) { return static_cast<BB>(1) << static_cast<int>(sq); }
 
+inline int rank(Square sq){ return static_cast<size_t>(sq) / 8;}
+inline int file(Square sq){ return static_cast<size_t>(sq) % 8;}
+
 class EvalPosition {
     std::array<BB, 2> colors;
     std::array<BB, 6> pieces;
