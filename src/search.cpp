@@ -1129,8 +1129,16 @@ moves_loop:  // When in check, search starts here
                 && is_valid(ttData.value) && !is_decisive(ttData.value)
                 && (ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 3)
             {
-                Value singularBeta  = ttData.value - (59 + 77 * (ss->ttPv && !PvNode)) * depth / 54;
-                Depth singularDepth = newDepth / 2;
+                // More aggressive singular extension in endgames and for pawn pushes to 7th/2nd rank
+                bool isEndgame = pos.count<ALL_PIECES>() <= 12;
+                bool isPawnPush =
+                  type_of(movedPiece) == PAWN
+                  && (rank_of(move.to_sq()) == RANK_7 || rank_of(move.to_sq()) == RANK_2);
+
+                Value singularBeta =
+                  ttData.value
+                  - (59 + 77 * (ss->ttPv && !PvNode) - 22 * (isEndgame || isPawnPush)) * depth / 54;
+                Depth singularDepth = newDepth / 2 + (isEndgame || isPawnPush);
 
                 ss->excludedMove = move;
                 value =
