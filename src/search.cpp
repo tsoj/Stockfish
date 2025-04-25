@@ -1139,6 +1139,9 @@ moves_loop:  // When in check, search starts here
 
                 if (value < singularBeta)
                 {
+                    // Calculate if the singular move gives check
+                    bool singularGivesCheck = pos.gives_check(ttData.move);
+
                     int corrValAdj1  = std::abs(correctionValue) / 248873;
                     int corrValAdj2  = std::abs(correctionValue) / 255331;
                     int doubleMargin = 262 * PvNode - 188 * !ttCapture - corrValAdj1
@@ -1146,10 +1149,11 @@ moves_loop:  // When in check, search starts here
                     int tripleMargin =
                       88 + 265 * PvNode - 256 * !ttCapture + 93 * ss->ttPv - corrValAdj2;
 
-                    extension = 1 + (value < singularBeta - doubleMargin)
+                    // Add base extension (1), bonus if check, plus margin-based bonuses
+                    extension = 1 + singularGivesCheck + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
-                    depth++;
+                    depth++;  // This increases depth for the *node*, affecting subsequent moves too
                 }
 
                 // Multi-cut pruning
