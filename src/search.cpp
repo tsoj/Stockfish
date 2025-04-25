@@ -1690,7 +1690,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                 continue;
 
             // Do not search moves with bad enough SEE values
-            if (!pos.see_ge(move, -75))
+            // Allow slightly more material loss according to SEE check
+            if (!pos.see_ge(move, -100))
                 continue;
         }
 
