@@ -1756,7 +1756,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
 }
 
 Depth Search::Worker::reduction(bool i, Depth d, int mn, int delta) const {
-    int reductionScale = reductions[d] * reductions[mn];
+    int reductionScale =
+      (reductions[d] * reductions[mn]) * 15 / 16;  // Slightly dampen base reduction
     return reductionScale - delta * 764 / rootDelta + !i * reductionScale * 191 / 512 + 1087;
 }
 
