@@ -1690,7 +1690,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                 continue;
 
             // Do not search moves with bad enough SEE values
-            if (!pos.see_ge(move, -75))
+            // Lowered threshold slightly from -75 to -90 to be less aggressive.
+            if (!pos.see_ge(move, -90))
                 continue;
         }
 
