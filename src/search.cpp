@@ -1263,21 +1263,19 @@ moves_loop:  // When in check, search starts here
             // Do a full-depth search when reduced LMR search fails high
             if (value > alpha && d < newDepth)
             {
-                // Adjust full-depth search based on LMR results - if the result was
-                // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 43 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
+                // If the LMR result is significantly better than the current best,
+                // extend the re-search depth slightly.
+                Depth reSearchDepth = newDepth;
+                if (value > bestValue + 50)  // Check if value significantly exceeds bestValue
+                    reSearchDepth++;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
-
-                if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                // Re-search at the potentially adjusted depth.
+                value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, reSearchDepth, !cutNode);
 
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1600);
             }
-            else if (value > alpha && value < bestValue + 9)
-                newDepth--;
+            // Removed depth reduction for subsequent moves based on small LMR fail-high
         }
 
         // Step 18. Full-depth search when LMR is skipped
