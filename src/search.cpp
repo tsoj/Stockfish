@@ -1689,8 +1689,10 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                      <= 6290)
                 continue;
 
-            // Do not search moves with bad enough SEE values
-            if (!pos.see_ge(move, -75))
+            // Do not search moves with bad enough SEE values.
+            // Allow checks with worse SEE than non-checking moves, as they are more forcing.
+            Value seeThreshold = givesCheck ? -200 : -50;
+            if (!pos.see_ge(move, seeThreshold))
                 continue;
         }
 
