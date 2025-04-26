@@ -1236,6 +1236,10 @@ moves_loop:  // When in check, search starts here
         else if (move == ttData.move)
             r -= 1937;
 
+        // Decrease reduction slightly for all captures, as they are often tactical
+        if (capture)
+            r -= 512;
+
         if (capture)
             ss->statScore =
               846 * int(PieceValue[pos.captured_piece()]) / 128
