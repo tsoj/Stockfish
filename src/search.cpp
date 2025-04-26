@@ -1088,8 +1088,13 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3593;
 
-                Value futilityValue = ss->staticEval + (bestMove ? 48 : 146) + 116 * lmrDepth
-                                    + 103 * (bestValue < ss->staticEval - 128);
+                // Calculate adaptive bonus based on how much static eval seems overestimated
+                int adaptiveBonus = 0;
+                if (bestValue < ss->staticEval - 128)
+                    adaptiveBonus = std::clamp((ss->staticEval - bestValue) / 2, 0, 150);
+
+                Value futilityValue =
+                  ss->staticEval + (bestMove ? 48 : 146) + 116 * lmrDepth + adaptiveBonus;
 
                 // Futility pruning: parent node
                 // (*Scaler): Generally, more frequent futility pruning
