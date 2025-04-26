@@ -1227,8 +1227,9 @@ moves_loop:  // When in check, search starts here
         uint64_t nodeCount = rootNode ? uint64_t(nodes) : 0;
 
         // Decrease reduction for PvNodes (*Scaler)
+        // Further decrease reduction if the move is a capture in a PV node
         if (ss->ttPv)
-            r -= 2381 + PvNode * 1008 + (ttData.value > alpha) * 880
+            r -= 2381 + PvNode * (1008 + capture * 512) + (ttData.value > alpha) * 880
                + (ttData.depth >= depth) * (1022 + cutNode * 1140);
 
         // These reduction adjustments have no proven non-linear scaling
