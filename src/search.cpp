@@ -1249,8 +1249,10 @@ moves_loop:  // When in check, search starts here
                           + (*contHist[0])[movedPiece][move.to_sq()]
                           + (*contHist[1])[movedPiece][move.to_sq()] - 3271;
 
-        // Decrease/increase reduction for moves with a good/bad history
-        r -= ss->statScore * 1582 / 16384;
+        // Decrease/increase reduction for moves with a good/bad history, but not for the TT move
+        // as it already gets a specific adjustment.
+        if (move != ttData.move)
+            r -= ss->statScore * 1582 / 16384;
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
