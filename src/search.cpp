@@ -907,8 +907,12 @@ Value Search::Worker::search(
 
     // Step 10. Internal iterative reductions
     // For PV nodes without a ttMove as well as for deep enough cutNodes, we decrease depth.
+    // Also reduce if the TT suggests a high score with a quiet move, but static eval disagrees.
     // (* Scaler) Especially if they make IIR more aggressive.
-    if (((PvNode || cutNode) && depth >= 7 - 3 * PvNode) && !ttData.move)
+    if (((PvNode || cutNode) && depth >= 7 - 3 * PvNode)
+        && (!ttData.move
+            || (ttData.move && !ttCapture && (ttData.bound & BOUND_LOWER) && ttData.value >= beta
+                && ss->staticEval < beta - 200)))
         depth--;
 
     // Step 11. ProbCut
