@@ -1182,12 +1182,14 @@ moves_loop:  // When in check, search starts here
 
                 // If the ttMove is assumed to fail high over current beta
                 else if (ttData.value >= beta)
-                    extension = -3;
+                    // Less reduction if the ttMove (singular candidate) was a capture
+                    extension = -3 + ttCapture;
 
                 // If we are on a cutNode but the ttMove is not assumed to fail high
                 // over current beta
                 else if (cutNode)
-                    extension = -2;
+                    // Less reduction if the ttMove (singular candidate) was a capture
+                    extension = -2 + ttCapture;
             }
         }
 
