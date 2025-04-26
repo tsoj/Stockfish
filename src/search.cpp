@@ -643,6 +643,7 @@ Value Search::Worker::search(
     int   priorReduction = (ss - 1)->reduction;
     (ss - 1)->reduction  = 0;
     Piece movedPiece;
+    bool  singularExtended = false;  // Flag to track if singular extension occurred
 
     ValueList<Move, 32> capturesSearched;
     ValueList<Move, 32> quietsSearched;
@@ -1036,6 +1037,10 @@ moves_loop:  // When in check, search starts here
 
         r -= 32 * moveCount;
 
+        // Increase reduction for subsequent moves if TT move was singularly extended
+        if (singularExtended && move != ttData.move)
+            r += 1024;  // Increase reduction by ~1 ply equivalent
+
         // Increase reduction for ttPv nodes (*Scaler)
         // Smaller or even negative value is better for short time controls
         // Bigger value is better for long time controls
@@ -1161,6 +1166,7 @@ moves_loop:  // When in check, search starts here
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
+                    singularExtended = true;  // Set flag when singular extension is applied
                     depth++;
                 }
 
