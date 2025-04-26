@@ -1161,6 +1161,11 @@ moves_loop:  // When in check, search starts here
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
+                    // Reduce extension if the TT value that suggested singularity
+                    // was itself not much higher than the current alpha.
+                    if (ttData.value < alpha + 75)
+                        extension = std::max(0, extension - 1);
+
                     depth++;
                 }
 
