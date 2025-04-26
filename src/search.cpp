@@ -1100,7 +1100,10 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3593;
 
-                Value futilityValue = ss->staticEval + (bestMove ? 48 : 146) + 116 * lmrDepth
+                // Use max(staticEval, bestValue) as base if a best move improving staticEval exists
+                Value futilityBase =
+                  bestMove ? std::max(ss->staticEval, bestValue) : ss->staticEval;
+                Value futilityValue = futilityBase + (bestMove ? 48 : 146) + 116 * lmrDepth
                                     + 103 * (bestValue < ss->staticEval - 128);
 
                 // Futility pruning: parent node
