@@ -885,7 +885,9 @@ Value Search::Worker::search(
         // Do not return unproven mate or TB scores
         if (nullValue >= beta && !is_win(nullValue))
         {
-            if (thisThread->nmpMinPly || depth < 16)
+            // Skip verification if NMP is already disabled, depth is low,
+            // or the null move score significantly exceeds beta.
+            if (thisThread->nmpMinPly || depth < 16 || nullValue >= beta + 200)
                 return nullValue;
 
             assert(!thisThread->nmpMinPly);  // Recursive verification is not allowed
