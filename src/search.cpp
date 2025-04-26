@@ -1161,7 +1161,11 @@ moves_loop:  // When in check, search starts here
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
-                    depth++;
+                    // Only apply the base +1 ply singular extension if the result
+                    // without the TT move was clearly below the singular beta threshold,
+                    // avoiding extensions for borderline singular moves.
+                    if (value < singularBeta - 4)
+                        depth++;
                 }
 
                 // Multi-cut pruning
