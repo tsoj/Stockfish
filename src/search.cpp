@@ -1671,7 +1671,9 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             if (!givesCheck && move.to_sq() != prevSq && !is_loss(futilityBase)
                 && move.type_of() != PROMOTION)
             {
-                if (moveCount > 2)
+                // Allow searching one more capture/check if stand-pat is much lower than alpha
+                int moveCountLimit = 2 + (alpha - bestValue > PieceValue[PAWN]);
+                if (moveCount > moveCountLimit)
                     continue;
 
                 Value futilityValue = futilityBase + PieceValue[pos.piece_on(move.to_sq())];
