@@ -1153,15 +1153,14 @@ moves_loop:  // When in check, search starts here
                 {
                     int corrValAdj1 = std::abs(correctionValue) / 248873;
                     int corrValAdj2 = std::abs(correctionValue) / 255331;
-                    int doubleMargin =
-                      262 * PvNode - 188 * !ttCapture - corrValAdj1 - ttMoveHistory / 128;
-                    int tripleMargin =
-                      88 + 265 * PvNode - 256 * !ttCapture + 93 * ss->ttPv - corrValAdj2;
+                    // Remove !ttCapture dependence from margins, treating quiet/capture singularity equally here
+                    int doubleMargin = 262 * PvNode - corrValAdj1 - ttMoveHistory / 128;
+                    int tripleMargin = 88 + 265 * PvNode + 93 * ss->ttPv - corrValAdj2;
 
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
-                    depth++;
+                    // depth++; // This was likely redundant, extension is added to newDepth later
                 }
 
                 // Multi-cut pruning
