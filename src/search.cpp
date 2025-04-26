@@ -1129,7 +1129,10 @@ moves_loop:  // When in check, search starts here
                 && is_valid(ttData.value) && !is_decisive(ttData.value)
                 && (ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 3)
             {
-                Value singularBeta  = ttData.value - (59 + 77 * (ss->ttPv && !PvNode)) * depth / 54;
+                // Increase margin slightly if the TT entry depth is relatively shallow
+                int   shallowTTPenalty = (ttData.depth < depth - 1) * 15;
+                Value singularBeta =
+                  ttData.value - (59 + shallowTTPenalty + 77 * (ss->ttPv && !PvNode)) * depth / 54;
                 Depth singularDepth = newDepth / 2;
 
                 ss->excludedMove = move;
