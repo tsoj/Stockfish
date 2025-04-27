@@ -1169,6 +1169,10 @@ moves_loop:  // When in check, search starts here
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
+                    // Add extra extension if the singularity gap (ttValue vs best alternative) is large
+                    if (ttData.value > value + 350)
+                        extension++;
+
                     depth++;
                 }
 
