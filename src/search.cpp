@@ -1193,9 +1193,17 @@ moves_loop:  // When in check, search starts here
                     extension = -3;
 
                 // If we are on a cutNode but the ttMove is not assumed to fail high
-                // over current beta
+                // over current beta. Reduce more if the singular search without the ttMove
+                // returned a high value, indicating strong alternatives.
                 else if (cutNode)
-                    extension = -2;
+                {
+                    // Check if the singular search result 'value' is significantly above singularBeta
+                    if (value
+                        > singularBeta + (beta - singularBeta) / 4)  // Strong alternatives found
+                        extension = -3;                              // Apply stronger reduction
+                    else
+                        extension = -2;  // Apply standard reduction
+                }
             }
         }
 
