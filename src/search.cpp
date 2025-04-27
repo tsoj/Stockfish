@@ -1272,6 +1272,10 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 1582 / 16384;
 
+        // Decrease reduction if the move received singular extension earlier
+        if (extension > 0)
+            r -= 1024 * extension;  // Reduce reduction by 'extension' plies worth
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
