@@ -1161,7 +1161,10 @@ moves_loop:  // When in check, search starts here
                 && is_valid(ttData.value) && !is_decisive(ttData.value)
                 && (ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 3)
             {
-                Value singularBeta  = ttData.value - (59 + 77 * (ss->ttPv && !PvNode)) * depth / 54;
+                // Make the singularity margin larger for captures, requiring them to be more
+                // clearly better than alternatives to get an extension.
+                Value singularBeta =
+                  ttData.value - (59 + 40 * ttCapture + 77 * (ss->ttPv && !PvNode)) * depth / 54;
                 Depth singularDepth = newDepth / 2;
 
                 ss->excludedMove = move;
