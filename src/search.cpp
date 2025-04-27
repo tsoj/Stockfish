@@ -79,7 +79,7 @@ Value futility_margin(Depth d,
                       int   correctionValue) {
     Value futilityMult       = 98 - 22 * noTtCutNode;
     Value improvingDeduction = improving * futilityMult * 2;
-    Value worseningDeduction = oppWorsening * futilityMult / 3;
+    Value worseningDeduction = !improving * oppWorsening * futilityMult / 3;
     Value statScoreAddition  = statScore / 339;
     Value correctionAddition = correctionValue / 157363;
 
