@@ -1281,10 +1281,14 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
+                // Also consider how much the LMR search exceeded alpha.
                 const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
                 const bool doShallowerSearch = value < bestValue + 9;
+                const bool doStrongFailHigh =
+                  value > alpha + 60;  // Added: Check if LMR fail-high is significant vs alpha
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                newDepth += doDeeperSearch - doShallowerSearch
+                          + doStrongFailHigh;  // Added: + doStrongFailHigh
 
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
