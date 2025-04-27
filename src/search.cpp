@@ -1181,7 +1181,8 @@ moves_loop:  // When in check, search starts here
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
-                    depth++;
+                    // Rely solely on the 'extension' variable added later to newDepth
+                    // depth++; // Removed immediate depth increment
                 }
 
                 // Multi-cut pruning
