@@ -1166,8 +1166,14 @@ moves_loop:  // When in check, search starts here
                     int tripleMargin =
                       84 + 269 * PvNode - 253 * !ttCapture + 91 * ss->ttPv - corrValAdj2;
 
+                    // Base extension + extensions for crossing margins
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
+
+                    // Add extra extension if the fail low was very deep (clearly singular)
+                    // Use doubleMargin as a reference scale, add at most 1 ply.
+                    extension +=
+                      (value < singularBeta - doubleMargin - std::max(Value(50), doubleMargin / 2));
 
                     depth++;
                 }
