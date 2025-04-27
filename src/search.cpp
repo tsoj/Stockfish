@@ -1302,11 +1302,16 @@ moves_loop:  // When in check, search starts here
 
                 newDepth += doDeeperSearch - doShallowerSearch;
 
+                // Re-search with the full window (-beta, -alpha) since the reduced
+                // search already failed high (> alpha). This allows for a more
+                // accurate score and potentially updates alpha immediately.
                 if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                    value = -search<NonPV>(pos, ss + 1, -beta, -alpha, newDepth, !cutNode);
 
                 // Post LMR continuation history updates
-                update_continuation_histories(ss, movedPiece, move.to_sq(), 1600);
+                // Update history only if the re-search confirms the move is good (value > alpha)
+                if (value > alpha)
+                    update_continuation_histories(ss, movedPiece, move.to_sq(), 1600);
             }
             else if (value > alpha && value < bestValue + 9)
             {
