@@ -1107,9 +1107,11 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3388;
 
+                // Add a small margin against pruning if static eval is already > alpha
+                int futilityMarginBonus = std::max(0, int(ss->staticEval - alpha)) / 4;
+
                 Value futilityValue =
-                  ss->staticEval + (bestMove ? 46 : 138) + 117 * lmrDepth
-                  + 102 * (bestValue < ss->staticEval - 127 && ss->staticEval > alpha - 50);
+                  ss->staticEval + (bestMove ? 46 : 138) + 117 * lmrDepth + futilityMarginBonus;
 
                 // Futility pruning: parent node
                 // (*Scaler): Generally, more frequent futility pruning
