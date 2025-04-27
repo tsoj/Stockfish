@@ -1181,6 +1181,10 @@ moves_loop:  // When in check, search starts here
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
+                    // Reduce extension for captures, they are less likely to be "singular" in the tactical sense
+                    if (ttCapture)
+                        extension = std::min(1, extension);
+
                     depth++;
                 }
 
