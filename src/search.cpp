@@ -1263,6 +1263,11 @@ moves_loop:  // When in check, search starts here
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
+            // If the parent node failed high (caused a cutoff), be slightly less
+            // aggressive with reductions for the children moves.
+            if ((ss - 1)->cutoffCnt > 0 && r > 0)
+                r -= 512;  // Reduce reduction by ~0.5 depth if parent failed high
+
             // In general we want to cap the LMR depth search at newDepth, but when
             // reduction is negative, we allow this move a limited search extension
             // beyond the first move depth.
