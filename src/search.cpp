@@ -1161,8 +1161,10 @@ moves_loop:  // When in check, search starts here
                 && is_valid(ttData.value) && !is_decisive(ttData.value)
                 && (ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 3)
             {
-                Value singularBeta  = ttData.value - (59 + 77 * (ss->ttPv && !PvNode)) * depth / 54;
-                Depth singularDepth = newDepth / 2;
+                Value singularBeta = ttData.value - (59 + 77 * (ss->ttPv && !PvNode)) * depth / 54;
+                // Make singular verification search depth slightly dependent on how deep the TT entry is
+                Depth depthDelta    = ttData.depth - (depth - 3);
+                Depth singularDepth = (newDepth + std::min(Depth(4), depthDelta)) / 2;
 
                 ss->excludedMove = move;
                 value =
