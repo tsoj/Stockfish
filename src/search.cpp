@@ -1193,21 +1193,12 @@ moves_loop:  // When in check, search starts here
                 else if (value >= beta && !is_decisive(value))
                     return value;
 
-                // Negative extensions
-                // If other moves failed high over (ttValue - margin) without the
-                // ttMove on a reduced search, but we cannot do multi-cut because
-                // (ttValue - margin) is lower than the original beta, we do not know
-                // if the ttMove is singular or can do a multi-cut, so we reduce the
-                // ttMove in favor of other moves based on some conditions:
-
-                // If the ttMove is assumed to fail high over current beta
-                else if (ttData.value >= beta)
-                    extension = -3;
-
-                // If we are on a cutNode but the ttMove is not assumed to fail high
-                // over current beta
-                else if (cutNode)
-                    extension = -2;
+                // Negative extensions removed.
+                // If the verification search (value) finds other moves are strong
+                // (value >= singularBeta) but not strong enough for multi-cut
+                // (value < beta), we previously applied a negative extension here.
+                // This is removed to avoid potentially penalizing the TT move
+                // when the situation is ambiguous.
             }
         }
 
