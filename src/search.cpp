@@ -917,8 +917,10 @@ Value Search::Worker::search(
 
     // Step 10. Internal iterative reductions
     // For PV nodes without a ttMove as well as for deep enough cutNodes, we decrease depth.
+    // Apply also if the ttMove exists but does not raise alpha.
     // (*Scaler) Especially if they make IIR less aggressive.
-    if ((!allNode && depth >= (PvNode ? 5 : 7)) && !ttData.move)
+    if ((!allNode && depth >= (PvNode ? 5 : 7))
+        && (!ttData.move || (is_valid(ttData.value) && ttData.value <= alpha)))
         depth--;
 
     // Step 11. ProbCut
