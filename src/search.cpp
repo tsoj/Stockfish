@@ -1059,7 +1059,9 @@ moves_loop:  // When in check, search starts here
         // Smaller or even negative value is better for short time controls
         // Bigger value is better for long time controls
         if (ss->ttPv)
-            r += 979;
+            // Apply less increase if it's an actual PV node, as other factors
+            // already decrease reduction significantly for PV nodes later.
+            r += 979 - (PvNode * 412);
 
         // Step 14. Pruning at shallow depth.
         // Depth conditions are important for mate finding.
