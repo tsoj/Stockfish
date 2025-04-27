@@ -1907,11 +1907,18 @@ void update_all_stats(const Position&      pos,
         for (Move move : quietsSearched)
             update_quiet_histories(pos, ss, workerThread, move, -malus * 1310 / 1024);
     }
-    else
+    else  // bestMove is a capture
     {
         // Increase stats for the best move in case it was a capture move
         captured = type_of(pos.piece_on(bestMove.to_sq()));
         captureHistory[moved_piece][bestMove.to_sq()][captured] << bonus * 1213 / 1024;
+
+        // Decrease stats for all non-best quiet moves, but reduce penalty as they were refuted by a capture
+        for (Move move : quietsSearched)
+            update_quiet_histories(
+              pos, ss, workerThread, move,
+              -malus * 1310 * 3
+                / 4096);  // Apply 75% penalty: (1310/1024) * (768/1024) = (1310*3)/(1024*4)
     }
 
     // Extra penalty for a quiet early move that was not a TT move in
