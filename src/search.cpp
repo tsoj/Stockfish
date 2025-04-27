@@ -1178,10 +1178,16 @@ moves_loop:  // When in check, search starts here
                     int tripleMargin =
                       88 + 265 * PvNode - 256 * !ttCapture + 93 * ss->ttPv - corrValAdj2;
 
+                    // Base extension depends on how much the verification search failed low.
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
-                    depth++;
+                    // Add a small bonus based on the depth of the verification search itself.
+                    // A deeper verification fail-low is a stronger singularity signal.
+                    // Use singularDepth / 4 as a simple heuristic bonus (integer division).
+                    extension += singularDepth / 4;
+
+                    depth++;  // Apply the depth increase needed for extension calculation later
                 }
 
                 // Multi-cut pruning
