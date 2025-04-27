@@ -1190,7 +1190,9 @@ moves_loop:  // When in check, search starts here
 
                 // If the ttMove is assumed to fail high over current beta
                 else if (ttData.value >= beta)
-                    extension = -3;
+                    // If the singular search (excluding ttMove) *also* failed high,
+                    // it strongly suggests alternatives exist. Reduce ttMove more.
+                    extension = -3 - (value >= beta);
 
                 // If we are on a cutNode but the ttMove is not assumed to fail high
                 // over current beta
