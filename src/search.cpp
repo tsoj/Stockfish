@@ -1717,8 +1717,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                      <= 6218)
                 continue;
 
-            // Do not search moves with bad enough SEE values
-            if (!pos.see_ge(move, -74))
+            // Do not search moves with bad enough SEE values. Prune slightly more aggressively in non-PV nodes.
+            if (!pos.see_ge(move, PvNode ? -74 : -100))
                 continue;
         }
 
