@@ -1263,6 +1263,16 @@ moves_loop:  // When in check, search starts here
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
+            // Reduce less in tactically complex positions
+            bool tacticalPosition =
+              ss->inCheck || givesCheck
+              || (pos.attackers_to(move.to_sq()) & pos.pieces(~pos.side_to_move()))
+              || (PseudoAttacks[type_of(movedPiece)][move.to_sq()]
+                  & pos.pieces(~pos.side_to_move(), QUEEN, KING));
+
+            if (tacticalPosition)
+                r -= 307;
+
             // In general we want to cap the LMR depth search at newDepth, but when
             // reduction is negative, we allow this move a limited search extension
             // beyond the first move depth.
