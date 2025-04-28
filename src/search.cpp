@@ -1276,28 +1276,36 @@ moves_loop:  // When in check, search starts here
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
 
-            // Do a full-depth search when reduced LMR search fails high
-            if (value > alpha && d < newDepth)
+            // If LMR search fails high, update history and potentially re-search
+            if (value > alpha)
             {
-                // Adjust full-depth search based on LMR results - if the result was
-                // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
-
-                newDepth += doDeeperSearch - doShallowerSearch;
-
-                if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
-
-                // Post LMR continuation history updates
+                // Post LMR continuation history updates - Moved here!
+                // Update history whenever LMR fails high, regardless of re-search.
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
-            }
-            else if (value > alpha && value < bestValue + 9)
-            {
-                newDepth--;
-                if (value < bestValue + 4)
+
+                if (d < newDepth)  // Check if re-search is possible
+                {
+                    // Adjust full-depth search based on LMR results - if the result was
+                    // good enough search deeper, if it was bad enough search shallower.
+                    const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
+                    const bool doShallowerSearch = value < bestValue + 9;
+
+                    newDepth += doDeeperSearch - doShallowerSearch;
+
+                    if (newDepth > d)
+                        value =
+                          -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+
+                    // History update moved above.
+                }
+                // Handle sibling depth adjustment if LMR fail high but re-search not done or value not high enough
+                else if (value < bestValue + 9)
+                {
                     newDepth--;
-            }
+                    if (value < bestValue + 4)
+                        newDepth--;
+                }
+            }  // End of if (value > alpha) block
         }
 
         // Step 18. Full-depth search when LMR is skipped
