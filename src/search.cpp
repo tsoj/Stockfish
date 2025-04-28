@@ -1281,7 +1281,9 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
+                // Make the deeper search condition slightly easier if LMR result strongly exceeded alpha.
+                const bool doDeeperSearch =
+                  value > (bestValue + 42 + 2 * newDepth - (value - alpha) / 8);
                 const bool doShallowerSearch = value < bestValue + 9;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
