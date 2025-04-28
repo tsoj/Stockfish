@@ -868,6 +868,7 @@ Value Search::Worker::search(
         && eval
                - futility_margin(depth, cutNode && !ss->ttHit, improving, opponentWorsening,
                                  (ss - 1)->statScore, std::abs(correctionValue))
+                   * (100 - std::min(90, pos.non_pawn_material() * 100 / (2 * QueenValue))) / 100
              >= beta
         && eval >= beta && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
         return beta + (eval - beta) / 3;
