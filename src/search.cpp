@@ -1228,9 +1228,9 @@ moves_loop:  // When in check, search starts here
         if (PvNode && std::abs(bestValue) <= 2078)
             r -= risk_tolerance(bestValue);
 
-        // Increase reduction for cut nodes
+        // Increase reduction for cut nodes. Apply extra penalty if the current move is not the TT move.
         if (cutNode)
-            r += 2864 + 966 * !ttData.move;
+            r += 2864 + 900 * !ss->isTTMove;
 
         // Increase reduction if ttMove is a capture but the current move is not a capture
         if (ttCapture && !capture)
