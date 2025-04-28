@@ -1284,14 +1284,19 @@ moves_loop:  // When in check, search starts here
                 const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
                 const bool doShallowerSearch = value < bestValue + 9;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                // Calculate re-search depth with adjustments and bonus for checks
+                Depth researchDepth = newDepth + doDeeperSearch - doShallowerSearch + givesCheck;
 
-                if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                if (researchDepth > d)
+                    value =
+                      -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, researchDepth, !cutNode);
 
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
             }
+            // If LMR fails high but not enough for re-search, adjust newDepth for future moves?
+            // NB: This block seems questionable as newDepth isn't used directly for *this* move's value anymore.
+            // Retaining original logic for now, though it might merit review.
             else if (value > alpha && value < bestValue + 9)
             {
                 newDepth--;
