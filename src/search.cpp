@@ -1230,7 +1230,11 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for cut nodes
         if (cutNode)
-            r += 2864 + 966 * !ttData.move;
+        {
+            // Reduce penalty for missing TT move if current move has high stat score
+            int noTtMovePenalty = !ttData.move ? std::max(0, 966 - ss->statScore * 826 / 2048) : 0;
+            r += 2864 + noTtMovePenalty;
+        }
 
         // Increase reduction if ttMove is a capture but the current move is not a capture
         if (ttCapture && !capture)
