@@ -1279,19 +1279,36 @@ moves_loop:  // When in check, search starts here
             // Do a full-depth search when reduced LMR search fails high
             if (value > alpha && d < newDepth)
             {
-                // Adjust full-depth search based on LMR results - if the result was
-                // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
+                // Adjust the target re-search depth based on LMR results.
+                Depth researchDepth = newDepth;  // Start with original target depth
+
+                // If LMR result was good enough compared to previous best, search deeper.
+                const bool doDeeperSearch = value > (bestValue + 42 + 2 * newDepth);
+                if (doDeeperSearch)
+                    researchDepth++;
+
+                // If LMR result was bad enough compared to previous best, search shallower.
                 const bool doShallowerSearch = value < bestValue + 9;
+                if (doShallowerSearch)
+                    researchDepth--;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                // Additionally, if LMR beat alpha but seems unlikely to beat beta (value < beta),
+                // reduce the re-search depth slightly further to save nodes.
+                if (value < beta)
+                    researchDepth--;
 
-                if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                // Ensure research depth makes sense (at least d+1, and >= 1)
+                researchDepth = std::max({Depth(1), d + 1, researchDepth});
+
+                // Perform the re-search using the adjusted depth
+                value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, researchDepth, !cutNode);
 
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
             }
+            // This else-if handles the case where LMR was *not* initially reduced (d == newDepth),
+            // but the result (value > alpha) suggests the move wasn't great compared to previous best.
+            // We reduce the *remaining* depth budget (newDepth) for subsequent moves. This logic remains unchanged.
             else if (value > alpha && value < bestValue + 9)
             {
                 newDepth--;
