@@ -1243,6 +1243,11 @@ moves_loop:  // When in check, search starts here
         // For first picked move (ttMove) reduce reduction
         else if (ss->isTTMove)
             r -= 2006;
+        // If current node often causes cutoffs in siblings, reduce reduction slightly
+        // for non-TT moves to search them deeper, hoping to find refutation/confirmation.
+        else if (ss->cutoffCnt > 1)
+            r -= 600 + ss->cutoffCnt * 150;
+
 
         if (capture)
             ss->statScore =
