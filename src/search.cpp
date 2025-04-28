@@ -895,19 +895,23 @@ Value Search::Worker::search(
         // Do not return unproven mate or TB scores
         if (nullValue >= beta && !is_win(nullValue))
         {
-            if (thisThread->nmpMinPly || depth < 16)
+            // If already verifying, trust the initial NMP result and return.
+            if (thisThread->nmpMinPly)
                 return nullValue;
 
+            // Otherwise, always perform verification search if initial NMP failed high.
             assert(!thisThread->nmpMinPly);  // Recursive verification is not allowed
 
-            // Do verification search at high depths, with null move pruning disabled
-            // until ply exceeds nmpMinPly.
+            // Do verification search, with null move pruning disabled
+            // until ply exceeds nmpMinPly. Use slightly reduced depth for verification.
             thisThread->nmpMinPly = ss->ply + 3 * (depth - R) / 4;
+            Depth verifyDepth     = std::max(1, depth - R - 1);  // Verify at depth D-1
 
-            Value v = search<NonPV>(pos, ss, beta - 1, beta, depth - R, false);
+            Value v = search<NonPV>(pos, ss, beta - 1, beta, verifyDepth, false);
 
             thisThread->nmpMinPly = 0;
 
+            // If verification also fails high, trust the original NMP result
             if (v >= beta)
                 return nullValue;
         }
