@@ -1223,7 +1223,9 @@ moves_loop:  // When in check, search starts here
 
         r += 316;  // Base reduction offset to compensate for other tweaks
         r -= moveCount * 66;
-        r -= std::abs(correctionValue) / 28047;
+        r -=
+          correctionValue
+          / 28047;  // Removed std::abs: reduce reduction if eval was historically underestimated (positive correction)
 
         if (PvNode && std::abs(bestValue) <= 2078)
             r -= risk_tolerance(bestValue);
