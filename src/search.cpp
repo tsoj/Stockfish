@@ -1260,6 +1260,11 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
 
+        // Increase reduction for quiet non-checking moves when 50-move rule counter is high,
+        // as these are less likely to make progress towards avoiding the draw (inspired by Ex. 10).
+        if (!capture && !givesCheck && type_of(movedPiece) != PAWN && pos.rule50_count() >= 75)
+            r += (400 + (pos.rule50_count() >= 90) * 400);
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
