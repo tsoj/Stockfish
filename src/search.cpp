@@ -1239,6 +1239,10 @@ moves_loop:  // When in check, search starts here
         // Increase reduction if next ply has a lot of fail high
         if ((ss + 1)->cutoffCnt > 2)
             r += 1036 + allNode * 848;
+        // Decrease reduction if the current node often failed high previously,
+        // suggesting potentially strong moves here deserve less reduction.
+        else if (ss->cutoffCnt > 2)
+            r -= 750 + PvNode * 250;  // Modest decrease in reduction
 
         // For first picked move (ttMove) reduce reduction
         else if (ss->isTTMove)
