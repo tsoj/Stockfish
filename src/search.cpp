@@ -1281,8 +1281,13 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
+                bool       doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
                 const bool doShallowerSearch = value < bestValue + 9;
+
+                // If no best move found yet, be slightly more conservative about increasing depth,
+                // unless the move is tactical or the fail-high margin is large.
+                if (!bestMove && doDeeperSearch && !capture && !givesCheck && value <= alpha + 75)
+                    doDeeperSearch = false;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
 
