@@ -1159,12 +1159,18 @@ moves_loop:  // When in check, search starts here
 
                 if (value < singularBeta)
                 {
+                    // Adjust margins based on static evaluation - be more conservative with extensions
+                    // when we're already winning, more aggressive when we're losing
+                    bool winningPosition = ss->staticEval > 200;
+                    bool losingPosition  = ss->staticEval < -150;
+
                     int corrValAdj1  = std::abs(correctionValue) / 248400;
                     int corrValAdj2  = std::abs(correctionValue) / 249757;
                     int doubleMargin = -4 + 244 * PvNode - 206 * !ttCapture - corrValAdj1
-                                     - 997 * ttMoveHistory / 131072;
-                    int tripleMargin =
-                      84 + 269 * PvNode - 253 * !ttCapture + 91 * ss->ttPv - corrValAdj2;
+                                     - 997 * ttMoveHistory / 131072 + 38 * winningPosition
+                                     - 42 * losingPosition;
+                    int tripleMargin = 84 + 269 * PvNode - 253 * !ttCapture + 91 * ss->ttPv
+                                     - corrValAdj2 + 71 * winningPosition - 47 * losingPosition;
 
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
