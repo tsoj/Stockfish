@@ -1094,13 +1094,16 @@ moves_loop:  // When in check, search starts here
             }
             else
             {
+                // Include history relative to move at ply-3 in initial calculation
                 int history =
                   (*contHist[0])[movedPiece][move.to_sq()]
                   + (*contHist[1])[movedPiece][move.to_sq()]
+                  + (*contHist[2])[movedPiece][move.to_sq()]
                   + thisThread->pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()];
 
-                // Continuation history based pruning
-                if (history < -4229 * depth)
+                // Continuation history based pruning (threshold slightly less aggressive)
+                // Now uses history from plies -1, -2, -3 and pawn structure.
+                if (history < -4100 * depth)
                     continue;
 
                 history += 68 * thisThread->mainHistory[us][move.from_to()] / 32;
