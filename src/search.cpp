@@ -1272,6 +1272,9 @@ moves_loop:  // When in check, search starts here
                                            newDepth + !allNode + (PvNode && !bestMove)))
                     + (!cutNode && (ss - 1)->isPvNode && moveCount < 8);
 
+            // Grant slightly more depth if reduction is strongly negative (very promising move)
+            d += (r < -2048);  // Add 1 depth if reduction value is less than -2048 (~2 plies)
+
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
