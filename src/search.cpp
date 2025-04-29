@@ -1199,6 +1199,11 @@ moves_loop:  // When in check, search starts here
             }
         }
 
+        // Basic check extension: Extend non-capturing checks if depth is sufficient.
+        // Ensure this doesn't override a larger positive singular extension.
+        if (givesCheck && !capture && newDepth >= 4)
+            extension = std::max(extension, 1);
+
         // Step 16. Make the move
         do_move(pos, move, st, givesCheck);
 
