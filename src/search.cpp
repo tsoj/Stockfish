@@ -917,9 +917,11 @@ Value Search::Worker::search(
 
     // Step 10. Internal iterative reductions
     // For PV nodes without a ttMove as well as for deep enough cutNodes, we decrease depth.
+    // Reduce more aggressively if there wasn't a TT hit at all, and make the
+    // reduction slightly depth-dependent.
     // (*Scaler) Especially if they make IIR less aggressive.
     if ((!allNode && depth >= (PvNode ? 5 : 7)) && !ttData.move)
-        depth--;
+        depth -= 1 + (depth / 16) + !ss->ttHit;  // Increased reduction if no TT hit
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
