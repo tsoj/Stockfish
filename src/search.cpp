@@ -1926,6 +1926,21 @@ void update_all_stats(const Position&      pos,
         captured    = type_of(pos.piece_on(move.to_sq()));
         captureHistory[moved_piece][move.to_sq()][captured] << -malus * 1388 / 1024;
     }
+
+    // Adjust the penalty for quiet moves based on ttMove nature
+    const bool ttMoveIsQuiet    = (ttMove && !pos.capture_stage(ttMove));
+    const int  quiet_malus_base = malus * 1310 / 1024;  // Pre-calculate base penalty scaling
+
+    // Decrease stats for all non-best quiet moves
+    for (Move move : quietsSearched)
+    {
+        int current_quiet_malus = quiet_malus_base;
+        // If ttMove was quiet and *this* move is not the ttMove, reduce the penalty slightly
+        if (ttMoveIsQuiet && move != ttMove)
+            current_quiet_malus = current_quiet_malus * 7 / 8;  // Reduce penalty magnitude
+
+        update_quiet_histories(pos, ss, workerThread, move, -current_quiet_malus);
+    }
 }
 
 
