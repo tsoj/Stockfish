@@ -1223,6 +1223,13 @@ moves_loop:  // When in check, search starts here
 
         r += 316;  // Base reduction offset to compensate for other tweaks
         r -= moveCount * 66;
+
+        // Decrease reduction if the parent was a PV node but this one isn't.
+        // Explore variations branching off the PV more deeply, potentially
+        // improving accuracy in LTC.
+        if ((ss - 1)->isPvNode && !PvNode)
+            r -= 750;  // Tunable constant (~0.75 depth)
+
         r -= std::abs(correctionValue) / 28047;
 
         if (PvNode && std::abs(bestValue) <= 2078)
