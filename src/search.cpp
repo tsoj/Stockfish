@@ -1260,6 +1260,10 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
 
+        // Decrease reduction slightly when rule50 count is high (improves endgame precision)
+        // This aims to scale better in LTC by searching deeper near potential 50-move draws.
+        r -= pos.rule50_count() * 18;
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
