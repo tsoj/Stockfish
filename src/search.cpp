@@ -963,8 +963,10 @@ Value Search::Worker::search(
 
             // If the qsearch held, perform the regular search
             if (value >= probCutBeta && probCutDepth > 0)
+                // Always treat ProbCut search as a cut-node search, as its goal is
+                // to find a fast cutoff above probCutBeta.
                 value = -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, probCutDepth,
-                                       !cutNode);
+                                       /*cutNode=*/true);
 
             undo_move(pos, move);
 
