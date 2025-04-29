@@ -1169,7 +1169,12 @@ moves_loop:  // When in check, search starts here
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
-                    depth++;
+                    // Add extra extension if TT entry supporting singularity is deep
+                    // ('depth' here is the original depth for this node before modifications)
+                    if (ttData.depth >= depth)
+                        extension++;
+
+                    // depth++; <-- This increment seems incorrect/redundant here, removed. Extension is added later.
                 }
 
                 // Multi-cut pruning
