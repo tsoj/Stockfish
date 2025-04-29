@@ -1501,6 +1501,12 @@ moves_loop:  // When in check, search starts here
         Piece capturedPiece = pos.captured_piece();
         assert(capturedPiece != NO_PIECE);
         thisThread->captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)] << 1080;
+
+        // Also apply a smaller, depth-dependent bonus to the main history of the capturing move itself
+        // This helps prioritize refutations of captures in move ordering.
+        int bonus = std::max(0, std::min(73 * int(depth) - 347, 184));
+        if (bonus > 0)
+            thisThread->mainHistory[~us][((ss - 1)->currentMove).from_to()] << bonus;
     }
 
     if (PvNode)
