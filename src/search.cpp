@@ -1280,24 +1280,29 @@ moves_loop:  // When in check, search starts here
             if (value > alpha && d < newDepth)
             {
                 // Adjust full-depth search based on LMR results - if the result was
-                // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
+                // good enough search deeper, if it was bad enough search shallower (only in NonPV).
+                const bool doDeeperSearch = value > (bestValue + 42 + 2 * newDepth);
+                newDepth += doDeeperSearch;  // Apply deepening first
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                // If result is only slightly above alpha, reduce depth, but only in NonPV nodes.
+                if (!PvNode && value < bestValue + 9)
+                {
+                    newDepth--;  // Apply shallowing reduction
+                    if (value < bestValue + 4)
+                        newDepth--;  // Apply further shallowing reduction
+                }
 
-                if (newDepth > d)
+                // Ensure depth doesn't fall below the reduced depth 'd' after adjustments
+                newDepth = std::max(newDepth, d);
+
+                if (newDepth > d)  // Re-search only if adjusted depth is greater than reduced depth
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
 
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
             }
-            else if (value > alpha && value < bestValue + 9)
-            {
-                newDepth--;
-                if (value < bestValue + 4)
-                    newDepth--;
-            }
+            // Note: The old 'else if' block that handled depth reduction when no re-search occurred
+            // is removed as its logic is now incorporated above within the re-search depth adjustment.
         }
 
         // Step 18. Full-depth search when LMR is skipped
