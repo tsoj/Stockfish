@@ -916,9 +916,11 @@ Value Search::Worker::search(
     improving |= ss->staticEval >= beta + 94;
 
     // Step 10. Internal iterative reductions
-    // For PV nodes without a ttMove as well as for deep enough cutNodes, we decrease depth.
+    // For PV nodes without a ttMove as well as for deep enough cutNodes, we decrease depth,
+    // unless static evaluation suggests a clearly better position.
     // (*Scaler) Especially if they make IIR less aggressive.
-    if ((!allNode && depth >= (PvNode ? 5 : 7)) && !ttData.move)
+    if ((!allNode && depth >= (PvNode ? 5 : 7)) && !ttData.move
+        && ss->staticEval < alpha + 150)  // Add condition based on static eval relative to alpha
         depth--;
 
     // Step 11. ProbCut
