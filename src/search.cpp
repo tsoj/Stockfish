@@ -1235,6 +1235,9 @@ moves_loop:  // When in check, search starts here
         // Increase reduction if ttMove is a capture but the current move is not a capture
         if (ttCapture && !capture)
             r += 1210 + (depth < 8) * 963;
+        // Decrease reduction if ttMove is quiet but the current move is a capture
+        else if (!ttCapture && capture)
+            r -= 1300;
 
         // Increase reduction if next ply has a lot of fail high
         if ((ss + 1)->cutoffCnt > 2)
