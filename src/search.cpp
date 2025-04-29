@@ -998,7 +998,8 @@ moves_loop:  // When in check, search starts here
 
     value = bestValue;
 
-    int moveCount = 0;
+    int moveCount         = 0;
+    int alphaImprovements = 0;  // Track alpha improvements within this node
 
     // Step 13. Loop through all pseudo-legal moves until no moves remain
     // or a beta cutoff occurs.
@@ -1420,9 +1421,12 @@ moves_loop:  // When in check, search starts here
                 }
                 else
                 {
-                    // Reduce other moves if we have found at least one score improvement
+                    alphaImprovements++;  // Increment counter for alpha improvement
+
+                    // Reduce depth of subsequent moves adaptively
+                    // Apply less reduction after 1st alpha improvement, more after >=2nd
                     if (depth > 2 && depth < 16 && !is_decisive(value))
-                        depth -= 2;
+                        depth -= 1 + (alphaImprovements > 1);  // Modified reduction
 
                     assert(depth > 0);
                     alpha = value;  // Update alpha! Always alpha < beta
