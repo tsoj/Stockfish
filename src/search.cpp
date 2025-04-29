@@ -1260,6 +1260,12 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
 
+        // Decrease LMR reduction for singular moves (positive extension).
+        // These moves are deemed important (already extended), so the LMR
+        // probe should be less aggressive. Potential Scaler.
+        if (extension > 0)
+            r -= 600 + 300 * PvNode;  // ~0.6 ply reduction, ~0.9 in PV nodes
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
