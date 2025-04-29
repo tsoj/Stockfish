@@ -1281,7 +1281,10 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
+                // Search deeper if the LMR result significantly exceeds the current best value.
+                // Use a threshold that scales slightly less aggressively with depth (depth/2 instead of newDepth)
+                // to be more willing to extend promising LMR probes deeper in the search.
+                const bool doDeeperSearch    = value > (bestValue + 42 + newDepth + depth / 2);
                 const bool doShallowerSearch = value < bestValue + 9;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
