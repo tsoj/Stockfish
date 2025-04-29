@@ -1328,7 +1328,10 @@ moves_loop:  // When in check, search starts here
             if (ss->isTTMove && thisThread->rootDepth > 8)
                 newDepth = std::max(newDepth, 1);
 
-            value = -search<PV>(pos, ss + 1, -beta, -alpha, newDepth, false);
+            // If LMR strongly suggested a move is good, search it slightly deeper in PVS re-search.
+            const Depth pvDepth = newDepth + (moveCount > 1 && value > alpha + 45);
+
+            value = -search<PV>(pos, ss + 1, -beta, -alpha, pvDepth, false);
         }
 
         // Step 19. Undo move
