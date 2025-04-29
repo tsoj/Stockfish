@@ -1124,8 +1124,13 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth = std::max(lmrDepth, 0);
 
-                // Prune moves with negative SEE
-                if (!pos.see_ge(move, -27 * lmrDepth * lmrDepth))
+                // Prune moves with negative SEE, less aggressively in PV lines
+                int seeThreshold = -27 * lmrDepth * lmrDepth;
+                if (ss->ttPv || ss->isPvNode)
+                    seeThreshold -=
+                      10 * lmrDepth;  // Allow slightly more negative SEE in important lines
+
+                if (!pos.see_ge(move, seeThreshold))
                     continue;
             }
         }
