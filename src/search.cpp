@@ -1240,9 +1240,18 @@ moves_loop:  // When in check, search starts here
         if ((ss + 1)->cutoffCnt > 2)
             r += 1036 + allNode * 848;
 
-        // For first picked move (ttMove) reduce reduction
+        // For first picked move (ttMove) reduce reduction, unless TT suggests it's bad
         else if (ss->isTTMove)
+        {
             r -= 2006;
+            // If TT has an upper bound value significantly below alpha and reasonable depth,
+            // counteract the reduction decrease (i.e., increase reduction).
+            if (is_valid(ttData.value) && (ttData.bound & BOUND_UPPER)
+                && ttData.value < alpha - (150 * depth) && ttData.depth >= depth - 4)
+            {
+                r += 1250 + 60 * depth;  // Add penalty, effectively increasing reduction
+            }
+        }
 
         if (capture)
             ss->statScore =
