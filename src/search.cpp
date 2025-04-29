@@ -919,7 +919,13 @@ Value Search::Worker::search(
     // For PV nodes without a ttMove as well as for deep enough cutNodes, we decrease depth.
     // (*Scaler) Especially if they make IIR less aggressive.
     if ((!allNode && depth >= (PvNode ? 5 : 7)) && !ttData.move)
-        depth--;
+    {
+        // Only apply reduction if TT wasn't hit, or if the hit entry is not too shallow
+        // relative to the current search depth. This makes IIR slightly less aggressive
+        // when the lack of a TT move might be due to an outdated/shallow entry.
+        if (!ss->ttHit || ttData.depth >= depth - 4)
+            depth--;
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
