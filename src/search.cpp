@@ -1950,18 +1950,37 @@ void update_continuation_histories(Stack* ss, Piece pc, Square to, int bonus) {
 void update_quiet_histories(
   const Position& pos, Stack* ss, Search::Worker& workerThread, Move move, int bonus) {
 
-    Color us = pos.side_to_move();
-    workerThread.mainHistory[us][move.from_to()] << bonus;  // Untuned to prevent duplicate effort
+    Color us             = pos.side_to_move();
+    Piece moved_piece    = pos.moved_piece(move);
+    int   effectiveBonus = bonus;
+
+    // Amplify history updates for pawn pushes advancing towards promotion
+    if (type_of(moved_piece) == PAWN)
+    {
+        Square to_sq = move.to_sq();
+        Rank   rk    = rank_of(to_sq);
+        if (((us == WHITE && rk >= RANK_6) || (us == BLACK && rk <= RANK_3))
+            // Ensure it's a forward push, not a capture onto the back ranks
+            && ((us == WHITE && rk > rank_of(move.from_sq()))
+                || (us == BLACK && rk < rank_of(move.from_sq()))))
+        {
+            effectiveBonus = effectiveBonus * 1152 / 1024;  // Apply ~12.5% boost
+        }
+    }
+
+    workerThread.mainHistory[us][move.from_to()] << effectiveBonus;
 
     if (ss->ply < LOW_PLY_HISTORY_SIZE)
-        workerThread.lowPlyHistory[ss->ply][move.from_to()] << bonus * 792 / 1024;
+        workerThread.lowPlyHistory[ss->ply][move.from_to()]
+          << bonus * 792 / 1024;  // Use original bonus here
 
-    update_continuation_histories(ss, pos.moved_piece(move), move.to_sq(),
-                                  bonus * (bonus > 0 ? 1082 : 784) / 1024);
+    update_continuation_histories(ss, moved_piece, move.to_sq(),
+                                  bonus * (bonus > 0 ? 1082 : 784)
+                                    / 1024);  // Use original bonus here
 
     int pIndex = pawn_structure_index(pos);
-    workerThread.pawnHistory[pIndex][pos.moved_piece(move)][move.to_sq()]
-      << bonus * (bonus > 0 ? 705 : 450) / 1024;
+    workerThread.pawnHistory[pIndex][moved_piece][move.to_sq()]
+      << bonus * (bonus > 0 ? 705 : 450) / 1024;  // Use original bonus here
 }
 
 }
