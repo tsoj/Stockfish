@@ -1228,9 +1228,15 @@ moves_loop:  // When in check, search starts here
         if (PvNode && std::abs(bestValue) <= 2078)
             r -= risk_tolerance(bestValue);
 
-        // Increase reduction for cut nodes
+        // Increase reduction for cut nodes, more aggressively if static eval strongly suggests a cut
         if (cutNode)
-            r += 2864 + 966 * !ttData.move;
+        {
+            // Base increase for cutNode
+            int baseIncrease = 1800 + 800 * !ttData.move;
+            // Additional increase based on how much static eval exceeds beta
+            int evalBasedIncrease = std::max(0, int(ss->staticEval - beta)) * 4;
+            r += baseIncrease + std::min(evalBasedIncrease, 2500);  // Cap the eval-based increase
+        }
 
         // Increase reduction if ttMove is a capture but the current move is not a capture
         if (ttCapture && !capture)
