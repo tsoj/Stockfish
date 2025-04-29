@@ -1420,11 +1420,15 @@ moves_loop:  // When in check, search starts here
                 }
                 else
                 {
-                    // Reduce other moves if we have found at least one score improvement
+                    // Reduce subsequent move depth if the current move improves alpha.
+                    // Reduce less if the improvement margin over alpha is small.
                     if (depth > 2 && depth < 16 && !is_decisive(value))
-                        depth -= 2;
+                    {
+                        // Base reduction is 1 ply, increased to 2 if improvement > 80 cp.
+                        depth -= (1 + (value > alpha + 80));
+                        depth = std::max(1, depth);  // Ensure depth remains positive
+                    }
 
-                    assert(depth > 0);
                     alpha = value;  // Update alpha! Always alpha < beta
                 }
             }
