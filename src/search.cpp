@@ -1260,6 +1260,10 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
 
+        // Increase reduction for non-TT moves with low stat scores when a TT move exists
+        if (ttData.move && move != ttData.move && ss->statScore < -4000)
+            r += 550;
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
