@@ -1171,7 +1171,12 @@ moves_loop:  // When in check, search starts here
 
                     depth++;
                 }
-
+                // If the TT move is almost singular in a PV node, give it a minimal depth boost
+                // to encourage exploring the PV line, instead of potentially penalizing it.
+                else if (PvNode && value < singularBeta + 15)
+                {
+                    depth++;  // Grant base depth increase, but extension remains 0
+                }
                 // Multi-cut pruning
                 // Our ttMove is assumed to fail high based on the bound of the TT entry,
                 // and if after excluding the ttMove with a reduced search we fail high
