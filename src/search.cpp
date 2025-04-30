@@ -1281,20 +1281,29 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
+                // Add requirement for value to significantly exceed alpha before deepening re-search.
+                const bool doDeeperSearch =
+                  value > (bestValue + 42 + 2 * newDepth) && value > alpha + 50;
                 const bool doShallowerSearch = value < bestValue + 9;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                int researchDepth = newDepth + doDeeperSearch - doShallowerSearch;
 
-                if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                if (researchDepth
+                    > d)  // Only re-search if the new depth is actually deeper than LMR depth
+                {
+                    value =
+                      -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, researchDepth, !cutNode);
 
-                // Post LMR continuation history updates
-                update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
+                    // Post LMR continuation history updates only on actual deeper re-search
+                    update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
+                }
+                // If researchDepth <= d, we keep the original LMR value (no history update needed).
             }
-            else if (value > alpha && value < bestValue + 9)
+            // This adjustment applies *after* any potential LMR re-search logic or if LMR wasn't significantly high
+            else if (value > alpha
+                     && value < bestValue + 9)  // Fail high, but not much better than current best
             {
-                newDepth--;
+                newDepth--;  // Reduce depth for *subsequent* moves in this node
                 if (value < bestValue + 4)
                     newDepth--;
             }
