@@ -1144,8 +1144,11 @@ moves_loop:  // When in check, search starts here
             // (*Scaler) Generally, higher singularBeta (i.e closer to ttValue)
             // and lower extension margins scale well.
 
+            // Singular extension search is initiated if the TT move is available, not excluded,
+            // the depth is sufficient, and TT indicates a lower bound.
             if (!rootNode && move == ttData.move && !excludedMove
-                && depth >= 6 - (thisThread->completedDepth > 27) + ss->ttPv
+                && depth
+                     >= 7 + ss->ttPv  // Simplified and slightly more conservative depth condition
                 && is_valid(ttData.value) && !is_decisive(ttData.value)
                 && (ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 3)
             {
