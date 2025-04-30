@@ -1238,8 +1238,15 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction if next ply has a lot of fail high
         if ((ss + 1)->cutoffCnt > 2)
-            r += 1036 + allNode * 848;
-
+        {
+            // If we are in a cutNode but not searching the TT move,
+            // the high cutoff count might be due to the TT move itself.
+            // Reduce the penalty slightly for the current (alternative) move.
+            int cutoffBonus = 1036 + allNode * 848;
+            if (cutNode && !ss->isTTMove)
+                cutoffBonus -= 415;  // Apply less aggressive reduction increase
+            r += cutoffBonus;
+        }
         // For first picked move (ttMove) reduce reduction
         else if (ss->isTTMove)
             r -= 2006;
