@@ -1228,9 +1228,11 @@ moves_loop:  // When in check, search starts here
         if (PvNode && std::abs(bestValue) <= 2078)
             r -= risk_tolerance(bestValue);
 
-        // Increase reduction for cut nodes
+        // Increase reduction for cut nodes, moderated by move history score.
+        // If history is good (high statScore), reduce the penalty.
+        // If history is bad (low statScore), increase the penalty further.
         if (cutNode)
-            r += 2864 + 966 * !ttData.move;
+            r += 2864 + 966 * !ttData.move - ss->statScore * 413 / 8192;
 
         // Increase reduction if ttMove is a capture but the current move is not a capture
         if (ttCapture && !capture)
