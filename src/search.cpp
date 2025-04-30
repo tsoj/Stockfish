@@ -1235,6 +1235,10 @@ moves_loop:  // When in check, search starts here
         // Increase reduction if ttMove is a capture but the current move is not a capture
         if (ttCapture && !capture)
             r += 1210 + (depth < 8) * 963;
+        // Also increase reduction for quiet moves if the TT entry indicates a fail-high (BOUND_LOWER),
+        // suggesting a tactical refutation exists or the position is sharp.
+        else if (ss->ttHit && ttData.move && (ttData.bound & BOUND_LOWER) && !capture)
+            r += 850 + (depth < 10) * 650;  // Apply somewhat smaller bonus than for ttCapture
 
         // Increase reduction if next ply has a lot of fail high
         if ((ss + 1)->cutoffCnt > 2)
