@@ -902,9 +902,11 @@ Value Search::Worker::search(
 
             // Do verification search at high depths, with null move pruning disabled
             // until ply exceeds nmpMinPly.
-            thisThread->nmpMinPly = ss->ply + 3 * (depth - R) / 4;
+            Depth verifDepth = std::max(1, depth - R - 2);  // Reduce verification depth
+            thisThread->nmpMinPly =
+              ss->ply + 3 * verifDepth / 4;  // Adjust NMP disabling based on new depth
 
-            Value v = search<NonPV>(pos, ss, beta - 1, beta, depth - R, false);
+            Value v = search<NonPV>(pos, ss, beta - 1, beta, verifDepth, false);
 
             thisThread->nmpMinPly = 0;
 
