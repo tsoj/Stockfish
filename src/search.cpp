@@ -1199,6 +1199,13 @@ moves_loop:  // When in check, search starts here
             }
         }
 
+        // Extend exchange sacrifices (Rook for Minor)
+        if (capture && type_of(movedPiece) == ROOK && type_of(pos.piece_on(move.to_sq())) <= KNIGHT)
+        {
+            extension = std::max(
+              extension, 1);  // Ensure at least +1 extension, override negative singular ext.
+        }
+
         // Step 16. Make the move
         do_move(pos, move, st, givesCheck);
 
