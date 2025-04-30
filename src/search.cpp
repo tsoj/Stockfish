@@ -1188,13 +1188,20 @@ moves_loop:  // When in check, search starts here
                 // if the ttMove is singular or can do a multi-cut, so we reduce the
                 // ttMove in favor of other moves based on some conditions:
 
-                // If the ttMove is assumed to fail high over current beta
-                else if (ttData.value >= beta)
-                    extension = -3;
+                // If the ttMove is assumed to fail high over current beta, but the exclusion
+                // search found other moves >= singularBeta (but below beta), we previously
+                // applied a strong negative extension (-3). This seems counter-intuitive
+                // as the TT suggests the move is strong. We remove this penalty to give
+                // the TT move a fairer chance in this ambiguous situation.
+                // else if (ttData.value >= beta)
+                //     extension = -3; // Removed penalty
 
-                // If we are on a cutNode but the ttMove is not assumed to fail high
-                // over current beta
-                else if (cutNode)
+                // If we are on a cutNode and the ttMove is not assumed to fail high
+                // over current beta (ttData.value < beta), but the exclusion search found
+                // alternatives (value >= singularBeta), reduce the ttMove slightly.
+                else if (cutNode
+                         && ttData.value
+                              < beta)  // Condition simplified as the above 'else if' is removed
                     extension = -2;
             }
         }
