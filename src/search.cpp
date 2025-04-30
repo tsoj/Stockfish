@@ -869,7 +869,10 @@ Value Search::Worker::search(
                - futility_margin(depth, cutNode && !ss->ttHit, improving, opponentWorsening,
                                  (ss - 1)->statScore, std::abs(correctionValue))
              >= beta
-        && eval >= beta && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
+        && eval >= beta && (!ttData.move || ttCapture) && !is_loss(beta)
+        && !is_win(eval)
+        // Do not prune if TT suggests the score might be lower than beta
+        && !(ttHit && ttData.depth > DEPTH_UNSEARCHED && ttData.value < beta))
         return beta + (eval - beta) / 3;
 
     // Step 9. Null move search with verification search
