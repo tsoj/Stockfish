@@ -1284,10 +1284,18 @@ moves_loop:  // When in check, search starts here
                 const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
                 const bool doShallowerSearch = value < bestValue + 9;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                // Calculate the depth for the potential re-search
+                Depth researchDepth = newDepth + doDeeperSearch - doShallowerSearch;
 
-                if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                // Reduce re-search depth slightly for non-TT moves with bad stats
+                researchDepth -= (ss->statScore < 0 && !ss->isTTMove && !capture);
+
+                // Ensure re-search depth is at least d+1 if we re-search
+                researchDepth = std::max(researchDepth, d + 1);
+
+                if (researchDepth > d)  // Check if re-search is still needed/meaningful
+                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, researchDepth,
+                                           !cutNode);  // Re-search
 
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
