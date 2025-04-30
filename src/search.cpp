@@ -422,8 +422,15 @@ void Search::Worker::iterative_deepening() {
                 }
                 else if (bestValue >= beta)
                 {
+                    // Only increment failedHighCnt (which reduces depth in the re-search)
+                    // if the fail high was not significantly above the previous beta.
+                    // A large fail high might indicate a strong move found quickly,
+                    // so we avoid penalizing its depth in the subsequent re-search.
+                    // Use the delta *before* it's increased for the comparison.
+                    if (bestValue < beta + delta / 2)
+                        ++failedHighCnt;
+
                     beta = std::min(bestValue + delta, VALUE_INFINITE);
-                    ++failedHighCnt;
                 }
                 else
                     break;
