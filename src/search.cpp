@@ -416,6 +416,8 @@ void Search::Worker::iterative_deepening() {
                     beta  = (alpha + beta) / 2;
                     alpha = std::max(bestValue - delta, -VALUE_INFINITE);
 
+                    delta += delta / 3;  // Standard increase on fail-low
+
                     failedHighCnt = 0;
                     if (mainThread)
                         mainThread->stopOnPonderhit = false;
@@ -423,12 +425,15 @@ void Search::Worker::iterative_deepening() {
                 else if (bestValue >= beta)
                 {
                     beta = std::min(bestValue + delta, VALUE_INFINITE);
+
+                    delta += delta / 2;  // Larger increase on fail-high
+
                     ++failedHighCnt;
                 }
                 else
                     break;
 
-                delta += delta / 3;
+                // delta += delta / 3; // Removed from here, moved into conditional blocks
 
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }
