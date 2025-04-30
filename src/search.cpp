@@ -1111,6 +1111,11 @@ moves_loop:  // When in check, search starts here
                   ss->staticEval + (bestMove ? 46 : 138) + 117 * lmrDepth
                   + 102 * (bestValue < ss->staticEval - 127 && ss->staticEval > alpha - 50);
 
+                // Make pruning harder if TT suggests a significantly higher value than static eval
+                if (is_valid(ttData.value) && (ttData.bound & BOUND_LOWER)
+                    && ttData.value > ss->staticEval)
+                    futilityValue += std::max(0, ttData.value - ss->staticEval) / 4;
+
                 // Futility pruning: parent node
                 // (*Scaler): Generally, more frequent futility pruning
                 // scales well with respect to time and threads
