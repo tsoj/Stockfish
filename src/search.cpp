@@ -1602,9 +1602,14 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
 
     // At non-PV nodes we check for an early TT cutoff
     if (!PvNode && ttData.depth >= DEPTH_QS
-        && is_valid(ttData.value)  // Can happen when !ttHit or when access race in probe()
-        && (ttData.bound & (ttData.value >= beta ? BOUND_LOWER : BOUND_UPPER)))
-        return ttData.value;
+        && is_valid(ttData.value))  // Can happen when !ttHit or when access race in probe()
+    {
+        // Require slightly higher value for cutoff if TT entry was not from PV line
+        Value effectiveBeta = beta + (pvHit ? 0 : 10);
+        if ((ttData.bound & BOUND_LOWER) && ttData.value >= effectiveBeta)
+            return ttData.value;
+        // Note: Original code didn't explicitly handle alpha cutoffs here based on TT hit
+    }
 
     // Step 4. Static evaluation of the position
     Value unadjustedStaticEval = VALUE_NONE;
