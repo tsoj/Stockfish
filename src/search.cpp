@@ -794,8 +794,9 @@ Value Search::Worker::search(
     }
 
     // Step 6. Static evaluation of the position
-    Value      unadjustedStaticEval = VALUE_NONE;
-    const auto correctionValue      = correction_value(*thisThread, pos, ss);
+    Value      unadjustedStaticEval      = VALUE_NONE;
+    bool       singularExtensionOccurred = false;  // Add this line
+    const auto correctionValue           = correction_value(*thisThread, pos, ss);
     if (ss->inCheck)
     {
         // Skip early pruning when in check
@@ -1170,6 +1171,7 @@ moves_loop:  // When in check, search starts here
                               + (value < singularBeta - tripleMargin);
 
                     depth++;
+                    singularExtensionOccurred = true;  // Add this line
                 }
 
                 // Multi-cut pruning
@@ -1268,7 +1270,11 @@ moves_loop:  // When in check, search starts here
             // beyond the first move depth.
             // To prevent problems when the max value is less than the min value,
             // std::clamp has been replaced by a more robust implementation.
-            Depth d = std::max(1, std::min(newDepth - r / 1024,
+            // If a singular extension happened for the TT move, reduce LMR slightly for other moves.
+            if (singularExtensionOccurred && move != ttData.move)
+                r -= 512;  // Reduce reduction by ~0.5 depth
+
+            Depth d = std::max(1, std::min(newDepth - r / 1024,  // Use adjusted r
                                            newDepth + !allNode + (PvNode && !bestMove)))
                     + (!cutNode && (ss - 1)->isPvNode && moveCount < 8);
 
