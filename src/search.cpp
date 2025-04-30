@@ -1169,6 +1169,10 @@ moves_loop:  // When in check, search starts here
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
+                    // Add extension if the singular move is also a check
+                    if (pos.gives_check(move))
+                        extension++;
+
                     depth++;
                 }
 
