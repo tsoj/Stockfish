@@ -1684,10 +1684,12 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         if (!is_loss(bestValue))
         {
             // Futility pruning and moveCount pruning
+            // Exclude en passant captures from this specific futility check due to their tactical nature.
             if (!givesCheck && move.to_sq() != prevSq && !is_loss(futilityBase)
-                && move.type_of() != PROMOTION)
+                && move.type_of() != PROMOTION && move.type_of() != EN_PASSANT)
             {
-                if (moveCount > 2)
+                // Relax aggressive move count limit from 2 to 3.
+                if (moveCount > 3)
                     continue;
 
                 Value futilityValue = futilityBase + PieceValue[pos.piece_on(move.to_sq())];
