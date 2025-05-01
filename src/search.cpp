@@ -1166,10 +1166,17 @@ moves_loop:  // When in check, search starts here
                     int tripleMargin =
                       84 + 269 * PvNode - 253 * !ttCapture + 91 * ss->ttPv - corrValAdj2;
 
+                    // Check if the singular move (ttData.move) gives check
+                    bool ttMoveGivesCheck = pos.gives_check(ttData.move);
+
+                    // Base extension amount depends on how much the verification failed low
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
-                    depth++;
+                    // Add extra extension if the singular move is also a check
+                    extension += ttMoveGivesCheck;
+
+                    depth++;  // Base depth increment for finding any singular move
                 }
 
                 // Multi-cut pruning
