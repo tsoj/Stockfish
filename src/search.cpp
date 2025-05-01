@@ -1199,6 +1199,14 @@ moves_loop:  // When in check, search starts here
             }
         }
 
+        // Extend safe quiet checks if no singular extension/reduction applied
+        if (extension == 0 && givesCheck && !capture  // Quiet check
+            && depth >= 4 && depth <= 12              // Reasonable depth range
+            && pos.see_ge(move, 0))                   // Non-negative SEE (safe)
+        {
+            extension = 1;
+        }
+
         // Step 16. Make the move
         do_move(pos, move, st, givesCheck);
 
