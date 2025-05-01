@@ -983,7 +983,8 @@ Value Search::Worker::search(
 moves_loop:  // When in check, search starts here
 
     // Step 12. A small Probcut idea
-    probCutBeta = beta + 180 + depth * 20;
+    // Increase threshold if eval is improving, requiring a stronger TT entry to prune.
+    probCutBeta = beta + 180 + depth * 20 + 40 * improving;
     if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4 && ttData.value >= probCutBeta
         && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
         return probCutBeta;
