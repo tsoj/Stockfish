@@ -1701,8 +1701,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                 }
 
                 // If static exchange evaluation is low enough
-                // we can prune this move.
-                if (!pos.see_ge(move, alpha - futilityBase))
+                // we can prune this move. Relax the check slightly in PV nodes.
+                if (!pos.see_ge(move, alpha - futilityBase - (PvNode * 50)))
                 {
                     bestValue = std::min(alpha, futilityBase);
                     continue;
