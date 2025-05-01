@@ -817,8 +817,8 @@ Value Search::Worker::search(
 
         ss->staticEval = eval = to_corrected_static_eval(unadjustedStaticEval, correctionValue);
 
-        // ttValue can be used as a better position evaluation
-        if (is_valid(ttData.value)
+        // ttValue can be used as a better position evaluation, but only trust if TT depth is sufficient
+        if (is_valid(ttData.value) && ttData.depth >= depth - 4  // Added depth check
             && (ttData.bound & (ttData.value > eval ? BOUND_LOWER : BOUND_UPPER)))
             eval = ttData.value;
     }
