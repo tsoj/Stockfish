@@ -76,15 +76,18 @@ Value futility_margin(Depth d,
                       bool  improving,
                       bool  oppWorsening,
                       int   statScore,
-                      int   correctionValue) {
+                      int   correctionValue,
+                      Value eval) {  // Add eval as parameter
     Value futilityMult       = 105 - 23 * noTtCutNode;
     Value improvingDeduction = improving * futilityMult * 2;
     Value worseningDeduction = oppWorsening * futilityMult / 3;
     Value statScoreAddition  = statScore / 335;
     Value correctionAddition = correctionValue / 149902;
+    // Add term based on absolute evaluation: margin decreases slightly as |eval| grows
+    Value evalMagnitudeAdj = -std::abs(eval) / 32;
 
     return futilityMult * d - improvingDeduction - worseningDeduction + statScoreAddition
-         + correctionAddition;
+         + correctionAddition + evalMagnitudeAdj;  // Add the adjustment
 }
 
 constexpr int futility_move_count(bool improving, Depth depth) {
@@ -867,7 +870,7 @@ Value Search::Worker::search(
     if (!ss->ttPv && depth < 14
         && eval
                - futility_margin(depth, cutNode && !ss->ttHit, improving, opponentWorsening,
-                                 (ss - 1)->statScore, std::abs(correctionValue))
+                                 (ss - 1)->statScore, std::abs(correctionValue), eval)  // Pass eval
              >= beta
         && eval >= beta && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
         return beta + (eval - beta) / 3;
