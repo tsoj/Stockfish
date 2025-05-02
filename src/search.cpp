@@ -1163,6 +1163,8 @@ moves_loop:  // When in check, search starts here
                     int corrValAdj2  = std::abs(correctionValue) / 249757;
                     int doubleMargin = -4 + 244 * PvNode - 206 * !ttCapture - corrValAdj1
                                      - 997 * ttMoveHistory / 131072;
+                    // Make extension=2 slightly easier if TT entry is much deeper than singular search
+                    doubleMargin -= 10 * std::max(0, int(ttData.depth - singularDepth));
                     int tripleMargin =
                       84 + 269 * PvNode - 253 * !ttCapture + 91 * ss->ttPv - corrValAdj2;
 
