@@ -1166,10 +1166,20 @@ moves_loop:  // When in check, search starts here
                     int tripleMargin =
                       84 + 269 * PvNode - 253 * !ttCapture + 91 * ss->ttPv - corrValAdj2;
 
-                    extension = 1 + (value < singularBeta - doubleMargin)
-                              + (value < singularBeta - tripleMargin);
+                    // Base extension for the singular move itself
+                    extension = 1;
 
-                    depth++;
+                    // If clearly singular, increase depth budget for subsequent moves
+                    // and grant additional extension to the singular move.
+                    if (value < singularBeta - doubleMargin)
+                    {
+                        depth++;      // Increase depth for subsequent moves in this node
+                        extension++;  // Add second ply of extension for this move
+
+                        // Grant third ply of extension if very clearly singular
+                        if (value < singularBeta - tripleMargin)
+                            extension++;
+                    }
                 }
 
                 // Multi-cut pruning
