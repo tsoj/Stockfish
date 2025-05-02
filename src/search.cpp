@@ -366,10 +366,12 @@ void Search::Worker::iterative_deepening() {
             selDepth = 0;
 
             // Reset aspiration window starting size
-            delta     = 5 + std::abs(rootMoves[pvIdx].meanSquaredScore) / 11134;
             Value avg = rootMoves[pvIdx].averageScore;
-            alpha     = std::max(avg - delta, -VALUE_INFINITE);
-            beta      = std::min(avg + delta, VALUE_INFINITE);
+            // Make divisor dependent on score magnitude: larger score -> larger divisor -> smaller delta contribution
+            int divisor = 11134 + std::abs(avg) / 8;  // Increase divisor for large scores
+            delta       = 5 + std::abs(rootMoves[pvIdx].meanSquaredScore) / std::max(1, divisor);
+            alpha       = std::max(avg - delta, -VALUE_INFINITE);
+            beta        = std::min(avg + delta, VALUE_INFINITE);
 
             // Adjust optimism based on root move's averageScore
             optimism[us]  = 137 * avg / (std::abs(avg) + 91);
