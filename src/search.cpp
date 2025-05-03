@@ -1701,8 +1701,9 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                 }
 
                 // If static exchange evaluation is low enough
-                // we can prune this move.
-                if (!pos.see_ge(move, alpha - futilityBase))
+                // we can prune this move. Don't prune the TT move here,
+                // as it might have tactical relevance beyond immediate SEE vs futilityBase.
+                if (move != ttData.move && !pos.see_ge(move, alpha - futilityBase))
                 {
                     bestValue = std::min(alpha, futilityBase);
                     continue;
