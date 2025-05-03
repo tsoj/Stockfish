@@ -1240,9 +1240,15 @@ moves_loop:  // When in check, search starts here
         if ((ss + 1)->cutoffCnt > 2)
             r += 1036 + allNode * 848;
 
-        // For first picked move (ttMove) reduce reduction
+        // For first picked move (ttMove) reduce reduction, but less if TT info is weak
         else if (ss->isTTMove)
+        {
             r -= 2006;
+            // Add back some reduction if TT depth is low or bound is not >= beta
+            if (ttData.depth < depth - 2 || !(ttData.bound & BOUND_LOWER))
+                r += 985;  // Roughly half the bonus
+        }
+
 
         if (capture)
             ss->statScore =
