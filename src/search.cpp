@@ -1054,7 +1054,11 @@ moves_loop:  // When in check, search starts here
         if (!rootNode && pos.non_pawn_material(us) && !is_loss(bestValue))
         {
             // Skip quiet moves if movecount exceeds our FutilityMoveCount threshold
-            if (moveCount >= futility_move_count(improving, depth))
+            int futilityThreshold = futility_move_count(improving, depth);
+            // If TT suggested a capture, prune quiet moves more aggressively
+            if (ttCapture)
+                futilityThreshold = std::max(1, futilityThreshold - 1);
+            if (moveCount >= futilityThreshold)
                 mp.skip_quiet_moves();
 
             // Reduced depth of the next LMR search
