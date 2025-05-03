@@ -1230,7 +1230,14 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for cut nodes
         if (cutNode)
-            r += 2864 + 966 * !ttData.move;
+        {
+            int baseBonus = 2864 + 966 * !ttData.move;
+            // Scale bonus if static eval strongly suggests a cutoff is likely
+            int evalDiffBonus =
+              std::max(0, ss->staticEval - alpha - 100) * 4;  // Tunable threshold and factor
+            r += baseBonus + evalDiffBonus;
+        }
+
 
         // Increase reduction if ttMove is a capture but the current move is not a capture
         if (ttCapture && !capture)
