@@ -1241,8 +1241,9 @@ moves_loop:  // When in check, search starts here
             r += 1036 + allNode * 848;
 
         // For first picked move (ttMove) reduce reduction
+        // Reduce it even more for singularly extended moves
         else if (ss->isTTMove)
-            r -= 2006;
+            r -= 2006 + (extension > 0) * 756;
 
         if (capture)
             ss->statScore =
