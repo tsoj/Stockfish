@@ -1279,10 +1279,11 @@ moves_loop:  // When in check, search starts here
             // Do a full-depth search when reduced LMR search fails high
             if (value > alpha && d < newDepth)
             {
-                // Adjust full-depth search based on LMR results - if the result was
-                // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
+                // Adjust full-depth search based on LMR results and game phase
+                // In endgames, we're more likely to do deeper searches and less likely to do shallower searches
+                const bool inEndgame      = pos.non_pawn_material() <= RookValue + KnightValue;
+                const bool doDeeperSearch = value > (bestValue + 42 + 2 * newDepth - 8 * inEndgame);
+                const bool doShallowerSearch = value < bestValue + 9 + 3 * inEndgame;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
 
