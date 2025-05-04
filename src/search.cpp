@@ -1105,16 +1105,18 @@ moves_loop:  // When in check, search starts here
 
                 history += 68 * thisThread->mainHistory[us][move.from_to()] / 32;
 
-                lmrDepth += history / 3388;
+                // Dynamically increase futility margin for late moves (*Scaler)
+                int dynamicLmrDepth = lmrDepth;
+                if (moveCount > 4)
+                    dynamicLmrDepth += (moveCount - 4) * (ss->ply / 8 + 1);
 
                 Value futilityValue =
-                  ss->staticEval + (bestMove ? 46 : 138) + 117 * lmrDepth
+                  ss->staticEval + (bestMove ? 46 : 138) + 117 * dynamicLmrDepth
                   + 102 * (bestValue < ss->staticEval - 127 && ss->staticEval > alpha - 50);
 
                 // Futility pruning: parent node
-                // (*Scaler): Generally, more frequent futility pruning
-                // scales well with respect to time and threads
-                if (!ss->inCheck && lmrDepth < 12 && futilityValue <= alpha)
+                // (*Scaler): More frequent pruning for late moves and deep plies
+                if (!ss->inCheck && dynamicLmrDepth < 12 && futilityValue <= alpha)
                 {
                     if (bestValue <= futilityValue && !is_decisive(bestValue)
                         && !is_win(futilityValue))
