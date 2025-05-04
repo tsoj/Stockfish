@@ -1279,10 +1279,18 @@ moves_loop:  // When in check, search starts here
             // Do a full-depth search when reduced LMR search fails high
             if (value > alpha && d < newDepth)
             {
-                // Adjust full-depth search based on LMR results - if the result was
-                // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
+                // Determine if position is tactical (has checks or captures)
+                bool tactical = ss->inCheck || capture || givesCheck;
+
+                // Adjust thresholds based on position characteristics
+                // In tactical positions, use a lower threshold for deeper search
+                const int deeperThreshold =
+                  tactical ? (bestValue + 28 + 2 * newDepth) : (bestValue + 42 + 2 * newDepth);
+                const int shallowerThreshold = tactical ? (bestValue + 6) : (bestValue + 9);
+
+                // Adjust full-depth search based on LMR results
+                const bool doDeeperSearch    = value > deeperThreshold;
+                const bool doShallowerSearch = value < shallowerThreshold;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
 
