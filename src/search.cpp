@@ -1169,6 +1169,14 @@ moves_loop:  // When in check, search starts here
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
+                    // Only allow double or higher singular extension if the node is nearly unique (scales with branchiness)
+                    if (extension > 1)
+                    {
+                        MoveList<LEGAL> ml(pos);
+                        if (ml.size() >= 4)
+                            extension = 1;
+                    }
+
                     depth++;
                 }
 
