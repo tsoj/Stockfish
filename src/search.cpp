@@ -1418,10 +1418,14 @@ moves_loop:  // When in check, search starts here
                     assert(value >= beta);  // Fail high
                     break;
                 }
-                else
+                else  // value < beta and value > alpha
                 {
-                    // Reduce other moves if we have found at least one score improvement
-                    if (depth > 2 && depth < 16 && !is_decisive(value))
+                    // Reduce other moves if we have found at least one score improvement,
+                    // especially if the improving move was the trusted TT move.
+                    if (depth > 2 && depth < 16 && !is_decisive(value)
+                        && bestMove
+                             == ttData
+                                  .move)  // Added condition: only reduce if TT move improved alpha
                         depth -= 2;
 
                     assert(depth > 0);
