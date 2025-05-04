@@ -1250,8 +1250,10 @@ moves_loop:  // When in check, search starts here
               + thisThread->captureHistory[movedPiece][move.to_sq()][type_of(pos.captured_piece())]
               - 5030;
         else if (ss->inCheck)
+            // Also consider continuation history from 2 plies back for check evasions, but with less weight.
             ss->statScore = thisThread->mainHistory[us][move.from_to()]
-                          + (*contHist[0])[movedPiece][move.to_sq()] - 2766;
+                          + (*contHist[0])[movedPiece][move.to_sq()]
+                          + (*contHist[1])[movedPiece][move.to_sq()] / 4 - 2766;
         else
             ss->statScore = 2 * thisThread->mainHistory[us][move.from_to()]
                           + (*contHist[0])[movedPiece][move.to_sq()]
