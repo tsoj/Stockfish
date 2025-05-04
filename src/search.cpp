@@ -1149,8 +1149,13 @@ moves_loop:  // When in check, search starts here
                 && is_valid(ttData.value) && !is_decisive(ttData.value)
                 && (ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 3)
             {
-                Value singularBeta  = ttData.value - (58 + 76 * (ss->ttPv && !PvNode)) * depth / 57;
-                Depth singularDepth = newDepth / 2;
+                Value singularBeta = ttData.value - (58 + 76 * (ss->ttPv && !PvNode)) * depth / 57;
+
+                // Dynamic singular depth based on position characteristics
+                Depth singularDepth = std::max(
+                  1, newDepth / 2 + (ttData.depth > depth)     // Deeper if TT is deeper
+                       + (ttData.value > alpha)                // Deeper if move looks promising
+                       - (cutNode && ttData.value <= alpha));  // Less deep in unpromising cut nodes
 
                 ss->excludedMove = move;
                 value =
