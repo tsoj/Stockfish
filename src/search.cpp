@@ -1077,7 +1077,12 @@ moves_loop:  // When in check, search starts here
 
                 // SEE based pruning for captures and checks
                 int seeHist = std::clamp(captHist / 31, -137 * depth, 125 * depth);
-                if (!pos.see_ge(move, -158 * depth - seeHist))
+                // Adjust the threshold based on whether the move is a TT move, whether we're improving, and depth
+                int seeAdj =
+                  -(move == ttData.move) * 76  // Decrease threshold for TT moves (prune less)
+                  + improving * 51             // Increase threshold if improving (prune more)
+                  + depth * 15;  // Increase threshold with depth (prune more with increasing depth)
+                if (!pos.see_ge(move, -158 * depth - seeHist + seeAdj))
                 {
                     bool skip = true;
                     if (depth > 2 && !capture && givesCheck && alpha < 0
