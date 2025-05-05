@@ -1230,7 +1230,20 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for cut nodes
         if (cutNode)
-            r += 2864 + 966 * !ttData.move;
+        {
+            int penalty = 2864 + 966 * !ttData.move;
+            // Reduce penalty if static eval is far below beta, suggesting the cut
+            // might be less certain than assumed based on node type alone.
+            Value evalMargin = beta - ss->staticEval;
+            if (evalMargin > 100)  // If eval is more than ~1 pawn below beta
+            {
+                // Reduce penalty based on how far eval is below beta.
+                // Max reduction of 50% if margin is 500+ (evalMargin-100 = 400+).
+                int reductionFactor = std::clamp(evalMargin - 100, 0, 400);
+                penalty -= penalty * reductionFactor / 800;
+            }
+            r += penalty;
+        }
 
         // Increase reduction if ttMove is a capture but the current move is not a capture
         if (ttCapture && !capture)
