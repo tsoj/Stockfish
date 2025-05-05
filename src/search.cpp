@@ -1418,10 +1418,11 @@ moves_loop:  // When in check, search starts here
                     assert(value >= beta);  // Fail high
                     break;
                 }
-                else
+                else  // Value is between alpha and beta
                 {
-                    // Reduce other moves if we have found at least one score improvement
-                    if (depth > 2 && depth < 16 && !is_decisive(value))
+                    // Reduce depth for subsequent moves only in non-cut nodes after finding an alpha improvement.
+                    // In cut nodes, we prioritize finding any move >= beta, so we don't reduce depth here.
+                    if (!cutNode && depth > 2 && depth < 16 && !is_decisive(value))
                         depth -= 2;
 
                     assert(depth > 0);
