@@ -1468,39 +1468,50 @@ moves_loop:  // When in check, search starts here
         }
     }
 
-    // Bonus for prior quiet countermove that caused the fail low
-    else if (!priorCapture && prevSq != SQ_NONE)
+    // Bonus for prior countermove that caused the fail low
+    else if (prevSq != SQ_NONE)
     {
-        int bonusScale = std::min(-(ss - 1)->statScore / 113, 293);
-        bonusScale += std::min(73 * depth - 347, 184);
-        bonusScale += 33 * !allNode;
-        bonusScale += 174 * ((ss - 1)->moveCount > 8);
-        bonusScale += 86 * (ss - 1)->isTTMove;
-        bonusScale += 90 * (ss->cutoffCnt <= 3);
-        bonusScale += 144 * (!ss->inCheck && bestValue <= ss->staticEval - 104);
-        bonusScale += 128 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 82);
+        const int baseBonus = std::min(159 * depth - 94, 1501);  // Base depth-scaled bonus
+        Piece     prevPc    = pos.piece_on(prevSq);
 
-        bonusScale = std::max(bonusScale, 0);
+        if (!priorCapture)  // Quiet move case
+        {
+            int bonusScale = std::min(-(ss - 1)->statScore / 113, 293);
+            bonusScale += std::min(73 * depth - 347, 184);
+            bonusScale += 33 * !allNode;
+            bonusScale += 174 * ((ss - 1)->moveCount > 8);
+            bonusScale += 86 * (ss - 1)->isTTMove;
+            bonusScale += 90 * (ss->cutoffCnt <= 3);
+            bonusScale += 144 * (!ss->inCheck && bestValue <= ss->staticEval - 104);
+            bonusScale += 128 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 82);
+            bonusScale = std::max(bonusScale, 0);
 
-        const int scaledBonus = std::min(159 * depth - 94, 1501) * bonusScale;
+            const int scaledBonus = baseBonus * bonusScale;
 
-        update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
-                                      scaledBonus * 412 / 32768);
+            update_continuation_histories(ss - 1, prevPc, prevSq, scaledBonus * 412 / 32768);
+            thisThread->mainHistory[~us][((ss - 1)->currentMove).from_to()]
+              << scaledBonus * 203 / 32768;
+            if (type_of(prevPc) != PAWN && ((ss - 1)->currentMove).type_of() != PROMOTION)
+                thisThread->pawnHistory[pawn_structure_index(pos)][prevPc][prevSq]
+                  << scaledBonus * 1040 / 32768;
+        }
+        else  // Capture move case
+        {
+            Piece capturedPiece = pos.captured_piece();
+            assert(capturedPiece != NO_PIECE);
 
-        thisThread->mainHistory[~us][((ss - 1)->currentMove).from_to()]
-          << scaledBonus * 203 / 32768;
+            // Apply a scaled bonus, simpler than the quiet move bonusScale
+            int bonusScale = 128;                   // Baseline scaling factor
+            bonusScale += 33 * !allNode;            // Factor for node type
+            bonusScale += 86 * (ss - 1)->isTTMove;  // Factor for TT move status
+            bonusScale = std::max(bonusScale, 0);
 
-        if (type_of(pos.piece_on(prevSq)) != PAWN && ((ss - 1)->currentMove).type_of() != PROMOTION)
-            thisThread->pawnHistory[pawn_structure_index(pos)][pos.piece_on(prevSq)][prevSq]
-              << scaledBonus * 1040 / 32768;
-    }
+            const int scaledBonus = baseBonus * bonusScale;
 
-    // Bonus for prior capture countermove that caused the fail low
-    else if (priorCapture && prevSq != SQ_NONE)
-    {
-        Piece capturedPiece = pos.captured_piece();
-        assert(capturedPiece != NO_PIECE);
-        thisThread->captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)] << 1080;
+            // Apply scaled bonus to capture history (using a ratio similar to 1080 / 32768)
+            thisThread->captureHistory[prevPc][prevSq][type_of(capturedPiece)]
+              << scaledBonus * 1080 / 32768;
+        }
     }
 
     if (PvNode)
