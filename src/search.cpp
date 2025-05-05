@@ -1473,12 +1473,14 @@ moves_loop:  // When in check, search starts here
     {
         int bonusScale = std::min(-(ss - 1)->statScore / 113, 293);
         bonusScale += std::min(73 * depth - 347, 184);
-        bonusScale += 33 * !allNode;
+        // bonusScale += 33 * !allNode; // Removed node type bias
         bonusScale += 174 * ((ss - 1)->moveCount > 8);
         bonusScale += 86 * (ss - 1)->isTTMove;
         bonusScale += 90 * (ss->cutoffCnt <= 3);
         bonusScale += 144 * (!ss->inCheck && bestValue <= ss->staticEval - 104);
         bonusScale += 128 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 82);
+        bonusScale +=
+          std::clamp((alpha - bestValue) / 4, 0, 200);  // Bonus based on fail-low margin
 
         bonusScale = std::max(bonusScale, 0);
 
