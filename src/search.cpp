@@ -1125,7 +1125,14 @@ moves_loop:  // When in check, search starts here
                 lmrDepth = std::max(lmrDepth, 0);
 
                 // Prune moves with negative SEE
-                if (!pos.see_ge(move, -27 * lmrDepth * lmrDepth))
+                // Be more conservative when position is improving or move has good history
+                int seeMargin = -27 * lmrDepth * lmrDepth;
+                if (improving)
+                    seeMargin -= 16 * lmrDepth;  // Less aggressive pruning when improving
+                if (history > 0)
+                    seeMargin -= std::min(history / 4096,
+                                          lmrDepth * 3);  // Less aggressive for good history moves
+                if (!pos.see_ge(move, Value(seeMargin)))
                     continue;
             }
         }
