@@ -864,12 +864,14 @@ Value Search::Worker::search(
 
     // Step 8. Futility pruning: child node
     // The depth condition is important for mate finding.
+    // Use a simplified margin call, removing parent statScore and explicit correctionValue dependency,
+    // as 'eval' already incorporates corrections or is a TT value.
     if (!ss->ttPv && depth < 14
         && eval
                - futility_margin(depth, cutNode && !ss->ttHit, improving, opponentWorsening,
-                                 (ss - 1)->statScore, std::abs(correctionValue))
+                                 0 /* parent statScore removed */, 0 /* correctionValue removed */)
              >= beta
-        && eval >= beta && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
+        && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
         return beta + (eval - beta) / 3;
 
     // Step 9. Null move search with verification search
