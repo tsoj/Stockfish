@@ -815,7 +815,9 @@ Value Search::Worker::search(
         if (!is_valid(unadjustedStaticEval))
             unadjustedStaticEval = evaluate(pos);
 
-        ss->staticEval = eval = to_corrected_static_eval(unadjustedStaticEval, correctionValue);
+        // Dampen correction history effect for evaluation used in search/pruning
+        ss->staticEval = eval =
+          to_corrected_static_eval(unadjustedStaticEval, correctionValue * 85 / 128);
 
         // ttValue can be used as a better position evaluation
         if (is_valid(ttData.value)
@@ -825,7 +827,9 @@ Value Search::Worker::search(
     else
     {
         unadjustedStaticEval = evaluate(pos);
-        ss->staticEval = eval = to_corrected_static_eval(unadjustedStaticEval, correctionValue);
+        // Dampen correction history effect for evaluation used in search/pruning
+        ss->staticEval = eval =
+          to_corrected_static_eval(unadjustedStaticEval, correctionValue * 85 / 128);
 
         // Static evaluation is saved as it was before adjustment by correction history
         ttWriter.write(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_UNSEARCHED, Move::none(),
