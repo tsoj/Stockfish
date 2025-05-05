@@ -1186,16 +1186,21 @@ moves_loop:  // When in check, search starts here
                 // ttMove on a reduced search, but we cannot do multi-cut because
                 // (ttValue - margin) is lower than the original beta, we do not know
                 // if the ttMove is singular or can do a multi-cut, so we reduce the
-                // ttMove in favor of other moves based on some conditions:
+                // ttMove in favor of other moves based on some conditions.
+                // Only apply negative extensions if the verification search found a move
+                // that isn't significantly worse than alpha, preventing penalties when
+                // all alternatives are very poor.
+                else if (value > alpha - PawnValue / 2)
+                {
+                    // If the ttMove is assumed to fail high over current beta
+                    if (ttData.value >= beta)
+                        extension = -3;
 
-                // If the ttMove is assumed to fail high over current beta
-                else if (ttData.value >= beta)
-                    extension = -3;
-
-                // If we are on a cutNode but the ttMove is not assumed to fail high
-                // over current beta
-                else if (cutNode)
-                    extension = -2;
+                    // If we are on a cutNode but the ttMove is not assumed to fail high
+                    // over current beta
+                    else if (cutNode)
+                        extension = -2;
+                }
             }
         }
 
