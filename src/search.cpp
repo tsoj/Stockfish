@@ -1277,27 +1277,30 @@ moves_loop:  // When in check, search starts here
             ss->reduction = 0;
 
             // Do a full-depth search when reduced LMR search fails high
-            if (value > alpha && d < newDepth)
+            if (value > alpha && d < newDepth)  // Check if LMR failed high AND reduction occurred
             {
-                // Adjust full-depth search based on LMR results - if the result was
-                // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
+                // Calculate re-search depth adjustment for THIS move
+                Depth      researchDepth     = newDepth;  // Start with original depth for this move
+                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * researchDepth);
                 const bool doShallowerSearch = value < bestValue + 9;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                researchDepth += doDeeperSearch - doShallowerSearch;  // Adjust re-search depth
 
-                if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                // If re-search depth ended up deeper than LMR depth, perform re-search
+                if (researchDepth > d)
+                    value =
+                      -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, researchDepth, !cutNode);
+
+                // If the LMR result was very good, also increase depth for SUBSEQUENT moves
+                if (doDeeperSearch)
+                    newDepth++;  // This carries the extension effect forward
 
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
             }
-            else if (value > alpha && value < bestValue + 9)
-            {
-                newDepth--;
-                if (value < bestValue + 4)
-                    newDepth--;
-            }
+            // Removed the 'else if' block that reduced newDepth when d >= newDepth
+            // and value was marginally > alpha. Also, the main 'if' block no longer
+            // reduces newDepth for subsequent moves when doShallowerSearch is true.
         }
 
         // Step 18. Full-depth search when LMR is skipped
