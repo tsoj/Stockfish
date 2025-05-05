@@ -1257,8 +1257,12 @@ moves_loop:  // When in check, search starts here
                           + (*contHist[0])[movedPiece][move.to_sq()]
                           + (*contHist[1])[movedPiece][move.to_sq()] - 3206;
 
-        // Decrease/increase reduction for moves with a good/bad history
-        r -= ss->statScore * 826 / 8192;
+        // Decrease/increase reduction for moves with a good/bad history,
+        // applying a slightly stronger effect for quiet moves.
+        if (capture)
+            r -= ss->statScore * 780 / 8192;  // Slightly reduced impact for captures
+        else
+            r -= ss->statScore * 870 / 8192;  // Slightly increased impact for quiet moves
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
