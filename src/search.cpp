@@ -859,8 +859,29 @@ Value Search::Worker::search(
     // Step 7. Razoring
     // If eval is really low, skip search entirely and return the qsearch value.
     // For PvNodes, we must have a guard against mates being returned.
-    if (!PvNode && eval < alpha - 486 - 325 * depth * depth)
-        return qsearch<NonPV>(pos, ss, alpha, beta);
+    if (!PvNode)
+    {
+        bool opponentWorsening = ss->staticEval > -(ss - 1)->staticEval;
+        int  margin            = 486 + 325 * depth * depth;
+
+        // Adjust margin based on position characteristics
+        if (opponentWorsening)
+            margin -= 44;  // More aggressive when opponent worsening
+
+        margin += std::abs(correctionValue) / 149902;  // Less aggressive with high correction
+        margin -= (ss - 1)->statScore / 335;           // More aggressive with good stats
+
+        if (eval < alpha - margin)
+        {
+            Value qvalue = qsearch<NonPV>(pos, ss, alpha, beta);
+
+            // Special tactical detection at shallow depths
+            if (depth <= 2 && qvalue > alpha + 77 && qvalue >= beta - 32)
+                return std::min(beta, qvalue);
+
+            return qvalue;
+        }
+    }
 
     // Step 8. Futility pruning: child node
     // The depth condition is important for mate finding.
