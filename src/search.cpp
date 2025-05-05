@@ -734,9 +734,10 @@ Value Search::Worker::search(
                 update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, -2301);
         }
 
-        // Partial workaround for the graph history interaction problem
-        // For high rule50 counts don't produce transposition table cutoffs.
-        if (pos.rule50_count() < 90)
+        // Partial workaround for the graph history interaction problem.
+        // For high rule50 counts, don't produce TT cutoffs unless the score is
+        // decisive (mate/TB) and deemed valid by value_from_tt().
+        if (is_decisive(ttData.value) || pos.rule50_count() < 90)
             return ttData.value;
     }
 
