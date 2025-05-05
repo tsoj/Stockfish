@@ -1260,6 +1260,10 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
 
+        // Slightly decrease reduction back in cutNodes for quiet moves with very high history scores
+        if (cutNode && !capture && ss->statScore > 8192)
+            r -= 768;  // Allow promising quiet moves slightly more depth even in cut nodes
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
