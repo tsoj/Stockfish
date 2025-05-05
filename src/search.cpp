@@ -1279,9 +1279,11 @@ moves_loop:  // When in check, search starts here
             // Do a full-depth search when reduced LMR search fails high
             if (value > alpha && d < newDepth)
             {
-                // Adjust full-depth search based on LMR results - if the result was
-                // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
+                // Adjust full-depth search based on LMR results and move characteristics
+                const bool isTacticalMove =
+                  (capture && PieceValue[pos.captured_piece()] >= BishopValue) || givesCheck;
+                const bool doDeeperSearch = value > (bestValue + 42 + 2 * newDepth)
+                                         || (isTacticalMove && value > bestValue + 30);
                 const bool doShallowerSearch = value < bestValue + 9;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
