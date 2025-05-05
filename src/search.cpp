@@ -1236,6 +1236,11 @@ moves_loop:  // When in check, search starts here
         if (ttCapture && !capture)
             r += 1210 + (depth < 8) * 963;
 
+        // Decrease reduction if TT move was quiet but current move is a capture,
+        // suggesting the capture might be tactically important.
+        if (!ttCapture && capture)
+            r -= 750;  // Value requires tuning
+
         // Increase reduction if next ply has a lot of fail high
         if ((ss + 1)->cutoffCnt > 2)
             r += 1036 + allNode * 848;
