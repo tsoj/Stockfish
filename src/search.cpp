@@ -1284,20 +1284,24 @@ moves_loop:  // When in check, search starts here
                 const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
                 const bool doShallowerSearch = value < bestValue + 9;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                int researchDepth = newDepth + doDeeperSearch - doShallowerSearch;
 
-                if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                // Skip re-search if LMR result is much lower than current bestValue,
+                // as the move is unlikely to become the best move for this node.
+                constexpr Value SkipMargin =
+                  75;  // Avoids re-searching moves unlikely to beat bestValue
+                if (researchDepth > d && value >= bestValue - SkipMargin)
+                {
+                    value =
+                      -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, researchDepth, !cutNode);
 
-                // Post LMR continuation history updates
-                update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
+                    // Post LMR continuation history updates only if re-search confirms the move is good
+                    update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
+                }
+                // else: LMR result > alpha, but deemed not promising enough compared to
+                //       bestValue for a full re-search. Keep LMR result 'value'.
             }
-            else if (value > alpha && value < bestValue + 9)
-            {
-                newDepth--;
-                if (value < bestValue + 4)
-                    newDepth--;
-            }
+            // Removed ineffective else if block that modified newDepth without re-search
         }
 
         // Step 18. Full-depth search when LMR is skipped
