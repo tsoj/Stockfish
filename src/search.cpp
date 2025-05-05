@@ -1279,19 +1279,29 @@ moves_loop:  // When in check, search starts here
             // Do a full-depth search when reduced LMR search fails high
             if (value > alpha && d < newDepth)
             {
-                // Adjust full-depth search based on LMR results - if the result was
-                // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
+                // Avoid re-search if the LMR result is already sufficient for a beta cutoff.
+                if (value < beta)
+                {
+                    // Adjust full-depth search based on LMR results - if the result was
+                    // good enough search deeper, if it was bad enough search shallower.
+                    const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
+                    const bool doShallowerSearch = value < bestValue + 9;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                    newDepth += doDeeperSearch - doShallowerSearch;
 
-                if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                    // Perform the re-search if the adjusted depth is greater than LMR depth
+                    if (newDepth > d)
+                        value =
+                          -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
 
-                // Post LMR continuation history updates
-                update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
+                    // Post LMR continuation history updates only if a re-search happened
+                    // or was potentially considered (i.e., value < beta initially).
+                    // Check newDepth > d again in case doShallowerSearch reduced it back to d.
+                    if (newDepth > d)
+                        update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
+                }
             }
+            // Adjust depth hint for futility pruning based on LMR result, even if no re-search occurs
             else if (value > alpha && value < bestValue + 9)
             {
                 newDepth--;
