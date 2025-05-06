@@ -982,9 +982,10 @@ Value Search::Worker::search(
 
 moves_loop:  // When in check, search starts here
 
-    // Step 12. A small Probcut idea
+    // Step 12. A small Probcut idea based on TT value and depth
+    // Prune if TT indicates a lower bound significantly above beta from a search of at least current depth.
     probCutBeta = beta + 180 + depth * 20;
-    if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4 && ttData.value >= probCutBeta
+    if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth && ttData.value >= probCutBeta
         && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
         return probCutBeta;
 
