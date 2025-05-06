@@ -1526,7 +1526,8 @@ moves_loop:  // When in check, search starts here
         && ((bestValue < ss->staticEval && bestValue < beta)  // negative correction & no fail high
             || (bestValue > ss->staticEval && bestMove)))     // positive correction & no fail low
     {
-        auto bonus = std::clamp(int(bestValue - ss->staticEval) * depth / 8,
+        // Reduce the scaling effect of depth on the correction bonus slightly
+        auto bonus = std::clamp(int(bestValue - ss->staticEval) * depth / 12,
                                 -CORRECTION_HISTORY_LIMIT / 4, CORRECTION_HISTORY_LIMIT / 4);
         update_correction_history(pos, ss, *thisThread, bonus);
     }
