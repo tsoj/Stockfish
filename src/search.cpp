@@ -1124,8 +1124,12 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth = std::max(lmrDepth, 0);
 
-                // Prune moves with negative SEE
-                if (!pos.see_ge(move, -27 * lmrDepth * lmrDepth))
+                // Calculate the LMR depth before history adjustment for SEE pruning
+                int baseLmrDepth = newDepth - r / 1024;
+                baseLmrDepth     = std::max(baseLmrDepth, 0);
+
+                // Prune moves with negative SEE, using base LMR depth for the threshold
+                if (!pos.see_ge(move, -27 * baseLmrDepth * baseLmrDepth))
                     continue;
             }
         }
