@@ -1240,6 +1240,10 @@ moves_loop:  // When in check, search starts here
         if ((ss + 1)->cutoffCnt > 2)
             r += 1036 + allNode * 848;
 
+        // Increase reduction if parent ply had many cutoffs before this move
+        if ((ss - 1)->cutoffCnt > 3)
+            r += 780;
+
         // For first picked move (ttMove) reduce reduction
         else if (ss->isTTMove)
             r -= 2006;
