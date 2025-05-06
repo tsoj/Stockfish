@@ -1179,11 +1179,11 @@ moves_loop:  // When in check, search starts here
                 // singular (multiple moves fail high), and we can prune the whole
                 // subtree by returning a softbound.
                 else if (value >= beta && !is_decisive(value))
-                    return value;
+                    return value;  // Multi-cut
 
                 // Negative extensions
                 // If other moves failed high over (ttValue - margin) without the
-                // ttMove on a reduced search, but we cannot do multi-cut because
+                // ttMove on a reduced search, but we cannot do multi-cut, because
                 // (ttValue - margin) is lower than the original beta, we do not know
                 // if the ttMove is singular or can do a multi-cut, so we reduce the
                 // ttMove in favor of other moves based on some conditions:
@@ -1191,11 +1191,12 @@ moves_loop:  // When in check, search starts here
                 // If the ttMove is assumed to fail high over current beta
                 else if (ttData.value >= beta)
                     extension = -3;
-
                 // If we are on a cutNode but the ttMove is not assumed to fail high
                 // over current beta
                 else if (cutNode)
                     extension = -2;
+                extension +=
+                  (extension < 0 && ttCapture);  // Reduce magnitude if negative and ttCapture
             }
         }
 
