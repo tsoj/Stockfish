@@ -853,7 +853,9 @@ Value Search::Worker::search(
 
     if (priorReduction >= 3 && !opponentWorsening)
         depth++;
-    if (priorReduction >= 1 && depth >= 2 && ss->staticEval + (ss - 1)->staticEval > 175)
+    // Reduce depth slightly less often, especially in PV nodes, if a prior reduced move led to a large eval swing
+    if (priorReduction >= 1 && depth >= 2
+        && ss->staticEval + (ss - 1)->staticEval > (185 + 40 * PvNode))
         depth--;
 
     // Step 7. Razoring
