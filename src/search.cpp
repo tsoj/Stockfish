@@ -936,7 +936,10 @@ Value Search::Worker::search(
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
         MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &thisThread->captureHistory);
-        Depth      probCutDepth = std::max(depth - 4, 0);
+        // For PV/AllNodes (!cutNode), search 1 ply deeper in ProbCut for more reliability.
+        // For CutNodes (cutNode), use the standard reduction.
+        Depth probCutR     = cutNode ? 4 : 3;
+        Depth probCutDepth = std::max(depth - probCutR, 0);
 
         while ((move = mp.next_move()) != Move::none())
         {
