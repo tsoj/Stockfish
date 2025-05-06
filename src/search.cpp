@@ -1608,6 +1608,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
 
     // Step 4. Static evaluation of the position
     Value unadjustedStaticEval = VALUE_NONE;
+    Value initialStandPatValue = -VALUE_INFINITE;  // Value used for the initial stand-pat decision
+
     if (ss->inCheck)
         bestValue = futilityBase = -VALUE_INFINITE;
     else
@@ -1636,6 +1638,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             ss->staticEval = bestValue =
               to_corrected_static_eval(unadjustedStaticEval, correctionValue);
         }
+
+        initialStandPatValue = bestValue;  // Store the value used for stand-pat
 
         // Stand pat. Return immediately if static value is at least beta
         if (bestValue >= beta)
@@ -1675,20 +1679,24 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         if (!pos.legal(move))
             continue;
 
+        moveCount++;
+
+        // Pruning based on initial stand-pat value: if stand-pat eval was already good (>= alpha),
+        // avoid searching moves beyond the first few captures/checks in NonPV nodes.
+        if (!PvNode && moveCount > 2 && initialStandPatValue >= alpha)
+            continue;
+
         givesCheck = pos.gives_check(move);
         capture    = pos.capture_stage(move);
 
-        moveCount++;
-
         // Step 6. Pruning
-        if (!is_loss(bestValue))
+        if (!is_loss(bestValue))  // Use the *current* bestValue for other pruning
         {
-            // Futility pruning and moveCount pruning
+            // Futility pruning (internal moveCount check removed)
             if (!givesCheck && move.to_sq() != prevSq && !is_loss(futilityBase)
                 && move.type_of() != PROMOTION)
             {
-                if (moveCount > 2)
-                    continue;
+                // Original: if (moveCount > 2) continue; <-- Removed
 
                 Value futilityValue = futilityBase + PieceValue[pos.piece_on(move.to_sq())];
 
