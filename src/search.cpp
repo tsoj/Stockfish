@@ -1284,7 +1284,12 @@ moves_loop:  // When in check, search starts here
                 const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
                 const bool doShallowerSearch = value < bestValue + 9;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                // Add a bonus depth if a heuristically poor move (low statScore)
+                // unexpectedly fails high during the reduced LMR search.
+                const int statScoreBonusDepth = (ss->statScore < -4000);
+
+                newDepth +=
+                  doDeeperSearch - doShallowerSearch + statScoreBonusDepth;  // Apply bonus depth
 
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
