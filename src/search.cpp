@@ -858,8 +858,10 @@ Value Search::Worker::search(
 
     // Step 7. Razoring
     // If eval is really low, skip search entirely and return the qsearch value.
+    // Use TT hit status to make razoring slightly less likely if TT data was available,
+    // as TT might provide better eval or indicate complexities static eval misses.
     // For PvNodes, we must have a guard against mates being returned.
-    if (!PvNode && eval < alpha - 486 - 325 * depth * depth)
+    if (!PvNode && eval + 180 * ss->ttHit < alpha - 486 - 325 * depth * depth)
         return qsearch<NonPV>(pos, ss, alpha, beta);
 
     // Step 8. Futility pruning: child node
