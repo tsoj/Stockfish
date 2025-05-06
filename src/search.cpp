@@ -862,7 +862,7 @@ Value Search::Worker::search(
     if (!PvNode && eval < alpha - 486 - 325 * depth * depth)
         return qsearch<NonPV>(pos, ss, alpha, beta);
 
-    // Step 8. Futility pruning: child node
+    // Step 8. Futility pruning: child node (with qsearch verification)
     // The depth condition is important for mate finding.
     if (!ss->ttPv && depth < 14
         && eval
@@ -870,7 +870,13 @@ Value Search::Worker::search(
                                  (ss - 1)->statScore, std::abs(correctionValue))
              >= beta
         && eval >= beta && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
-        return beta + (eval - beta) / 3;
+    {
+        // Verify the futility condition with a qsearch before pruning
+        Value qvalue = qsearch<NonPV>(pos, ss, beta - 1, beta);
+        if (qvalue >= beta)
+            return beta;  // Confirmed fail-high by qsearch
+        // else: qsearch failed low, futility condition might be unreliable, continue search
+    }
 
     // Step 9. Null move search with verification search
     if (cutNode && (ss - 1)->currentMove != Move::null() && eval >= beta
