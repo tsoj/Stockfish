@@ -1225,8 +1225,8 @@ moves_loop:  // When in check, search starts here
         r -= moveCount * 66;
         r -= std::abs(correctionValue) / 28047;
 
-        if (PvNode && std::abs(bestValue) <= 2078)
-            r -= risk_tolerance(bestValue);
+        if (PvNode && std::abs(ss->staticEval) <= 2078)
+            r -= risk_tolerance(ss->staticEval);
 
         // Increase reduction for cut nodes
         if (cutNode)
