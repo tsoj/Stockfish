@@ -428,7 +428,10 @@ void Search::Worker::iterative_deepening() {
                 else
                     break;
 
-                delta += delta / 3;
+                // Increase delta; more aggressively if we're having consecutive fail-highs.
+                // Divisor sequence for failedHighCnt (0,1), (2,3), (4+): 3, 2, 1
+                // Corresponding delta multiplier approx: 1.33x, 1.5x, 2.0x
+                delta += delta / std::max(1, 3 - failedHighCnt / 2);
 
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }
