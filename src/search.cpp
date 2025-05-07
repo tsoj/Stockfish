@@ -1045,9 +1045,8 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for ttPv nodes (*Scaler)
         // Smaller or even negative value is better for short time controls
-        // Bigger value is better for long time controls
-        if (ss->ttPv)
-            r += 968;
+        // Bigger // Calculate new depth for this move
+        newDepth = depth - 1;
 
         // Step 14. Pruning at shallow depth.
         // Depth conditions are important for mate finding.
@@ -1197,6 +1196,20 @@ moves_loop:  // When in check, search starts here
                 else if (cutNode)
                     extension = -2;
             }
+        }
+
+        // Recapture Extension: If the opponent just captured, and we recapture on the same square.
+        // Apply if singular extension did not provide a positive extension, or gave a negative one.
+        if (extension <= 0   // No positive singular extension was applied
+            && priorCapture  // Opponent's last move (ss-1)->currentMove was a capture
+            && capture       // Our current move is a capture
+            && move.to_sq()
+                 == prevSq        // Recapturing on the same square as opponent's last move to_sq
+            && prevSq != SQ_NONE  // Ensure prevSq is a valid square
+            && depth >= 4         // Only apply at reasonable depths
+            && PvNode)            // Primarily for PV nodes, for stability and scaling
+        {
+            extension = 1;
         }
 
         // Step 16. Make the move
