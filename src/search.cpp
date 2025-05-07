@@ -1244,6 +1244,19 @@ moves_loop:  // When in check, search starts here
         else if (ss->isTTMove)
             r -= 2006;
 
+        // If a reliable TT move existed and was quiet & promising,
+        // increase reduction for other quiet moves.
+        else if (ttData.move != Move::none()  // TT move exists
+                 && !ttCapture                // TT move was quiet
+                 && !capture                  // Current move is quiet
+                 && ttData.value > alpha      // TT move's score was not failing low
+                 && (ttData.depth >= depth - 4
+                     || (ttData.bound
+                         & (BOUND_LOWER | BOUND_EXACT))))  // TT entry is reasonably reliable
+        {
+            r += 640;  // Increase reduction for this "other" quiet move
+        }
+
         if (capture)
             ss->statScore =
               826 * int(PieceValue[pos.captured_piece()]) / 128
