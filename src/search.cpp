@@ -1480,7 +1480,18 @@ moves_loop:  // When in check, search starts here
         bonusScale += 144 * (!ss->inCheck && bestValue <= ss->staticEval - 104);
         bonusScale += 128 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 82);
 
-        bonusScale = std::max(bonusScale, 0);
+        // Add bonus based on how much bestValue is below alpha (strength of refutation).
+        // This signifies that the opponent's replies to (ss-1)->currentMove were all poor.
+        // Applied only if not in check, as check lines are often forced.
+        if (!ss->inCheck)
+        {
+            // Since !bestMove is true for this branch, alpha >= bestValue.
+            int refutationGap = alpha - bestValue;
+            // Scale the gap and cap the bonus. A 200cp gap contributes 100 to bonusScale. Max 150.
+            bonusScale += std::min(refutationGap / 2, 150);
+        }
+
+        bonusScale = std::max(bonusScale, 0);  // Ensure bonusScale is not negative
 
         const int scaledBonus = std::min(159 * depth - 94, 1501) * bonusScale;
 
