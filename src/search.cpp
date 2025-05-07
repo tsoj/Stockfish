@@ -1276,13 +1276,18 @@ moves_loop:  // When in check, search starts here
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
 
+            // Determine the margin for considering an LMR result a "shallow" improvement.
+            // Tactical moves get a smaller margin, making shallow re-searches less likely.
+            // Quiet moves get a margin of 10 (was 9). Tactical moves get 4 (was 9).
+            const int currentShallowMargin = 10 - ((capture || givesCheck) * 6);
+
             // Do a full-depth search when reduced LMR search fails high
             if (value > alpha && d < newDepth)
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
                 const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
+                const bool doShallowerSearch = value < bestValue + currentShallowMargin;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
 
@@ -1292,10 +1297,10 @@ moves_loop:  // When in check, search starts here
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
             }
-            else if (value > alpha && value < bestValue + 9)
+            else if (value > alpha && value < bestValue + currentShallowMargin)
             {
                 newDepth--;
-                if (value < bestValue + 4)
+                if (value < bestValue + 4)  // Further reduction for very weak improvements
                     newDepth--;
             }
         }
