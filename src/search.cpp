@@ -1897,7 +1897,11 @@ void update_all_stats(const Position&      pos,
     PieceType              captured;
 
     int bonus = std::min(143 * depth - 89, 1496) + 302 * (bestMove == ttMove);
-    int malus = std::min(737 * depth - 179, 3141) - 30 * moveCount;
+    // Ensure malus is always a positive penalty magnitude. If the calculation
+    // results in a value less than 100 (or negative), cap it at 100.
+    // This prevents non-best moves from inadvertently receiving a bonus if 'malus'
+    // became negative, as history updates use e.g. -malus * scale.
+    int malus = std::max(100, std::min(737 * depth - 179, 3141) - 30 * moveCount);
 
     if (!pos.capture_stage(bestMove))
     {
