@@ -1292,7 +1292,9 @@ moves_loop:  // When in check, search starts here
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
             }
-            else if (value > alpha && value < bestValue + 9)
+            // If LMR was performed, was not re-searched, but value > alpha and marginally better than bestValue,
+            // reduce newDepth for the current move's PVS/final search stage, but only in NonPV nodes.
+            else if (value > alpha && value < bestValue + 9 && !PvNode)
             {
                 newDepth--;
                 if (value < bestValue + 4)
