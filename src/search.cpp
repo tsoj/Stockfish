@@ -859,7 +859,9 @@ Value Search::Worker::search(
     // Step 7. Razoring
     // If eval is really low, skip search entirely and return the qsearch value.
     // For PvNodes, we must have a guard against mates being returned.
-    if (!PvNode && eval < alpha - 486 - 325 * depth * depth)
+    // Be more cautious (larger margin) if our position is improving, as static eval might be
+    // lagging behind the dynamics or the position is volatile.
+    if (!PvNode && eval < alpha - (486 + (improving ? 75 : 0)) - 325 * depth * depth)
         return qsearch<NonPV>(pos, ss, alpha, beta);
 
     // Step 8. Futility pruning: child node
