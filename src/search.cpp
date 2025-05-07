@@ -870,7 +870,9 @@ Value Search::Worker::search(
                                  (ss - 1)->statScore, std::abs(correctionValue))
              >= beta
         && eval >= beta && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
-        return beta + (eval - beta) / 3;
+        return beta
+             + (eval - beta)
+                 / (3 - bool(improving));  // Make return value more aggressive if improving
 
     // Step 9. Null move search with verification search
     if (cutNode && (ss - 1)->currentMove != Move::null() && eval >= beta
