@@ -422,7 +422,11 @@ void Search::Worker::iterative_deepening() {
                 }
                 else if (bestValue >= beta)
                 {
-                    beta = std::min(bestValue + delta, VALUE_INFINITE);
+                    // If we fail high, the score is at least bestValue.
+                    // Raise alpha to bestValue for the next search, and set beta
+                    // to bestValue + current delta, forming a new window around bestValue.
+                    alpha = bestValue;
+                    beta  = std::min(bestValue + delta, VALUE_INFINITE);
                     ++failedHighCnt;
                 }
                 else
