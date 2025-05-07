@@ -1236,13 +1236,21 @@ moves_loop:  // When in check, search starts here
         if (ttCapture && !capture)
             r += 1210 + (depth < 8) * 963;
 
+        bool highChildCutoffs = ((ss + 1)->cutoffCnt > 2);
+
         // Increase reduction if next ply has a lot of fail high
-        if ((ss + 1)->cutoffCnt > 2)
+        if (highChildCutoffs)
             r += 1036 + allNode * 848;
 
-        // For first picked move (ttMove) reduce reduction
-        else if (ss->isTTMove)
-            r -= 2006;
+        // For first picked move (ttMove), reduce reduction.
+        // This bonus is smaller if child cutoffs were high.
+        if (ss->isTTMove)
+        {
+            if (highChildCutoffs)
+                r -= 501;  // Smaller bonus (2006 / 4)
+            else
+                r -= 2006;  // Full bonus
+        }
 
         if (capture)
             ss->statScore =
