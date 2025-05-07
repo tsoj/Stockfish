@@ -1312,9 +1312,15 @@ moves_loop:  // When in check, search starts here
             if (cutNode)
                 r += 520;
 
+            // Adjust reduction thresholds if the node is part of a TT PV-line,
+            // making reductions less likely to explore such lines deeper.
+            const int ttPvBonus = ss->ttPv * 768;  // 0 if not ttPv, 768 if ttPv
+
             // Note that if expected reduction is high, we reduce search depth here
             value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha,
-                                   newDepth - (r > 3564) - (r > 4969 && newDepth > 2), !cutNode);
+                                   newDepth - (r > (3564 + ttPvBonus))
+                                     - (r > (4969 + ttPvBonus) && newDepth > 2),
+                                   !cutNode);
         }
 
         // For PV nodes only, do a full PV search on the first move or after a fail high,
