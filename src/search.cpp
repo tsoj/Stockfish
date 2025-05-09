@@ -428,7 +428,7 @@ void Search::Worker::iterative_deepening() {
                 else
                     break;
 
-                delta += delta / 3;
+                delta += delta / 3 + 2;  // Add a small constant to accelerate delta growth
 
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }
