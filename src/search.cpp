@@ -1045,8 +1045,9 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for ttPv nodes (*Scaler)
         // Smaller or even negative value is better for short time controls
-        // Bigger // Calculate new depth for this move
-        newDepth = depth - 1;
+        // Bigger value is better for long time controls
+        if (ss->ttPv)
+            r += 968;
 
         // Step 14. Pruning at shallow depth.
         // Depth conditions are important for mate finding.
