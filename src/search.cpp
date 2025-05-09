@@ -721,17 +721,32 @@ Value Search::Worker::search(
         && (ttData.bound & (ttData.value >= beta ? BOUND_LOWER : BOUND_UPPER))
         && (cutNode == (ttData.value >= beta) || depth > 5))
     {
-        // If ttMove is quiet, update move sorting heuristics on TT hit
-        if (ttData.move && ttData.value >= beta)
+        // Update move sorting heuristics on TT hit
+        if (ttData
+              .move)  // Ensure ttData.move is valid before using ttCapture or updating heuristics
         {
-            // Bonus for a quiet ttMove that fails high
-            if (!ttCapture)
-                update_quiet_histories(pos, ss, *this, ttData.move,
-                                       std::min(125 * depth - 77, 1157));
+            if (ttData.value >= beta)  // TT move causes a fail-high for the current search
+            {
+                // Bonus for a quiet ttMove that fails high
+                if (!ttCapture)
+                    update_quiet_histories(pos, ss, *this, ttData.move,
+                                           std::min(125 * depth - 77, 1157));
 
-            // Extra penalty for early quiet moves of the previous ply
-            if (prevSq != SQ_NONE && (ss - 1)->moveCount <= 3 && !priorCapture)
-                update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, -2301);
+                // Extra penalty for opponent's previous early quiet move that led to this strong refutation
+                if (prevSq != SQ_NONE && (ss - 1)->moveCount <= 3 && !priorCapture)
+                    update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, -2301);
+            }
+            else if (ttData.value <= alpha)  // TT move causes a fail-low for the current search
+            {
+                // Penalty for a quiet ttMove that fails low
+                if (!ttCapture)
+                    update_quiet_histories(pos, ss, *this, ttData.move,
+                                           -(std::min(100 * depth - 50, 1000)));
+
+                // Extra bonus for opponent's previous early quiet move, as current side's TT response is weak
+                if (prevSq != SQ_NONE && (ss - 1)->moveCount <= 3 && !priorCapture)
+                    update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, 1200);
+            }
         }
 
         // Partial workaround for the graph history interaction problem
