@@ -1169,7 +1169,9 @@ moves_loop:  // When in check, search starts here
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
-                    depth++;
+                    if (extension
+                        > 1)  // Only increment current node's depth for stronger singular signals
+                        depth++;
                 }
 
                 // Multi-cut pruning
