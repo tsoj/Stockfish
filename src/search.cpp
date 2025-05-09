@@ -1100,7 +1100,10 @@ moves_loop:  // When in check, search starts here
                   + thisThread->pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()];
 
                 // Continuation history based pruning
-                if (history < -4229 * depth)
+                int contHistThreshold = -4229 * depth;
+                if (ss->ttPv)  // If on a TT PV line, be slightly less aggressive with this pruning
+                    contHistThreshold += 750;  // Make threshold less negative (prune less often)
+                if (history < contHistThreshold)
                     continue;
 
                 history += 68 * thisThread->mainHistory[us][move.from_to()] / 32;
