@@ -1239,10 +1239,18 @@ moves_loop:  // When in check, search starts here
         // Increase reduction if next ply has a lot of fail high
         if ((ss + 1)->cutoffCnt > 2)
             r += 1036 + allNode * 848;
-
-        // For first picked move (ttMove) reduce reduction
+        // For first picked move (ttMove) reduce reduction.
+        // If the sibling history ((ss+1)->cutoffCnt) is calm:
+        // If current node is a PV-node, reduce r more (search TT move deeper).
+        // If not a PV-node, reduce r slightly less to compensate and keep average similar.
+        // (Assumes PV nodes are ~25% of cases: 0.25 * (2006+300) + 0.75 * (2006-100) = 2006)
         else if (ss->isTTMove)
-            r -= 2006;
+        {
+            if (ss->isPvNode)  // True if NodeType is PV
+                r -= 2306;     // Original: 2006. Increased by 300 (search ~0.3 plies deeper)
+            else
+                r -= 1906;  // Original: 2006. Decreased by 100 (search ~0.1 plies shallower)
+        }
 
         if (capture)
             ss->statScore =
