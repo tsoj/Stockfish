@@ -1263,12 +1263,15 @@ moves_loop:  // When in check, search starts here
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
+            const Depth rLMR =
+              r + ((std::clamp(alpha - ss->staticEval, 0, QueenValue) * 512) / PawnValue) - 300;
+
             // In general we want to cap the LMR depth search at newDepth, but when
             // reduction is negative, we allow this move a limited search extension
             // beyond the first move depth.
             // To prevent problems when the max value is less than the min value,
             // std::clamp has been replaced by a more robust implementation.
-            Depth d = std::max(1, std::min(newDepth - r / 1024,
+            Depth d = std::max(1, std::min(newDepth - rLMR / 1024,
                                            newDepth + !allNode + (PvNode && !bestMove)))
                     + (!cutNode && (ss - 1)->isPvNode && moveCount < 8);
 
