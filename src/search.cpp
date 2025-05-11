@@ -1069,8 +1069,20 @@ moves_loop:  // When in check, search starts here
                 // Futility pruning for captures
                 if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
                 {
-                    Value futilityValue = ss->staticEval + 232 + 224 * lmrDepth
-                                        + PieceValue[capturedPiece] + 131 * captHist / 1024;
+                    Value baseMargin      = Value(232) + Value(224) * lmrDepth;
+                    Value marginReduction = VALUE_ZERO;
+
+                    if (improving)
+                        marginReduction += Value(60) + Value(30) * lmrDepth;
+
+                    if (cutNode)  // cutNode is a parameter to search()
+                        marginReduction += Value(40) + Value(20) * lmrDepth;
+
+                    Value finalMargin = std::max(
+                      Value(100), baseMargin - marginReduction);  // Ensure a minimum margin
+
+                    Value futilityValue = ss->staticEval + finalMargin + PieceValue[capturedPiece]
+                                        + 131 * captHist / 1024;
                     if (futilityValue <= alpha)
                         continue;
                 }
