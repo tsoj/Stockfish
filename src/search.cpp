@@ -1257,8 +1257,13 @@ moves_loop:  // When in check, search starts here
                           + (*contHist[0])[movedPiece][move.to_sq()]
                           + (*contHist[1])[movedPiece][move.to_sq()] - 3206;
 
-        // Decrease/increase reduction for moves with a good/bad history
-        r -= ss->statScore * 826 / 8192;
+        // Decrease/increase reduction for moves with a good/bad history.
+        // In cutNodes, slightly dampen the depth increase from positive history scores,
+        // as we are primarily looking for a quick refutation.
+        if (cutNode && ss->statScore > 0)
+            r -= ss->statScore * 620 / 8192;  // Factor 620 (approx 3/4 of 826)
+        else
+            r -= ss->statScore * 826 / 8192;  // Original factor
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
