@@ -1710,12 +1710,21 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             }
 
             // Continuation history based pruning
-            if (!capture
-                && (*contHist[0])[pos.moved_piece(move)][move.to_sq()]
-                       + thisThread->pawnHistory[pawn_structure_index(pos)][pos.moved_piece(move)]
-                                                [move.to_sq()]
-                     <= 6218)
-                continue;
+            if (!capture)
+            {
+                int historyScore =
+                  (*contHist[0])[pos.moved_piece(move)][move.to_sq()]
+                  + thisThread
+                      ->pawnHistory[pawn_structure_index(pos)][pos.moved_piece(move)][move.to_sq()];
+
+                // Adjust threshold based on current alpha:
+                // If alpha is high, be more selective (higher threshold).
+                // If alpha is low, be less selective (lower threshold).
+                int dynamicThreshold = 6218 + (alpha * 32) / PawnValue;
+
+                if (historyScore <= dynamicThreshold)
+                    continue;
+            }
 
             // Do not search moves with bad enough SEE values
             if (!pos.see_ge(move, -74))
