@@ -1260,6 +1260,14 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
 
+        // Additional reduction for very unpromising quiet moves in cutNodes.
+        // A quiet move (not a capture, not in check) in a cutNode with
+        // exceptionally poor historical stats gets a further reduction.
+        // The threshold -20000 for ss->statScore is heuristic.
+        // 512 corresponds to an additional 0.5 ply reduction as r is scaled by 1024.
+        if (cutNode && !capture && !ss->inCheck && ss->statScore < -20000)
+            r += 512;
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
