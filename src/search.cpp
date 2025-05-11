@@ -1144,8 +1144,10 @@ moves_loop:  // When in check, search starts here
             // (*Scaler) Generally, higher singularBeta (i.e closer to ttValue)
             // and lower extension margins scale well.
 
+            bool ttIsCheck = (ttData.move != Move::none() && pos.gives_check(ttData.move));
+
             if (!rootNode && move == ttData.move && !excludedMove
-                && depth >= 6 - (thisThread->completedDepth > 27) + ss->ttPv
+                && depth >= 6 - (thisThread->completedDepth > 27) + ss->ttPv - (ttIsCheck ? 1 : 0)
                 && is_valid(ttData.value) && !is_decisive(ttData.value)
                 && (ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 3)
             {
