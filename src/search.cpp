@@ -983,7 +983,11 @@ Value Search::Worker::search(
 moves_loop:  // When in check, search starts here
 
     // Step 12. A small Probcut idea
-    probCutBeta = beta + 180 + depth * 20;
+    // Adjust margin based on 'improving' status, keeping average margin consistent.
+    // If improving, margin is decreased (more pruning). If not, margin is increased (less pruning).
+    // The effect '50' is chosen to be similar to other 'improving' effects (e.g., 58 in main ProbCut).
+    // Base constant adjusted from 180 to 180 + 50/2 = 205 to balance.
+    probCutBeta = beta + 205 + depth * 20 - (improving * 50);
     if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4 && ttData.value >= probCutBeta
         && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
         return probCutBeta;
