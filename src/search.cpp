@@ -1111,6 +1111,12 @@ moves_loop:  // When in check, search starts here
                   ss->staticEval + (bestMove ? 46 : 138) + 117 * lmrDepth
                   + 102 * (bestValue < ss->staticEval - 127 && ss->staticEval > alpha - 50);
 
+                // If TT suggested a capture for this node (ttCapture = true), and we are now
+                // evaluating this quiet move, be slightly more aggressive with futility pruning.
+                // This is consistent with LMR giving higher reductions to such quiet moves.
+                if (ttCapture)
+                    futilityValue -= 60;
+
                 // Futility pruning: parent node
                 // (*Scaler): Generally, more frequent futility pruning
                 // scales well with respect to time and threads
