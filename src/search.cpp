@@ -1107,8 +1107,11 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3388;
 
+                int   base_offset_adjustment = improving ? -15 : 15;
+                Value dynamicBaseOffset      = (bestMove ? 46 : 138) + base_offset_adjustment;
+
                 Value futilityValue =
-                  ss->staticEval + (bestMove ? 46 : 138) + 117 * lmrDepth
+                  ss->staticEval + dynamicBaseOffset + 117 * lmrDepth
                   + 102 * (bestValue < ss->staticEval - 127 && ss->staticEval > alpha - 50);
 
                 // Futility pruning: parent node
