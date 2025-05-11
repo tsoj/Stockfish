@@ -1455,52 +1455,65 @@ moves_loop:  // When in check, search starts here
     if (!moveCount)
         bestValue = excludedMove ? alpha : ss->inCheck ? mated_in(ss->ply) : VALUE_DRAW;
 
-    // If there is a move that produces search value greater than alpha,
-    // we update the stats of searched moves.
-    else if (bestMove)
+    // If there is a move that produces search value greater than alpha (i.e. bestMove is not Move::none())
+    if (bestMove)
     {
         update_all_stats(pos, ss, *this, bestMove, prevSq, quietsSearched, capturesSearched, depth,
                          ttData.move, moveCount);
         if (!PvNode)
         {
-            int bonus = ss->isTTMove ? 800 : -879;
+            // If bestMove was the TT move of this node, ttMoveHistory gets a bonus.
+            // Otherwise (bestMove was not ttMove, or no ttMove for this node), it gets a malus.
+            // ttData.move is the TT move for the current node 'ss'.
+            int bonus = (bestMove == ttData.move && ttData.move.is_ok()) ? 800 : -879;
             ttMoveHistory << bonus;
         }
     }
-
-    // Bonus for prior quiet countermove that caused the fail low
-    else if (!priorCapture && prevSq != SQ_NONE)
+    // Else, we failed low (bestMove is Move::none(), meaning bestValue <= alpha)
+    else
     {
-        int bonusScale = std::min(-(ss - 1)->statScore / 113, 293);
-        bonusScale += std::min(73 * depth - 347, 184);
-        bonusScale += 33 * !allNode;
-        bonusScale += 174 * ((ss - 1)->moveCount > 8);
-        bonusScale += 86 * (ss - 1)->isTTMove;
-        bonusScale += 90 * (ss->cutoffCnt <= 3);
-        bonusScale += 144 * (!ss->inCheck && bestValue <= ss->staticEval - 104);
-        bonusScale += 128 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 82);
+        if (!PvNode && ttData.move.is_ok())
+        {
+            // The TT move for this node existed, but it (along with all other moves)
+            // failed to raise alpha. This implies the TT move was not strong enough here.
+            ttMoveHistory << -879;  // Give it the same malus.
+        }
 
-        bonusScale = std::max(bonusScale, 0);
+        // The following history updates are for the *previous* move ((ss-1)->currentMove)
+        // that led to this fail-low situation. These are independent of the ttMoveHistory update above.
+        if (!priorCapture && prevSq != SQ_NONE)
+        {
+            int bonusScale = std::min(-(ss - 1)->statScore / 113, 293);
+            bonusScale += std::min(73 * depth - 347, 184);
+            bonusScale += 33 * !allNode;
+            bonusScale += 174 * ((ss - 1)->moveCount > 8);
+            bonusScale += 86 * (ss - 1)->isTTMove;
+            bonusScale += 90 * (ss->cutoffCnt <= 3);
+            bonusScale += 144 * (!ss->inCheck && bestValue <= ss->staticEval - 104);
+            bonusScale += 128 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 82);
 
-        const int scaledBonus = std::min(159 * depth - 94, 1501) * bonusScale;
+            bonusScale = std::max(bonusScale, 0);
 
-        update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
-                                      scaledBonus * 412 / 32768);
+            const int scaledBonus = std::min(159 * depth - 94, 1501) * bonusScale;
 
-        thisThread->mainHistory[~us][((ss - 1)->currentMove).from_to()]
-          << scaledBonus * 203 / 32768;
+            update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
+                                          scaledBonus * 412 / 32768);
 
-        if (type_of(pos.piece_on(prevSq)) != PAWN && ((ss - 1)->currentMove).type_of() != PROMOTION)
-            thisThread->pawnHistory[pawn_structure_index(pos)][pos.piece_on(prevSq)][prevSq]
-              << scaledBonus * 1040 / 32768;
-    }
+            thisThread->mainHistory[~us][((ss - 1)->currentMove).from_to()]
+              << scaledBonus * 203 / 32768;
 
-    // Bonus for prior capture countermove that caused the fail low
-    else if (priorCapture && prevSq != SQ_NONE)
-    {
-        Piece capturedPiece = pos.captured_piece();
-        assert(capturedPiece != NO_PIECE);
-        thisThread->captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)] << 1080;
+            if (type_of(pos.piece_on(prevSq)) != PAWN
+                && ((ss - 1)->currentMove).type_of() != PROMOTION)
+                thisThread->pawnHistory[pawn_structure_index(pos)][pos.piece_on(prevSq)][prevSq]
+                  << scaledBonus * 1040 / 32768;
+        }
+        else if (priorCapture && prevSq != SQ_NONE)
+        {
+            Piece capturedPiece = pos.captured_piece();
+            assert(capturedPiece != NO_PIECE);
+            thisThread->captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)]
+              << 1080;
+        }
     }
 
     if (PvNode)
