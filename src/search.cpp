@@ -1237,10 +1237,22 @@ moves_loop:  // When in check, search starts here
             r += 1210 + (depth < 8) * 963;
 
         // Increase reduction if next ply has a lot of fail high
-        if ((ss + 1)->cutoffCnt > 2)
-            r += 1036 + allNode * 848;
+        // We apply this heuristic only in NonPV nodes to avoid harming PV quality.
+        if ((ss + 1)->cutoffCnt > 2 && !PvNode)
+        {
+            int LMR_cutoff_bonus = 1036 + allNode * 848;
 
-        // For first picked move (ttMove) reduce reduction
+            // If a TT move exists for this node, but we are currently evaluating a *different* move
+            // (i.e., !ss->isTTMove), and this different move also leads to a child node
+            // with a high cutoffCnt, then apply an additional reduction penalty.
+            // This further encourages pruning of non-TT lines in such "forcing" scenarios.
+            if (!ss->isTTMove && ttData.move.is_ok())
+                LMR_cutoff_bonus += 412;  // Approx. 0.4 ply additional reduction
+
+            r += LMR_cutoff_bonus;
+        }
+        // For first picked move (ttMove) reduce reduction.
+        // This part is executed only if the condition above is false.
         else if (ss->isTTMove)
             r -= 2006;
 
