@@ -927,12 +927,21 @@ Value Search::Worker::search(
     probCutBeta = beta + 201 - 58 * improving;
     if (depth >= 3
         && !is_decisive(beta)
-        // If value from transposition table is lower than probCutBeta, don't attempt
-        // probCut there and in further interactions with transposition table cutoff
-        // depth is set to depth - 3 because probCut search has depth set to depth - 4
-        // but we also do a move before it. So effective depth is equal to depth - 3.
+        // If value from transposition table is lower than probCutBeta, don't attempt probCut.
         && !(is_valid(ttData.value) && ttData.value < probCutBeta))
     {
+        // If TT already provides a value that meets ProbCut criteria from a search
+        // of depth comparable to what ProbCut itself would do.
+        // A ProbCut search is at depth D' = std::max(depth - 4, 0).
+        // The TT depth stored for such a result is D' + 1.
+        if (is_valid(ttData.value) && ttData.value >= probCutBeta && (ttData.bound & BOUND_LOWER)
+            && ttData.depth >= (std::max(depth - 4, 0) + 1)
+            && !is_decisive(ttData.value))  // Don't use shallow decisive scores for this
+        {
+            return ttData.value
+                 - (probCutBeta - beta);  // Same return logic as a successful live ProbCut
+        }
+
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
         MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &thisThread->captureHistory);
