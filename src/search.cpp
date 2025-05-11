@@ -870,7 +870,14 @@ Value Search::Worker::search(
                                  (ss - 1)->statScore, std::abs(correctionValue))
              >= beta
         && eval >= beta && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
-        return beta + (eval - beta) / 3;
+    {
+        // If a TT capture backs up the high eval, be more aggressive with the returned score.
+        // Otherwise (no TT move), be slightly more conservative than original.
+        if (ttCapture)  // ttData.move exists and is a capture
+            return beta + (eval - beta) / 2;
+        else  // Given the outer condition (!ttData.move || ttCapture), !ttData.move must be true here
+            return beta + (eval - beta) / 4;
+    }
 
     // Step 9. Null move search with verification search
     if (cutNode && (ss - 1)->currentMove != Move::null() && eval >= beta
