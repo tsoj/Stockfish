@@ -1236,6 +1236,10 @@ moves_loop:  // When in check, search starts here
         if (ttCapture && !capture)
             r += 1210 + (depth < 8) * 963;
 
+        // If opponent's last move was a quiet TT move, reduce LMR reduction for our reply slightly
+        if ((ss - 1)->isTTMove && !priorCapture && !ss->inCheck)
+            r -= 512;  // Corresponds to 0.5 ply less reduction
+
         // Increase reduction if next ply has a lot of fail high
         if ((ss + 1)->cutoffCnt > 2)
             r += 1036 + allNode * 848;
