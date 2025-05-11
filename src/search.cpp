@@ -1197,6 +1197,21 @@ moves_loop:  // When in check, search starts here
                 else if (cutNode)
                     extension = -2;
             }
+
+            // Pawn push to 7th/2nd rank extension.
+            // Applied if no other extension/reduction from singular search was set.
+            if (extension == 0  // No singular/negative extension decided for this move
+                && type_of(movedPiece) == PAWN && !capture  // Not a capture
+                && move.type_of() == NORMAL                 // Not a promotion
+            )
+            {
+                Square toSq = move.to_sq();
+                if ((us == WHITE && rank_of(toSq) == RANK_7)
+                    || (us == BLACK && rank_of(toSq) == RANK_2))
+                {
+                    extension = 1;  // Grant a 1-ply extension for these critical pawn pushes
+                }
+            }
         }
 
         // Step 16. Make the move
