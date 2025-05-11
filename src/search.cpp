@@ -1107,8 +1107,18 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3388;
 
+                // Adjust lmrDepth contribution to futility based on positional dynamics.
+                // If our position is improving or the opponent's position has worsened,
+                // we can be more aggressive with futility pruning by making futilityValue smaller.
+                int lmrDepthCoefficient = 117;
+                if (improving)
+                    lmrDepthCoefficient -= 20;  // e.g., becomes 97
+                if (opponentWorsening)
+                    lmrDepthCoefficient -=
+                      15;  // e.g., becomes 102 (if not improving) or 82 (if also improving)
+
                 Value futilityValue =
-                  ss->staticEval + (bestMove ? 46 : 138) + 117 * lmrDepth
+                  ss->staticEval + (bestMove ? 46 : 138) + lmrDepthCoefficient * lmrDepth
                   + 102 * (bestValue < ss->staticEval - 127 && ss->staticEval > alpha - 50);
 
                 // Futility pruning: parent node
