@@ -1420,9 +1420,10 @@ moves_loop:  // When in check, search starts here
                 }
                 else
                 {
-                    // Reduce other moves if we have found at least one score improvement
+                    // Reduce other moves if we have found at least one score improvement.
+                    // Apply a gentler reduction for very shallow depths.
                     if (depth > 2 && depth < 16 && !is_decisive(value))
-                        depth -= 2;
+                        depth -= (depth <= 4 ? 1 : 2);
 
                     assert(depth > 0);
                     alpha = value;  // Update alpha! Always alpha < beta
