@@ -1107,8 +1107,13 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3388;
 
+                Value futilityBase = (bestMove ? 46 : 138);
+                // If opponent's position worsened (our ss->staticEval is relatively good),
+                // prune more aggressively. Otherwise, prune less aggressively.
+                futilityBase += (opponentWorsening ? -24 : 12);
+
                 Value futilityValue =
-                  ss->staticEval + (bestMove ? 46 : 138) + 117 * lmrDepth
+                  ss->staticEval + futilityBase + 117 * lmrDepth
                   + 102 * (bestValue < ss->staticEval - 127 && ss->staticEval > alpha - 50);
 
                 // Futility pruning: parent node
