@@ -1169,7 +1169,8 @@ moves_loop:  // When in check, search starts here
                     extension = 1 + (value < singularBeta - doubleMargin)
                               + (value < singularBeta - tripleMargin);
 
-                    depth++;
+                    if (!ttCapture)  // Only apply depth increment for non-capture singular moves
+                        depth++;
                 }
 
                 // Multi-cut pruning
