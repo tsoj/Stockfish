@@ -869,7 +869,13 @@ Value Search::Worker::search(
                - futility_margin(depth, cutNode && !ss->ttHit, improving, opponentWorsening,
                                  (ss - 1)->statScore, std::abs(correctionValue))
              >= beta
-        && eval >= beta && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
+        && eval >= beta
+        && (!ttData.move || ttCapture  // Prune if no TT move or TT move is capture
+            || (ttData.move && !ttCapture
+                && ttData.depth
+                     < Depth(3))  // Or if TT move is quiet but from a very shallow search
+            )
+        && !is_loss(beta) && !is_win(eval))
         return beta + (eval - beta) / 3;
 
     // Step 9. Null move search with verification search
