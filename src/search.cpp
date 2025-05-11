@@ -919,7 +919,22 @@ Value Search::Worker::search(
     // For PV nodes without a ttMove as well as for deep enough cutNodes, we decrease depth.
     // (*Scaler) Especially if they make IIR less aggressive.
     if ((!allNode && depth >= (PvNode ? 5 : 7)) && !ttData.move)
+    {
         depth--;
+    }
+    // Also reduce depth if a quiet TT move is present, its TT value is an upper bound
+    // no better than alpha, and the TT entry is reasonably deep.
+    // This suggests the quiet TT move is unpromising.
+    else if (!allNode                         // Applies to PV or Cut nodes
+             && depth >= (PvNode ? 5 : 7)     // Use same depth condition as the block above
+             && ttData.move && !ttCapture     // A quiet TT move exists
+             && (ttData.bound & BOUND_UPPER)  // TT value is an upper bound
+             && is_valid(ttData.value)
+             && ttData.value <= alpha       // TT value is valid and not improving alpha
+             && ttData.depth >= depth - 3)  // TT entry is reasonably deep
+    {
+        depth--;
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
