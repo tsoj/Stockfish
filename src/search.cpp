@@ -1232,6 +1232,11 @@ moves_loop:  // When in check, search starts here
         if (cutNode)
             r += 2864 + 966 * !ttData.move;
 
+        // If opponent's previous move was a TT move, and our current move is a
+        // quiet non-TT move, increase reduction slightly.
+        if ((ss - 1)->isTTMove && !ss->isTTMove && !capture)
+            r += 680;
+
         // Increase reduction if ttMove is a capture but the current move is not a capture
         if (ttCapture && !capture)
             r += 1210 + (depth < 8) * 963;
