@@ -928,10 +928,11 @@ Value Search::Worker::search(
     if (depth >= 3
         && !is_decisive(beta)
         // If value from transposition table is lower than probCutBeta, don't attempt
-        // probCut there and in further interactions with transposition table cutoff
-        // depth is set to depth - 3 because probCut search has depth set to depth - 4
-        // but we also do a move before it. So effective depth is equal to depth - 3.
-        && !(is_valid(ttData.value) && ttData.value < probCutBeta))
+        // probCut if the TT entry is reliable (deep enough and an upper/exact bound).
+        // The ProbCut search itself is at depth - 4. A TT entry with depth relative
+        // to current node of depth - 3 (after making a move) is considered.
+        && !(is_valid(ttData.value) && ttData.value < probCutBeta && ttData.depth >= depth - 3
+             && (ttData.bound & (BOUND_UPPER | BOUND_EXACT))))
     {
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
