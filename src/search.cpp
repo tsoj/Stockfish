@@ -924,6 +924,7 @@ Value Search::Worker::search(
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
     // returns a value much above beta, we can (almost) safely prune the previous move.
+    // We limit the number of attempts to the first few promising captures.
     probCutBeta = beta + 201 - 58 * improving;
     if (depth >= 3
         && !is_decisive(beta)
@@ -936,7 +937,8 @@ Value Search::Worker::search(
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
         MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &thisThread->captureHistory);
-        Depth      probCutDepth = std::max(depth - 4, 0);
+        Depth      probCutDepth    = std::max(depth - 4, 0);
+        int        probCutAttempts = 0;
 
         while ((move = mp.next_move()) != Move::none())
         {
@@ -945,7 +947,12 @@ Value Search::Worker::search(
             if (move == excludedMove || !pos.legal(move))
                 continue;
 
+            // Limit the number of ProbCut attempts to the most promising ones
+            if (probCutAttempts >= 2)
+                break;
+
             assert(pos.capture_stage(move));
+            probCutAttempts++;
 
             movedPiece = pos.moved_piece(move);
 
