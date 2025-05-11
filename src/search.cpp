@@ -1414,7 +1414,9 @@ moves_loop:  // When in check, search starts here
                 if (value >= beta)
                 {
                     // (* Scaler) Especially if they make cutoffCnt increment more often.
-                    ss->cutoffCnt += (extension < 2) || PvNode;
+                    // Allow incrementing cutoffCnt for NonPV nodes also when a double singular extension (extension == 2)
+                    // causes a beta cutoff. Triple extensions (extension == 3) in NonPV still don't increment.
+                    ss->cutoffCnt += (extension < 3) || PvNode;
                     assert(value >= beta);  // Fail high
                     break;
                 }
