@@ -1288,7 +1288,20 @@ moves_loop:  // When in check, search starts here
             if (ss->isTTMove && thisThread->rootDepth > 8)
                 newDepth = std::max(newDepth, 1);
 
-            value = -search<PV>(pos, ss + 1, -beta, -alpha, newDepth, false);
+            if (ss->isTTMove && ss->ttHit && is_valid(ttData.value)
+                && (ttData.bound & (BOUND_LOWER | BOUND_EXACT)) && ttData.value >= beta)
+            {
+                value = -search<PV>(pos, ss + 1, -beta, -(beta - 1), newDepth, false);
+
+                if (value < beta)
+                {
+                    value = -search<PV>(pos, ss + 1, -beta, -alpha, newDepth, false);
+                }
+            }
+            else
+            {
+                value = -search<PV>(pos, ss + 1, -beta, -alpha, newDepth, false);
+            }
         }
 
         // Step 19. Undo move
