@@ -1191,6 +1191,18 @@ moves_loop:  // When in check, search starts here
         // Step 16. Make the move
         do_move(pos, move, st, givesCheck);
 
+        // Extension for moves that defend a hanging piece under immediate threat
+        if (!capture && !givesCheck && !ss->inCheck && prevSq != SQ_NONE && depth >= 4)
+        {
+            Piece threatened = pos.piece_on(prevSq);
+            if (threatened != NO_PIECE && type_of(threatened) != PAWN
+                && pos.attackers_to(prevSq, ~us) & ~pos.pieces(us)
+                && !(pos.attackers_to(prevSq, us) & ~pos.pieces(~us))
+                && (attacks_bb(type_of(movedPiece), move.to_sq(), pos.pieces() ^ move.from_sq())
+                    & prevSq))
+                extension = 1;
+        }
+
         // Add extension to new depth
         newDepth += extension;
 
