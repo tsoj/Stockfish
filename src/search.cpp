@@ -80,9 +80,18 @@ int correction_value(const Worker& w, const Position& pos, const Stack* const ss
     const auto  micv  = w.minorPieceCorrectionHistory[minor_piece_index(pos)][us];
     const auto  wnpcv = w.nonPawnCorrectionHistory[non_pawn_index<WHITE>(pos)][WHITE][us];
     const auto  bnpcv = w.nonPawnCorrectionHistory[non_pawn_index<BLACK>(pos)][BLACK][us];
-    const auto  cntcv =
-      m.is_ok() ? (*(ss - 2)->continuationCorrectionHistory)[pos.piece_on(m.to_sq())][m.to_sq()]
-                 : 0;
+
+    int cntcv = 0;
+    if (m.is_ok())
+        cntcv += (*(ss - 2)->continuationCorrectionHistory)[pos.piece_on(m.to_sq())][m.to_sq()];
+
+    // Add continuation correction from 2 plies ago with reduced weight
+    if (ss->ply >= 3 && ((ss - 3)->currentMove).is_ok())
+    {
+        const auto m2 = (ss - 3)->currentMove;
+        cntcv +=
+          (*(ss - 4)->continuationCorrectionHistory)[pos.piece_on(m2.to_sq())][m2.to_sq()] / 2;
+    }
 
     return 7696 * pcv + 7689 * micv + 9708 * (wnpcv + bnpcv) + 6978 * cntcv;
 }
