@@ -953,7 +953,8 @@ Value Search::Worker::search(
             value = -qsearch<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1);
 
             // If the qsearch held, perform the regular search
-            if (value >= probCutBeta && probCutDepth > 0)
+            // Skip the regular search if qsearch returns a very high value (clearly winning)
+            if (value >= probCutBeta && probCutDepth > 0 && value < probCutBeta + 200)
                 value = -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, probCutDepth,
                                        !cutNode);
 
