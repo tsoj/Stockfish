@@ -928,7 +928,8 @@ Value Search::Worker::search(
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
         MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &thisThread->captureHistory);
-        Depth      probCutDepth = std::max(depth - 4, 0);
+        Depth      probCutDepth    = std::max(depth - 4, 0);
+        int        probCutAttempts = 0;
 
         while ((move = mp.next_move()) != Move::none())
         {
@@ -936,6 +937,12 @@ Value Search::Worker::search(
 
             if (move == excludedMove || !pos.legal(move))
                 continue;
+
+            // Limit the number of ProbCut attempts to the most promising ones
+            if (probCutAttempts >= 2)
+                break;
+
+            probCutAttempts++;
 
             assert(pos.capture_stage(move));
 
