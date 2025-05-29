@@ -1050,6 +1050,11 @@ moves_loop:  // When in check, search starts here
             if (moveCount >= futility_move_count(improving, depth))
                 mp.skip_quiet_moves();
 
+            // Additional pruning: skip quiet moves early when static evaluation is worsening
+            if (!ss->inCheck && !capture && !givesCheck && moveCount > 1 + depth * depth
+                && ss->staticEval < (ss - 2)->staticEval)
+                continue;
+
             // Reduced depth of the next LMR search
             int lmrDepth = newDepth - r / 1024;
 
