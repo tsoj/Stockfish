@@ -849,7 +849,11 @@ Value Search::Worker::search(
 
         if (!ss->ttPv && depth < 14 && eval - futility_margin(depth) >= beta && eval >= beta
             && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
+        {
+            if (ttHit && ttData.depth >= depth - 3)
+                return (ttData.value + beta) / 2;
             return beta + (eval - beta) / 3;
+        }
     }
 
     // Step 9. Null move search with verification search
