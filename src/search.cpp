@@ -1877,9 +1877,10 @@ void update_all_stats(const Position& pos,
     // Decrease stats for all non-best capture moves
     for (Move move : capturesSearched)
     {
-        movedPiece    = pos.moved_piece(move);
-        capturedPiece = type_of(pos.piece_on(move.to_sq()));
-        captureHistory[movedPiece][move.to_sq()][capturedPiece] << -malus * 1388 / 1024;
+        movedPiece        = pos.moved_piece(move);
+        capturedPiece     = type_of(pos.piece_on(move.to_sq()));
+        int penalty_scale = 1388 + (pos.see_ge(move, 0) ? 488 : 0);
+        captureHistory[movedPiece][move.to_sq()][capturedPiece] << -malus * penalty_scale / 1024;
     }
 }
 
