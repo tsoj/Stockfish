@@ -1854,6 +1854,11 @@ void update_all_stats(const Position& pos,
     int bonus = std::min(143 * depth - 89, 1496) + 302 * (bestMove == ttMove);
     int malus = std::min(737 * depth - 179, 3141) - 30 * moveCount;
 
+    // Increase malus for non-best moves in PV nodes to more strongly penalize them,
+    // helping to keep the PV line clean and focused.
+    if (ss->isPvNode)
+        malus = malus * 1050 / 1024;
+
     if (!pos.capture_stage(bestMove))
     {
         update_quiet_histories(pos, ss, workerThread, bestMove, bonus * 1059 / 1024);
