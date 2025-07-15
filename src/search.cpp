@@ -775,7 +775,9 @@ Value Search::Worker::search(
     if (ss->inCheck)
     {
         // Skip early pruning when in check
-        ss->staticEval = eval = (ss - 2)->staticEval;
+        // But we need a static eval for the move loop, so compute it
+        unadjustedStaticEval = evaluate(pos);
+        ss->staticEval = eval = to_corrected_static_eval(unadjustedStaticEval, correctionValue);
         improving             = false;
         goto moves_loop;
     }
