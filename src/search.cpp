@@ -1103,7 +1103,9 @@ moves_loop:  // When in check, search starts here
                 lmrDepth = std::max(lmrDepth, 0);
 
                 // Prune moves with negative SEE
-                if (!pos.see_ge(move, -27 * lmrDepth * lmrDepth))
+                // Adjust threshold based on eval distance from alpha
+                Value evalMargin = std::max(0, alpha - ss->staticEval) / 128;
+                if (!pos.see_ge(move, -27 * lmrDepth * lmrDepth - evalMargin * lmrDepth))
                     continue;
             }
         }
