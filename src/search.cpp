@@ -1137,8 +1137,11 @@ moves_loop:  // When in check, search starts here
                 int doubleMargin = -4 + 244 * PvNode - 206 * !ttCapture - corrValAdj
                                  - 997 * ttMoveHistory / 131072
                                  - (ss->ply > thisThread->rootDepth) * 47;
-                int tripleMargin = 84 + 269 * PvNode - 253 * !ttCapture + 91 * ss->ttPv - corrValAdj
-                                 - (ss->ply * 2 > thisThread->rootDepth * 3) * 54;
+                int tripleMargin =
+                  84 + 269 * PvNode - 253 * !ttCapture + 91 * ss->ttPv - corrValAdj
+                  - (ss->ply * 2 > thisThread->rootDepth * 3) * 54
+                  - (depth > 9 ? (depth - 9) / 5
+                               : 0);  // Scale triple margin for LTC: more lenient at high depths
 
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
