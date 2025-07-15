@@ -1197,9 +1197,10 @@ moves_loop:  // When in check, search starts here
         r -= moveCount * 66;
         r -= std::abs(correctionValue) / 28047;
 
-        // Increase reduction for cut nodes
+        // Increase reduction for cut nodes, but reduce captures less as they
+        // are more likely to be tactical refutations.
         if (cutNode)
-            r += 2864 + 966 * !ttData.move;
+            r += (2864 + 966 * !ttData.move) / (1 + capture);
 
         // Increase reduction if ttMove is a capture
         if (ttCapture)
