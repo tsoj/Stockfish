@@ -687,6 +687,14 @@ Value Search::Worker::search(
             if (!ttCapture)
                 update_quiet_histories(pos, ss, *this, ttData.move,
                                        std::min(125 * depth - 77, 1157));
+            // Bonus for a capture ttMove that fails high
+            else
+            {
+                Piece     movedPiece    = pos.moved_piece(ttData.move);
+                PieceType capturedPiece = type_of(pos.piece_on(ttData.move.to_sq()));
+                captureHistory[movedPiece][ttData.move.to_sq()][capturedPiece]
+                  << std::min(125 * depth - 77, 1157);
+            }
 
             // Extra penalty for early quiet moves of the previous ply
             if (prevSq != SQ_NONE && (ss - 1)->moveCount <= 3 && !priorCapture)
