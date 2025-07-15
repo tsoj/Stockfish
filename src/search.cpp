@@ -371,7 +371,14 @@ void Search::Worker::iterative_deepening() {
                 // otherwise exit the loop.
                 if (bestValue <= alpha)
                 {
-                    beta  = (alpha + beta) / 2;
+                    // Scale beta adjustment based on instability and depth for better LTC scaling
+                    double instabilityFactor =
+                      std::min(1.0, totBestMoveChanges / threads.size() / 2.0);
+                    double depthScale = std::min(1.0, rootDepth / 20.0);
+                    int    betaAdjust =
+                      int((beta - alpha) * (0.5 - instabilityFactor * 0.3 * depthScale));
+
+                    beta  = alpha + std::max(betaAdjust, 1);
                     alpha = std::max(bestValue - delta, -VALUE_INFINITE);
 
                     failedHighCnt = 0;
