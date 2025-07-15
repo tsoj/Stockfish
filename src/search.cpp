@@ -1194,6 +1194,8 @@ moves_loop:  // When in check, search starts here
         // These reduction adjustments have no proven non-linear scaling
 
         r += 316;  // Base reduction offset to compensate for other tweaks
+        if (!improving && !opponentWorsening)
+            r += 425;
         r -= moveCount * 66;
         r -= std::abs(correctionValue) / 28047;
 
