@@ -1426,29 +1426,24 @@ moves_loop:  // When in check, search starts here
             ttMoveHistory << (bestMove == ttData.move ? 800 : -879);
     }
 
-    // Bonus for prior quiet countermove that caused the fail low
+    // Penalty for prior quiet countermove that caused the fail low
     else if (!priorCapture && prevSq != SQ_NONE)
     {
-        int bonusScale = -220;
-        bonusScale += std::min(-(ss - 1)->statScore / 103, 323);
-        bonusScale += std::min(73 * depth, 531);
-        bonusScale += 174 * ((ss - 1)->moveCount > 8);
-        bonusScale += 144 * (!ss->inCheck && bestValue <= ss->staticEval - 104);
-        bonusScale += 128 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 82);
+        int penaltyScale = 220 - std::min(depth, 15) * 8;
+        penaltyScale += std::max((ss->staticEval - bestValue) / 16, -100);
+        penaltyScale = std::clamp(penaltyScale, 20, 400);
 
-        bonusScale = std::max(bonusScale, 0);
-
-        const int scaledBonus = std::min(159 * depth - 94, 1501) * bonusScale;
+        const int scaledPenalty = std::min(150 * depth, 1200) * penaltyScale;
 
         update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
-                                      scaledBonus * 412 / 32768);
+                                      -scaledPenalty * 412 / 32768);
 
         thisThread->mainHistory[~us][((ss - 1)->currentMove).from_to()]
-          << scaledBonus * 203 / 32768;
+          << -scaledPenalty * 203 / 32768;
 
         if (type_of(pos.piece_on(prevSq)) != PAWN && ((ss - 1)->currentMove).type_of() != PROMOTION)
             thisThread->pawnHistory[pawn_structure_index(pos)][pos.piece_on(prevSq)][prevSq]
-              << scaledBonus * 1040 / 32768;
+              << -scaledPenalty * 1040 / 32768;
     }
 
     // Bonus for prior capture countermove that caused the fail low
