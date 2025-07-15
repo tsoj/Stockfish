@@ -862,6 +862,11 @@ Value Search::Worker::search(
         // Null move dynamic reduction based on depth
         Depth R = 7 + depth / 3;
 
+        // In tactical positions where the TT suggests a capture, be more careful
+        // with the null move reduction, making the search deeper and safer.
+        if (ttCapture && ss->ttHit && ttData.depth >= depth - 3)
+            R -= 2;
+
         ss->currentMove                   = Move::null();
         ss->continuationHistory           = &thisThread->continuationHistory[0][0][NO_PIECE][0];
         ss->continuationCorrectionHistory = &thisThread->continuationCorrectionHistory[NO_PIECE][0];
