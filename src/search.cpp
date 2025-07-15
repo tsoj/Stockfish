@@ -705,10 +705,9 @@ Value Search::Worker::search(
                 auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(nextPosKey);
                 undo_move(pos, ttData.move);
 
-                // Check that the ttValue after the tt move would also trigger a cutoff
-                if (!is_valid(ttDataNext.value))
-                    return ttData.value;
-                if ((ttData.value >= beta) == (-ttDataNext.value >= beta))
+                // Return cutoff only if verification is successful
+                if (is_valid(ttDataNext.value)
+                    && ((ttData.value >= beta) == (-ttDataNext.value >= beta)))
                     return ttData.value;
             }
             else
