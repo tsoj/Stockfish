@@ -1102,8 +1102,8 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth = std::max(lmrDepth, 0);
 
-                // Prune moves with negative SEE
-                if (!pos.see_ge(move, -27 * lmrDepth * lmrDepth))
+                // Prune moves with negative SEE. Be more careful before a best move is found.
+                if (!pos.see_ge(move, -(27 + 9 * !bestMove) * lmrDepth * lmrDepth))
                     continue;
             }
         }
