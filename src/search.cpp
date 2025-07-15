@@ -1199,7 +1199,9 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for cut nodes
         if (cutNode)
-            r += 2864 + 966 * !ttData.move;
+            // Be less aggressive with reductions on capture moves, as they are more
+            // likely to be tactical refutations of the node type.
+            r += (2864 + 966 * !ttData.move) / (1 + capture);
 
         // Increase reduction if ttMove is a capture
         if (ttCapture)
