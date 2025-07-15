@@ -1085,7 +1085,10 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3388;
 
-                Value baseFutility = (bestMove ? 46 : 230);
+                Value baseFutility =
+                  (bestMove
+                     ? 230
+                     : 46);  // Invert futility margin logic: more aggressive when no bestMove found
                 Value futilityValue =
                   ss->staticEval + baseFutility + 117 * lmrDepth + 102 * (ss->staticEval > alpha);
 
