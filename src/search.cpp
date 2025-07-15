@@ -1228,6 +1228,10 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
 
+        // Additional reduction for moves with bad history, scaling with depth
+        if (ss->statScore < 0)
+            r += std::abs(ss->statScore) * depth / 2048;  // Scaler
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
