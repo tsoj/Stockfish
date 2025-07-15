@@ -1170,6 +1170,16 @@ moves_loop:  // When in check, search starts here
             // over current beta
             else if (cutNode)
                 extension = -2;
+
+            // If the singular search value is close to alpha, reduce less
+            // as the position might still favor the ttMove
+            else if (value <= alpha)
+                extension = -1;
+
+            // Additional reduction for non-PV nodes when value significantly
+            // exceeds singularBeta, indicating many good alternatives exist
+            if (!PvNode && value > singularBeta + 48 * depth / 64)
+                extension--;
         }
 
         // Step 16. Make the move
