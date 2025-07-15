@@ -1228,6 +1228,11 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
 
+        // If a good move has already been found, reduce subsequent quiet moves more,
+        // especially at high depths.
+        if (bestMove && !capture && bestValue > ss->staticEval + 120)
+            r += 128 + depth * 24;
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
