@@ -1261,6 +1261,11 @@ moves_loop:  // When in check, search starts here
 
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
+
+                // Extra bonus for moves that maintain evaluation advantage
+                if (!ss->inCheck && (ss + 1)->staticEval != VALUE_NONE
+                    && (ss + 1)->staticEval > ss->staticEval - 78)
+                    update_continuation_histories(ss, movedPiece, move.to_sq(), 754);
             }
             else if (value > alpha && value < bestValue + 9)
                 newDepth--;
