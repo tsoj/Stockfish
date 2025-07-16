@@ -1251,7 +1251,8 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
+                int        deeperThreshold = 42 + 2 * newDepth - improving * (r / 2048 + depth / 3);
+                const bool doDeeperSearch  = value > (bestValue + std::max(0, deeperThreshold));
                 const bool doShallowerSearch = value < bestValue + 9;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
