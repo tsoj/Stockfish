@@ -1211,6 +1211,15 @@ moves_loop:  // When in check, search starts here
 
         r += (ss + 1)->quietMoveStreak * 50;
 
+        // Consider quiet move streak trend - if positions are getting progressively quieter,
+        // we can reduce more aggressively
+        if (ss->ply >= 2 && (ss + 1)->quietMoveStreak > 0)
+        {
+            int quietTrend = (ss + 1)->quietMoveStreak - (ss - 1)->quietMoveStreak;
+            if (quietTrend > 0)
+                r += quietTrend * 28;
+        }
+
         // For first picked move (ttMove) reduce reduction
         if (move == ttData.move)
             r -= 2006;
