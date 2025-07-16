@@ -1484,6 +1484,11 @@ moves_loop:  // When in check, search starts here
     {
         auto bonus = std::clamp(int(bestValue - ss->staticEval) * depth / 8,
                                 -CORRECTION_HISTORY_LIMIT / 4, CORRECTION_HISTORY_LIMIT / 4);
+
+        // Reduce correction impact when cutoffs are frequent at this node
+        if (ss->cutoffCnt > 3)
+            bonus = bonus * 3 / 4;
+
         update_correction_history(pos, ss, *thisThread, bonus);
     }
 
