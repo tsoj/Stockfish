@@ -899,7 +899,17 @@ Value Search::Worker::search(
     // For PV nodes without a ttMove as well as for deep enough cutNodes, we decrease depth.
     // (*Scaler) Especially if they make IIR less aggressive.
     if (!allNode && depth >= 6 && !ttData.move)
+    {
         depth--;
+
+        // Apply additional reduction for deeper searches when position looks unpromising
+        if (depth >= 12 && eval + 78 * depth <= alpha)
+            depth--;
+
+        // Cut nodes get extra reduction at very high depths
+        if (cutNode && depth >= 16)
+            depth--;
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
