@@ -1134,8 +1134,13 @@ moves_loop:  // When in check, search starts here
             if (value < singularBeta)
             {
                 int corrValAdj   = std::abs(correctionValue) / 248400;
+                int histDiff     = ttCapture
+                                   ? thisThread->captureHistory[movedPiece][move.to_sq()]
+                                                           [type_of(pos.piece_on(move.to_sq()))]
+                                   : thisThread->mainHistory[us][move.from_to()];
+                histDiff         = std::clamp(histDiff / 4096, -2, 2);
                 int doubleMargin = -4 + 244 * PvNode - 206 * !ttCapture - corrValAdj
-                                 - 997 * ttMoveHistory / 131072
+                                 - histDiff * 104 - 997 * ttMoveHistory / 131072
                                  - (ss->ply > thisThread->rootDepth) * 47;
                 int tripleMargin = 84 + 269 * PvNode - 253 * !ttCapture + 91 * ss->ttPv - corrValAdj
                                  - (ss->ply * 2 > thisThread->rootDepth * 3) * 54;
