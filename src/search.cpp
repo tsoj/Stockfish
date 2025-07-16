@@ -1100,6 +1100,9 @@ moves_loop:  // When in check, search starts here
                     continue;
                 }
 
+                if (lmrDepth < 6 && !allNode && (ss - 1)->statScore < -13645)
+                    continue;
+
                 lmrDepth = std::max(lmrDepth, 0);
 
                 // Prune moves with negative SEE
