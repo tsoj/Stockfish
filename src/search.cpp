@@ -1865,8 +1865,16 @@ void update_all_stats(const Position& pos,
     else
     {
         // Increase stats for the best move in case it was a capture move
-        capturedPiece = type_of(pos.piece_on(bestMove.to_sq()));
-        captureHistory[movedPiece][bestMove.to_sq()][capturedPiece] << bonus * 1213 / 1024;
+        capturedPiece    = type_of(pos.piece_on(bestMove.to_sq()));
+        int captureBonus = bonus * 1213 / 1024;
+
+        // Scale bonus based on captured piece value
+        if (PieceValue[capturedPiece] >= QueenValue)
+            captureBonus = captureBonus * 3 / 2;
+        else if (PieceValue[capturedPiece] <= PawnValue)
+            captureBonus = captureBonus * 3 / 4;
+
+        captureHistory[movedPiece][bestMove.to_sq()][capturedPiece] << captureBonus;
     }
 
     // Extra penalty for a quiet early move that was not a TT move in
