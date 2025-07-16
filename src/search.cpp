@@ -1170,6 +1170,10 @@ moves_loop:  // When in check, search starts here
             // over current beta
             else if (cutNode)
                 extension = -2;
+
+            // If the singular search shows other moves are significantly good
+            else if (value > singularBeta + 2 * depth)
+                extension = -1;
         }
 
         // Step 16. Make the move
