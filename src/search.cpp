@@ -832,7 +832,18 @@ Value Search::Worker::search(
     // If eval is really low, skip search entirely and return the qsearch value.
     // For PvNodes, we must have a guard against mates being returned.
     if (!PvNode && eval < alpha - 486 - 325 * depth * depth)
+    {
+        if (MoveList<LEGAL>(pos).size() < 3 * (2 + depth))
+        {
+            depth = std::max(1, depth - 1);
+            goto moves_loop;
+        }
+
+        if (depth <= 4 && eval < alpha - 2000 - 400 * depth * depth * (2 - pos.count<QUEEN>()))
+            return eval;
+
         return qsearch<NonPV>(pos, ss, alpha, beta);
+    }
 
     // Step 8. Futility pruning: child node
     // The depth condition is important for mate finding.
