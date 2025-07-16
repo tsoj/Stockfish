@@ -960,10 +960,11 @@ Value Search::Worker::search(
 moves_loop:  // When in check, search starts here
 
     // Step 12. A small Probcut idea
-    probCutBeta = beta + 400;
-    if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4 && ttData.value >= probCutBeta
+    int depthDiff = std::max(0, depth - ttData.depth);
+    probCutBeta   = beta + 100 + (depthDiff * depthDiff * 19);
+    if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 7 && ttData.value >= probCutBeta
         && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
-        return probCutBeta;
+        return ttData.value - (probCutBeta - beta);
 
     const PieceToHistory* contHist[] = {
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
