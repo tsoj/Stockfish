@@ -839,12 +839,14 @@ Value Search::Worker::search(
     {
         auto futility_margin = [&](Depth d) {
             Value futilityMult = 93 - 20 * (cutNode && !ss->ttHit);
+            Value complexityFactor =
+              std::max(-150, std::min(150, std::abs(correctionValue) - 32768)) / 4;
 
             return futilityMult * d                      //
                  - improving * futilityMult * 2          //
                  - opponentWorsening * futilityMult / 3  //
                  + (ss - 1)->statScore / 376             //
-                 + std::abs(correctionValue) / 168639;
+                 + complexityFactor;
         };
 
         if (!ss->ttPv && depth < 14 && eval - futility_margin(depth) >= beta && eval >= beta
