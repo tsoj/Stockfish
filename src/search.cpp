@@ -838,18 +838,19 @@ Value Search::Worker::search(
     // The depth condition is important for mate finding.
     {
         auto futility_margin = [&](Depth d) {
-            Value futilityMult = 93 - 20 * (cutNode && !ss->ttHit);
+            Value futilityMult = 95 - 20 * (cutNode && !ss->ttHit);
 
-            return futilityMult * d                      //
-                 - improving * futilityMult * 2          //
+            return futilityMult * (d - improving)        //
                  - opponentWorsening * futilityMult / 3  //
-                 + (ss - 1)->statScore / 376             //
+                 + (ss - 1)->statScore / 300             //
                  + std::abs(correctionValue) / 168639;
         };
 
         if (!ss->ttPv && depth < 14 && eval - futility_margin(depth) >= beta && eval >= beta
             && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
-            return beta + (eval - beta) / 3;
+            return beta
+                 + (eval - beta)
+                     / 2;  // Using division by 2 is slightly less aggressive than /3 for STC/LTC balance
     }
 
     // Step 9. Null move search with verification search
