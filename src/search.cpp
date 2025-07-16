@@ -809,6 +809,17 @@ Value Search::Worker::search(
     if (((ss - 1)->currentMove).is_ok() && !(ss - 1)->inCheck && !priorCapture && !ttHit)
     {
         int bonus = std::clamp(-10 * int((ss - 1)->staticEval + ss->staticEval), -1858, 1492) + 661;
+
+        // Adjust bonus based on position trend and correction value
+        if ((ss - 2)->staticEval != VALUE_NONE && !(ss - 2)->inCheck)
+        {
+            int trend = (ss->staticEval - (ss - 2)->staticEval) / 2;
+            bonus += std::clamp(trend, -200, 200);
+        }
+
+        // Scale bonus based on correction value magnitude
+        bonus = bonus * (128 + std::min(std::abs(correctionValue) / 512, 64)) / 128;
+
         thisThread->mainHistory[~us][((ss - 1)->currentMove).from_to()] << bonus * 1057 / 1024;
         if (type_of(pos.piece_on(prevSq)) != PAWN && ((ss - 1)->currentMove).type_of() != PROMOTION)
             thisThread->pawnHistory[pawn_structure_index(pos)][pos.piece_on(prevSq)][prevSq]
