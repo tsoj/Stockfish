@@ -558,7 +558,11 @@ void Search::Worker::clear() {
                     h.fill(-473);
 
     for (size_t i = 1; i < reductions.size(); ++i)
-        reductions[i] = int(2796 / 128.0 * std::log(i));
+    {
+        // Apply a gentle curve adjustment for later moves
+        double moveOrderPenalty = 1.0 + (i > 16 ? 0.09 * std::log(i / 16.0) : 0.0);
+        reductions[i]           = int(2796 / 128.0 * std::log(i) * moveOrderPenalty);
+    }
 
     refreshTable.clear(networks[numaAccessToken]);
 }
