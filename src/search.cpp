@@ -1244,6 +1244,10 @@ moves_loop:  // When in check, search starts here
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
 
+            // Decrease reduction in low-material endgames (scaler for LTC, as endgames are more common in prolonged searches)
+            if (d < newDepth && pos.non_pawn_material() < 4 * BishopValue && depth >= 8)
+                d++;
+
             // Do a full-depth search when reduced LMR search fails high
             // (*Scaler) Usually doing more shallower searches
             // doesn't scale well to longer TCs
