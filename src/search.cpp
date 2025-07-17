@@ -841,6 +841,7 @@ Value Search::Worker::search(
             Value futilityMult = 93 - 20 * (cutNode && !ss->ttHit);
 
             return futilityMult * d                      //
+                 - priorCapture * futilityMult           //
                  - improving * futilityMult * 2          //
                  - opponentWorsening * futilityMult / 3  //
                  + (ss - 1)->statScore / 376             //
