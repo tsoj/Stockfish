@@ -1251,8 +1251,9 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
+                const bool doDeeperSearch =
+                  value > (bestValue + 42 + (newDepth / 2) * (newDepth / 6 + 2));
+                const bool doShallowerSearch = value < bestValue + std::max(9, newDepth / 4);
 
                 newDepth += doDeeperSearch - doShallowerSearch;
 
@@ -1262,7 +1263,7 @@ moves_loop:  // When in check, search starts here
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
             }
-            else if (value > alpha && value < bestValue + 9)
+            else if (value > alpha && value < bestValue + std::max(9, newDepth / 4))
                 newDepth--;
         }
 
