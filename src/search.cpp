@@ -1223,7 +1223,8 @@ moves_loop:  // When in check, search starts here
         else
             ss->statScore = 2 * thisThread->mainHistory[us][move.from_to()]
                           + (*contHist[0])[movedPiece][move.to_sq()]
-                          + (*contHist[1])[movedPiece][move.to_sq()] - 3206;
+                          + (*contHist[1])[movedPiece][move.to_sq()]
+                          + (*contHist[2])[movedPiece][move.to_sq()] - 4328;
 
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
