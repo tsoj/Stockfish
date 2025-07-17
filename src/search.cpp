@@ -1228,6 +1228,10 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
 
+        // Further decrease reduction for non-captures with good history at high depth (scales to LTC)
+        if (!capture && ss->statScore > 500 && depth >= 8 && !PvNode)
+            r -= (ss->statScore / 1024) * (depth - 6) / 8;
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
