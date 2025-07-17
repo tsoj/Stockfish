@@ -1205,8 +1205,10 @@ moves_loop:  // When in check, search starts here
         if (ttCapture)
             r += 1210 + (depth < 8) * 963;
 
-        // Increase reduction if next ply has a lot of fail high
-        if ((ss + 1)->cutoffCnt > 2)
+        // Increase reduction if a previous sibling move had a lot of fail highs.
+        // The counter at ss+2 is zeroed before this move loop and accumulates
+        // cutoffs from grandchildren nodes under previous sibling moves.
+        if ((ss + 2)->cutoffCnt > 2)
             r += 1036 + allNode * 848;
 
         r += (ss + 1)->quietMoveStreak * 50;
