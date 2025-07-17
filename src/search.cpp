@@ -965,6 +965,12 @@ moves_loop:  // When in check, search starts here
         && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
         return probCutBeta;
 
+    // Symmetric for fail low
+    Value probCutAlpha = alpha - 400;
+    if ((ttData.bound & BOUND_UPPER) && ttData.depth >= depth - 4 && ttData.value <= probCutAlpha
+        && !is_decisive(alpha) && is_valid(ttData.value) && !is_decisive(ttData.value))
+        return probCutAlpha;
+
     const PieceToHistory* contHist[] = {
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
       (ss - 4)->continuationHistory, (ss - 5)->continuationHistory, (ss - 6)->continuationHistory};
