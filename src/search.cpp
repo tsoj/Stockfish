@@ -1143,7 +1143,8 @@ moves_loop:  // When in check, search starts here
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
-                depth++;
+                if (extension >= 2)
+                    depth++;
             }
 
             // Multi-cut pruning
