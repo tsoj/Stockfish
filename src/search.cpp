@@ -381,7 +381,10 @@ void Search::Worker::iterative_deepening() {
                 else if (bestValue >= beta)
                 {
                     beta = std::min(bestValue + delta, VALUE_INFINITE);
-                    ++failedHighCnt;
+                    if (rootDepth >= 10 && bestValue < beta + delta)
+                        failedHighCnt += 2;
+                    else
+                        ++failedHighCnt;
                 }
                 else
                     break;
