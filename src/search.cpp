@@ -884,7 +884,10 @@ Value Search::Worker::search(
             // until ply exceeds nmpMinPly.
             thisThread->nmpMinPly = ss->ply + 3 * (depth - R) / 4;
 
-            Value v = search<NonPV>(pos, ss, beta - 1, beta, depth - R, false);
+            // Verify only if the opponent's position is worsening, suggesting
+            // potential zugzwang risk that scales with search depth.
+            Value v = opponentWorsening ? search<NonPV>(pos, ss, beta - 1, beta, depth - R, false)
+                                        : nullValue;
 
             thisThread->nmpMinPly = 0;
 
