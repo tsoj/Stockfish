@@ -1484,6 +1484,8 @@ moves_loop:  // When in check, search starts here
     {
         auto bonus = std::clamp(int(bestValue - ss->staticEval) * depth / 8,
                                 -CORRECTION_HISTORY_LIMIT / 4, CORRECTION_HISTORY_LIMIT / 4);
+        // Boost correction in improving positions for better LTC scaling
+        bonus *= (1 + improving);
         update_correction_history(pos, ss, *thisThread, bonus);
     }
 
