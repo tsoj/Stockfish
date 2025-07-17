@@ -1276,8 +1276,13 @@ moves_loop:  // When in check, search starts here
             r -= ttMoveHistory / 8;
 
             // Note that if expected reduction is high, we reduce search depth here
-            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha,
-                                   newDepth - (r > 3564) - (r > 4969 && newDepth > 2), !cutNode);
+            int reduction = 0;
+            if (r > 3400 + depth * 28)
+                reduction++;
+            if (r > 4800 + depth * 36 && newDepth > reduction + 1)
+                reduction++;
+            value =
+              -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth - reduction, !cutNode);
         }
 
         // For PV nodes only, do a full PV search on the first move or after a fail high,
