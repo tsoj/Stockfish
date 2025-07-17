@@ -1051,7 +1051,12 @@ moves_loop:  // When in check, search starts here
                     Value futilityValue = ss->staticEval + 232 + 224 * lmrDepth
                                         + PieceValue[capturedPiece] + 131 * captHist / 1024;
                     if (futilityValue <= alpha)
+                    {
+                        if (bestValue <= futilityValue && !is_decisive(bestValue)
+                            && !is_win(futilityValue))
+                            bestValue = futilityValue;
                         continue;
+                    }
                 }
 
                 // SEE based pruning for captures and checks
