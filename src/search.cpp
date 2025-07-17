@@ -1284,6 +1284,12 @@ moves_loop:  // When in check, search starts here
         // otherwise let the parent node fail low with value <= alpha and try another move.
         if (PvNode && (moveCount == 1 || value > alpha))
         {
+            // If a new best move from a ZW-search beats alpha by a clear margin, extend the
+            // full PV-search slightly. This helps to find a more stable PV and get a more
+            // accurate score for the refutation, which should scale well with time.
+            if (moveCount > 1 && value > alpha + 42 + 2 * newDepth)
+                newDepth++;
+
             (ss + 1)->pv    = pv;
             (ss + 1)->pv[0] = Move::none();
 
