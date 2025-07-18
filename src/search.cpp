@@ -656,7 +656,7 @@ Value Search::Worker::search(
     (ss - 1)->reduction = 0;
     ss->statScore       = 0;
     ss->isPvNode        = PvNode;
-    (ss + 2)->cutoffCnt = 0;
+    (ss + 1)->cutoffCnt = 0;
 
     // Step 4. Transposition table lookup
     excludedMove                   = ss->excludedMove;
