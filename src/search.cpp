@@ -1642,21 +1642,22 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             if (!givesCheck && move.to_sq() != prevSq && !is_loss(futilityBase)
                 && move.type_of() != PROMOTION)
             {
-                if (moveCount > 2)
-                    continue;
-
-                Value futilityValue = futilityBase + PieceValue[pos.piece_on(move.to_sq())];
-
-                // If static eval + value of piece we are going to capture is
-                // much lower than alpha, we can prune this move.
-                if (futilityValue <= alpha)
+                // For the first two moves, try a cheaper, less accurate futility check.
+                if (moveCount <= 2)
                 {
-                    bestValue = std::max(bestValue, futilityValue);
-                    continue;
+                    Value futilityValue = futilityBase + PieceValue[pos.piece_on(move.to_sq())];
+
+                    // If static eval + value of piece we are going to capture is
+                    // much lower than alpha, we can prune this move.
+                    if (futilityValue <= alpha)
+                    {
+                        bestValue = std::max(bestValue, futilityValue);
+                        continue;
+                    }
                 }
 
-                // If static exchange evaluation is low enough
-                // we can prune this move.
+                // If static exchange evaluation is low enough, we can prune this move.
+                // This check is more accurate, so we apply it to all candidate moves.
                 if (!pos.see_ge(move, alpha - futilityBase))
                 {
                     bestValue = std::min(alpha, futilityBase);
