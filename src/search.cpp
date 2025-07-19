@@ -832,7 +832,16 @@ Value Search::Worker::search(
     // If eval is really low, skip search entirely and return the qsearch value.
     // For PvNodes, we must have a guard against mates being returned.
     if (!PvNode && eval < alpha - 486 - 325 * depth * depth)
-        return qsearch<NonPV>(pos, ss, alpha, beta);
+    {
+        // Razoring is based on static eval, but qsearch only considers tactical moves.
+        // If we have a quiet TT move and are not on a known PV path, this move might
+        // be a quiet refutation that qsearch would miss. In this case, razoring is
+        // unsafe, and we should proceed to a full search which will try the TT move.
+        const bool unsafeToRazor = !ss->ttPv && ttData.move && !ttCapture;
+
+        if (!unsafeToRazor)
+            return qsearch<NonPV>(pos, ss, alpha, beta);
+    }
 
     // Step 8. Futility pruning: child node
     // The depth condition is important for mate finding.
