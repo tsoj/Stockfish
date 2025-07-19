@@ -1205,9 +1205,11 @@ moves_loop:  // When in check, search starts here
         if (ttCapture)
             r += 1210 + (depth < 8) * 963;
 
-        // Increase reduction if next ply has a lot of fail high
-        if ((ss + 1)->cutoffCnt > 2)
-            r += 1036 + allNode * 848;
+        // Increase reduction if previous sibling moves failed high. This uses a local
+        // counter, in contrast to the previous non-local leftover counter. The
+        // bonus is scaled and capped to match the new logic.
+        if (ss->cutoffCnt > 0)
+            r += std::min(ss->cutoffCnt, 4) * (259 + allNode * 212);
 
         r += (ss + 1)->quietMoveStreak * 50;
 
