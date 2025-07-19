@@ -1249,12 +1249,16 @@ moves_loop:  // When in check, search starts here
             // doesn't scale well to longer TCs
             if (value > alpha && d < newDepth)
             {
-                // Adjust full-depth search based on LMR results - if the result was
-                // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
+                // Adjust re-search depth based on LMR results.
+                // If the LMR result was very good, re-search deeper.
+                // A bigger beat over alpha indicates a more promising move.
+                int researchBonus = std::clamp((value - alpha) / 64, 0, 2);
+
+                // If LMR beat alpha only slightly better than a previous best move,
+                // be more pessimistic and reduce the re-search depth.
                 const bool doShallowerSearch = value < bestValue + 9;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                newDepth += researchBonus - doShallowerSearch;
 
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
