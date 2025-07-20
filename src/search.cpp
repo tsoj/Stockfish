@@ -880,7 +880,7 @@ Value Search::Worker::search(
 
             assert(!thisThread->nmpMinPly);  // Recursive verification is not allowed
 
-            if (nullValue >= beta + depth)
+            if (nullValue >= beta)
                 return nullValue;
 
             // Do verification search at high depths, with null move pruning disabled
