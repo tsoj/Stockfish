@@ -854,13 +854,17 @@ Value Search::Worker::search(
 
     // Step 9. Null move search with verification search
     if (cutNode && (ss - 1)->currentMove != Move::null() && eval >= beta
-        && ss->staticEval >= beta - 19 * depth + 389 && !excludedMove && pos.non_pawn_material(us)
-        && ss->ply >= thisThread->nmpMinPly && !is_loss(beta))
+        && ss->staticEval >= beta - (17 + 2 * improving) * depth + 389 && !excludedMove
+        && pos.non_pawn_material(us) && ss->ply >= thisThread->nmpMinPly && !is_loss(beta))
     {
         assert(eval - beta >= 0);
 
-        // Null move dynamic reduction based on depth
-        Depth R = 7 + depth / 3;
+        // Null move dynamic reduction based on depth and position characteristics
+        Depth R = 6 + depth / 3 + improving + (ss->quietMoveStreak > 2);
+
+        // Reduce less if opponent's last move was tactical
+        if (priorCapture && depth > 8)
+            R--;
 
         ss->currentMove                   = Move::null();
         ss->continuationHistory           = &thisThread->continuationHistory[0][0][NO_PIECE][0];
