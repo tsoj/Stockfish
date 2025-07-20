@@ -881,15 +881,21 @@ Value Search::Worker::search(
             assert(!thisThread->nmpMinPly);  // Recursive verification is not allowed
 
             // Do verification search at high depths, with null move pruning disabled
-            // until ply exceeds nmpMinPly.
+            // until ply exceeds nmpMinPly. Scaler: deepen verification in positions
+            // with low moveCount (fewer alternatives, likely critical lines) or
+            // improving eval (strategic progress, benefits LTC depth).
+            Depth verDepth = depth - R + improving * (depth / 7) - (ss->moveCount > 4);
+            verDepth       = std::max(1, verDepth);
+
             thisThread->nmpMinPly = ss->ply + 3 * (depth - R) / 4;
 
-            Value v = search<NonPV>(pos, ss, beta - 1, beta, depth - R, false);
+            Value v = search<NonPV>(pos, ss, beta - 1, beta, verDepth, false);
 
             thisThread->nmpMinPly = 0;
 
             if (v >= beta)
-                return nullValue;
+                return std::min(nullValue,
+                                (nullValue + v) / 2);  // Softened fail-soft for better estimates
         }
     }
 
