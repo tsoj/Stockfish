@@ -840,16 +840,27 @@ Value Search::Worker::search(
         auto futility_margin = [&](Depth d) {
             Value futilityMult = 93 - 20 * (cutNode && !ss->ttHit);
 
-            return futilityMult * d                      //
+            Value nonLinearDepth =
+              (allNode ? d * d / 2
+                       : d * d);  // Non-linear for LTC scaling, easier prune in allNodes
+
+            return futilityMult * nonLinearDepth / 6     //
                  - improving * futilityMult * 2          //
                  - opponentWorsening * futilityMult / 3  //
                  + (ss - 1)->statScore / 376             //
-                 + std::abs(correctionValue) / 168639;
+                 + std::abs(correctionValue) / 168639    //
+                 + (ss - 1)->quietMoveStreak * (ss - 1)->statScore
+                     / (1024 * d
+                        + 1);  // Deeper hist with quiet streak, decays with depth for safety
         };
 
-        if (!ss->ttPv && depth < 14 && eval - futility_margin(depth) >= beta && eval >= beta
+        Value futilityValue = eval - futility_margin(depth);
+
+        if (!ss->ttPv && depth < 14 && futilityValue >= beta && eval >= beta
             && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
             return beta + (eval - beta) / 3;
+        else if (futilityValue > bestValue)  // Update bestValue if close but not pruning
+            bestValue = futilityValue;
     }
 
     // Step 9. Null move search with verification search
