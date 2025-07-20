@@ -1465,7 +1465,9 @@ moves_loop:  // When in check, search starts here
     // If no good move is found and the previous position was ttPv, then the previous
     // opponent move is probably good and the new position is added to the search tree.
     if (bestValue <= alpha)
-        ss->ttPv = ss->ttPv || (ss - 1)->ttPv;
+        ss->ttPv = ss->ttPv || (ss - 1)->ttPv
+                || (depth > 4 && !ss->inCheck && improving && (ss - 2)->ttPv)
+                || (depth > std::max(7, thisThread->rootDepth / 3) && (ss - 3)->ttPv);
 
     // Write gathered information in transposition table. Note that the
     // static evaluation is saved as it was before correction history.
