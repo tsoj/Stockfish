@@ -1377,7 +1377,9 @@ moves_loop:  // When in check, search starts here
                 if (value >= beta)
                 {
                     // (* Scaler) Especially if they make cutoffCnt increment more often.
-                    ss->cutoffCnt += (extension < 2) || PvNode;
+                    int cutoffInc = 1 + (PvNode ? 0 : (depth / 5) / 2 + (cutNode ? 1 : 0))
+                                  + (extension <= 1 ? 1 : 0) + (ss->statScore > 0 ? 1 : 0);
+                    ss->cutoffCnt += std::clamp(cutoffInc, 1, 4 + (depth > 12 ? 1 : 0));
                     assert(value >= beta);  // Fail high
                     break;
                 }
