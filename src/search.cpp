@@ -1673,7 +1673,22 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                 continue;
 
             // Do not search moves with bad enough SEE values
-            if (!pos.see_ge(move, -74))
+            // Scale threshold based on move history to better identify tactical moves worth searching
+            int historyBonus = 0;
+            if (capture)
+            {
+                Piece capturedPiece = pos.piece_on(move.to_sq());
+                historyBonus =
+                  thisThread
+                    ->captureHistory[pos.moved_piece(move)][move.to_sq()][type_of(capturedPiece)]
+                  / 256;
+            }
+            else
+            {
+                historyBonus = (*contHist[0])[pos.moved_piece(move)][move.to_sq()] / 512;
+            }
+
+            if (!pos.see_ge(move, -74 - std::max(-50, std::min(50, historyBonus))))
                 continue;
         }
 
