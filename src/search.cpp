@@ -862,6 +862,15 @@ Value Search::Worker::search(
         // Null move dynamic reduction based on depth
         Depth R = 7 + depth / 3;
 
+        // Decrease reduction in potentially forcing lines based on continuation history
+        // of the previous move (scales with depth as histories refine in deeper searches)
+        if (!improving && ((ss - 1)->currentMove).is_ok())
+        {
+            Piece prevPc = pos.piece_on(prevSq);
+            int   hist   = (*((ss - 1)->continuationHistory))[prevPc][prevSq];
+            R -= std::clamp(hist / 8192, 0, 1);
+        }
+
         ss->currentMove                   = Move::null();
         ss->continuationHistory           = &thisThread->continuationHistory[0][0][NO_PIECE][0];
         ss->continuationCorrectionHistory = &thisThread->continuationCorrectionHistory[NO_PIECE][0];
