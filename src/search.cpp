@@ -1081,6 +1081,13 @@ moves_loop:  // When in check, search starts here
                 if (history < -4229 * depth)
                     continue;
 
+                // (*Scaler) Use deeper continuation history for pruning at higher depths,
+                // scaling well in LTC by providing more accurate signals without extra cost
+                // at shallow depths where it's skipped.
+                if (depth >= 6)
+                    history += (*contHist[2])[movedPiece][move.to_sq()]
+                             + (*contHist[3])[movedPiece][move.to_sq()] / (1 + (depth / 5));
+
                 history += 68 * thisThread->mainHistory[us][move.from_to()] / 32;
 
                 lmrDepth += history / 3388;
