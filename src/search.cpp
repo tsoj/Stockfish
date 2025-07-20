@@ -1254,7 +1254,17 @@ moves_loop:  // When in check, search starts here
                 const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
                 const bool doShallowerSearch = value < bestValue + 9;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                // Graduated adjustment: Use cutoffCnt to scale extension (high cutoffs in siblings
+                // suggest noisy branch needing more verification, scaling with LTC tree size).
+                // Cap at +2/-1, and boost in PV if good statScore for accuracy.
+                int adj = doDeeperSearch - doShallowerSearch;
+                if (adj > 0 && (ss + 1)->cutoffCnt > 2)
+                    adj += std::min(1, (ss + 1)->cutoffCnt / 5);  // Up to +1 extra for high cutoffs
+                if (adj > 0 && PvNode && ss->statScore > 0)
+                    adj += 1;  // Extra ply in PV for promising moves
+                adj = std::clamp(adj, -1, 2);
+
+                newDepth += adj;
 
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
