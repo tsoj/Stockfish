@@ -1153,7 +1153,17 @@ moves_loop:  // When in check, search starts here
             // singular (multiple moves fail high), and we can prune the whole
             // subtree by returning a softbound.
             else if (value >= beta && !is_decisive(value))
-                return value;
+            {
+                // Multi-cut is more reliable when the excluded ttMove is not a capture,
+                // because the singular search has likely seen all important tactical moves.
+                if (!ttCapture)
+                    return value;
+
+                // If the excluded ttMove is a capture, the position is more tactical
+                // and a shallow multi-cut might be refuted. Instead of pruning,
+                // apply a negative extension.
+                extension = -2;
+            }
 
             // Negative extensions
             // If other moves failed high over (ttValue - margin) without the
