@@ -1026,7 +1026,17 @@ moves_loop:  // When in check, search starts here
         // Smaller or even negative value is better for short time controls
         // Bigger value is better for long time controls
         if (ss->ttPv)
-            r += 968;
+        {
+            int bonus = 968;
+
+            // Scale reduction bonus by the relative depth of the TT entry. We are
+            // less confident in stale PVs, so the bonus is reduced accordingly.
+            // A very stale entry can result in a search extension.
+            if (ss->ttHit)
+                bonus -= 242 * std::max(0, depth - ttData.depth);
+
+            r += bonus;
+        }
 
         // Step 14. Pruning at shallow depth.
         // Depth conditions are important for mate finding.
