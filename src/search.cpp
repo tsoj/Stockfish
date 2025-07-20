@@ -695,7 +695,14 @@ Value Search::Worker::search(
 
         // Partial workaround for the graph history interaction problem
         // For high rule50 counts don't produce transposition table cutoffs.
-        if (pos.rule50_count() < 90)
+        bool needsValidation =
+          pos.rule50_count() >= 75               // Lower threshold for potential issues
+          || (!improving && opponentWorsening);  // Add volatility check for unstable positions
+        if (!needsValidation || depth < 5)  // Scale: Skip validation at low depths for efficiency
+        {
+            return ttData.value;
+        }
+        else
         {
             if (depth >= 8 && ttData.move && pos.pseudo_legal(ttData.move) && pos.legal(ttData.move)
                 && !is_decisive(ttData.value))
@@ -708,7 +715,9 @@ Value Search::Worker::search(
                 // Check that the ttValue after the tt move would also trigger a cutoff
                 if (!is_valid(ttDataNext.value))
                     return ttData.value;
-                if ((ttData.value >= beta) == (-ttDataNext.value >= beta))
+                bool nextBoundConsistent =
+                  (ttData.bound & ttDataNext.bound) || (ttDataNext.bound == BOUND_EXACT);
+                if (((ttData.value >= beta) == (-ttDataNext.value >= beta)) && nextBoundConsistent)
                     return ttData.value;
             }
             else
