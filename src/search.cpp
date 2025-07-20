@@ -1049,7 +1049,8 @@ moves_loop:  // When in check, search starts here
                 if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
                 {
                     Value futilityValue = ss->staticEval + 232 + 224 * lmrDepth
-                                        + PieceValue[capturedPiece] + 131 * captHist / 1024;
+                                        + PieceValue[capturedPiece] + 131 * captHist / 1024
+                                        - 180 * improving - 90 * opponentWorsening;
                     if (futilityValue <= alpha)
                         continue;
                 }
@@ -1085,9 +1086,10 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3388;
 
-                Value baseFutility = (bestMove ? 46 : 230);
-                Value futilityValue =
-                  ss->staticEval + baseFutility + 117 * lmrDepth + 102 * (ss->staticEval > alpha);
+                Value baseFutility  = (bestMove ? 46 : 230);
+                Value futilityValue = ss->staticEval + baseFutility + 117 * lmrDepth
+                                    + 102 * (ss->staticEval > alpha) - 90 * improving
+                                    - 45 * opponentWorsening;
 
                 // Futility pruning: parent node
                 // (*Scaler): Generally, more frequent futility pruning
