@@ -1236,9 +1236,15 @@ moves_loop:  // When in check, search starts here
             // beyond the first move depth.
             // To prevent problems when the max value is less than the min value,
             // std::clamp has been replaced by a more robust implementation.
-            Depth d = std::max(1, std::min(newDepth - r / 1024,
-                                           newDepth + !allNode + (PvNode && !bestMove)))
-                    + (ss - 1)->isPvNode;
+            Depth ext = !allNode + (PvNode && !bestMove) + (ss - 1)->isPvNode;
+
+            // Add a scalable history-dependent extension: if statScore is high relative
+            // to depth (more reliable in deeper/LTC searches), grant an extra +1,
+            // but cap total ext at +3 to prevent explosions.
+            if (r < 0 && ext < 3 && ss->statScore > 100 * depth)
+                ext++;
+
+            Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + ext));
 
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
