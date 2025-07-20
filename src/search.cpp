@@ -1056,7 +1056,17 @@ moves_loop:  // When in check, search starts here
 
                 // SEE based pruning for captures and checks
                 int seeHist = std::clamp(captHist / 31, -137 * depth, 125 * depth);
-                if (!pos.see_ge(move, -158 * depth - seeHist))
+
+                // Adjust SEE threshold based on captured piece value and move count
+                int captureBonus     = PieceValue[capturedPiece] / 32;
+                int moveCountPenalty = moveCount > 8 ? (moveCount - 8) * 12 : 0;
+
+                // Bonus for captures that remove checking pieces
+                int checkBonus =
+                  (ss->inCheck && pos.blockers_for_king(~us) & move.to_sq()) ? 50 : 0;
+
+                if (!pos.see_ge(move, -158 * depth - seeHist + captureBonus - moveCountPenalty
+                                        + checkBonus))
                 {
                     bool mayStalemateTrap =
                       depth > 2 && alpha < 0 && pos.non_pawn_material(us) == PieceValue[movedPiece]
