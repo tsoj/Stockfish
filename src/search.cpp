@@ -927,6 +927,14 @@ Value Search::Worker::search(
 
             movedPiece = pos.moved_piece(move);
 
+            // Skip moves with poor capture history in probcut
+            Piece capturedPiece = pos.piece_on(move.to_sq());
+            int   captHist =
+              thisThread->captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
+
+            if (captHist < -3000 * (depth - probCutDepth))
+                continue;
+
             do_move(pos, move, st);
 
             ss->currentMove = move;
