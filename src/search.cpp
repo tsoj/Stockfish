@@ -859,8 +859,15 @@ Value Search::Worker::search(
     {
         assert(eval - beta >= 0);
 
-        // Null move dynamic reduction based on depth
+        // Null move dynamic reduction is made more adaptive. It's based on depth,
+        // but also on how high the evaluation is, whether the evaluation is
+        // improving, and on the number of pieces on the board to be safer in
+        // endgames where zugzwang is more common.
         Depth R = 7 + depth / 3;
+        R += std::min(2, int(eval - beta) / 256);
+        R -= !improving;
+        if (popcount(pos.pieces(us, KNIGHT, BISHOP, ROOK, QUEEN)) < 4)
+            R--;
 
         ss->currentMove                   = Move::null();
         ss->continuationHistory           = &thisThread->continuationHistory[0][0][NO_PIECE][0];
