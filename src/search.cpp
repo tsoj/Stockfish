@@ -1259,8 +1259,21 @@ moves_loop:  // When in check, search starts here
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
 
-                // Post LMR continuation history updates
-                update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
+                // Post LMR history updates. If the full-depth re-search confirms the move is
+                // good, update all relevant history tables, not just continuation histories.
+                // This makes the logic consistent with how best moves are rewarded.
+                if (value > alpha)
+                {
+                    constexpr int LMRSuccessBonus = 1508;
+                    if (capture)
+                    {
+                        const PieceType capturedPiece = type_of(pos.piece_on(move.to_sq()));
+                        this->captureHistory[movedPiece][move.to_sq()][capturedPiece]
+                          << LMRSuccessBonus;
+                    }
+                    else
+                        update_quiet_histories(pos, ss, *this, move, LMRSuccessBonus);
+                }
             }
             else if (value > alpha && value < bestValue + 9)
                 newDepth--;
