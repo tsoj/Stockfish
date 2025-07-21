@@ -1197,6 +1197,10 @@ moves_loop:  // When in check, search starts here
         r -= moveCount * 66;
         r -= std::abs(correctionValue) / 28047;
 
+        // If the parent move was reduced, be less aggressive with child reductions to
+        // improve stability and recover from potentially premature reductions.
+        r -= priorReduction * 200;
+
         // Increase reduction for cut nodes
         if (cutNode)
             r += 2864 + 966 * !ttData.move;
