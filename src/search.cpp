@@ -1254,7 +1254,14 @@ moves_loop:  // When in check, search starts here
                 const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
                 const bool doShallowerSearch = value < bestValue + 9;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                // Make adjustments more adaptive: boost deeper re-searches in non-improving
+                // positions (potential tactics) and shallower when opponent is worsening (stability).
+                // This scales with depth/LTC as eval trends become more reliable.
+                const int deeperAdj    = !improving && !PvNode ? 1 : 0;
+                const int shallowerAdj = opponentWorsening && !PvNode ? 1 : 0;
+
+                newDepth +=
+                  doDeeperSearch * (1 + deeperAdj) - doShallowerSearch * (1 + shallowerAdj);
 
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
