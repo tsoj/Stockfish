@@ -1665,11 +1665,14 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             }
 
             // Continuation history based pruning
+            int eval_diff = ss->staticEval - alpha;
+            int margin    = std::clamp(eval_diff, -2048, 2048);
+
             if (!capture
                 && (*contHist[0])[pos.moved_piece(move)][move.to_sq()]
                        + thisThread->pawnHistory[pawn_structure_index(pos)][pos.moved_piece(move)]
                                                 [move.to_sq()]
-                     <= 6218)
+                     <= 6218 + margin / 4)
                 continue;
 
             // Do not search moves with bad enough SEE values
