@@ -1593,7 +1593,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         }
 
         // Stand pat. Return immediately if static value is at least beta
-        if (bestValue >= beta)
+        Value standPatMargin = std::abs(correctionValue) / 131072;
+        if (bestValue - standPatMargin >= beta)
         {
             if (!is_decisive(bestValue))
                 bestValue = (bestValue + beta) / 2;
