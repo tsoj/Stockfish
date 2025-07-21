@@ -1211,9 +1211,14 @@ moves_loop:  // When in check, search starts here
 
         r += (ss + 1)->quietMoveStreak * 50;
 
-        // For first picked move (ttMove) reduce reduction
+        // For first picked move (ttData.move) reduce reduction
         if (move == ttData.move)
             r -= 2006;
+
+        // Decrease reduction for quiet moves in allNodes that are not improving, scaled by depth
+        // to search potentially critical quiet lines deeper at high depths (LTC scaler)
+        if (allNode && !improving && !capture)
+            r -= depth / 4;
 
         if (capture)
             ss->statScore =
