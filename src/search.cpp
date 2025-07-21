@@ -880,6 +880,15 @@ Value Search::Worker::search(
 
             assert(!thisThread->nmpMinPly);  // Recursive verification is not allowed
 
+            // Add history-based skipping of verification for non-tactical positions (scales with LTC reliability)
+            bool skipVerification =
+              (ss - 1)->statScore < 1000  // Low prior statScore suggests non-tactical
+              && (*((ss - 1)->continuationHistory))[pos.piece_on(prevSq)][prevSq]
+                   > 0;  // Positive prior contHist indicates stability
+
+            if (skipVerification)
+                return nullValue;
+
             // Do verification search at high depths, with null move pruning disabled
             // until ply exceeds nmpMinPly.
             thisThread->nmpMinPly = ss->ply + 3 * (depth - R) / 4;
