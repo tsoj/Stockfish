@@ -605,6 +605,7 @@ Value Search::Worker::search(
     Value bestValue, value, eval, maxValue, probCutBeta;
     bool  givesCheck, improving, priorCapture, opponentWorsening;
     bool  capture, ttCapture;
+    bool  singularExtended = false;
     int   priorReduction;
     Piece movedPiece;
 
@@ -1143,7 +1144,7 @@ moves_loop:  // When in check, search starts here
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
-                depth++;
+                singularExtended = true;
             }
 
             // Multi-cut pruning
@@ -1227,6 +1228,10 @@ moves_loop:  // When in check, search starts here
 
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
+
+        // If a previous move was singular, increase reduction for subsequent quiet moves
+        if (singularExtended && !capture && !givesCheck)
+            r += 32 * depth;
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
