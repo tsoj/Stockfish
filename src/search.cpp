@@ -1085,6 +1085,13 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3388;
 
+                // Additional deeper history-based pruning for very low effective depths
+                if (lmrDepth < 4 && (*contHist[0])[movedPiece][move.to_sq()] < 0
+                    && (*contHist[1])[movedPiece][move.to_sq()] < 0
+                    && (*contHist[3])[movedPiece][move.to_sq()] < 0
+                    && (*contHist[5])[movedPiece][move.to_sq()] < 0)
+                    continue;
+
                 Value baseFutility = (bestMove ? 46 : 230);
                 Value futilityValue =
                   ss->staticEval + baseFutility + 117 * lmrDepth + 102 * (ss->staticEval > alpha);
