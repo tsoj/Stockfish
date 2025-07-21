@@ -1211,9 +1211,14 @@ moves_loop:  // When in check, search starts here
 
         r += (ss + 1)->quietMoveStreak * 50;
 
-        // For first picked move (ttMove) reduce reduction
+        // r += (ss + 1)->quietMoveStreak * 50;
+
         if (move == ttData.move)
             r -= 2006;
+
+        // Decrease reduction for non-capturing checks at higher depths (~scaler for LTC tactics)
+        if (givesCheck && !capture && depth >= 12)
+            r -= (150 + 35 * ((ss - 1)->moveCount > 5)) / 128;
 
         if (capture)
             ss->statScore =
