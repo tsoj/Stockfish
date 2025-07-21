@@ -1269,9 +1269,11 @@ moves_loop:  // When in check, search starts here
         // Step 18. Full-depth search when LMR is skipped
         else if (!PvNode || moveCount > 1)
         {
-            // Increase reduction if ttMove is not present
+            // Increase reduction if ttMove is not present (IIR). If we have a TT hit,
+            // it's a known node that previously failed low, so we can be less
+            // aggressive with the reduction.
             if (!ttData.move)
-                r += 1128;
+                r += ss->ttHit ? 512 : 1128;
 
             r -= ttMoveHistory / 8;
 
