@@ -1595,13 +1595,28 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         // Stand pat. Return immediately if static value is at least beta
         if (bestValue >= beta)
         {
-            if (!is_decisive(bestValue))
-                bestValue = (bestValue + beta) / 2;
-            if (!ss->ttHit)
-                ttWriter.write(posKey, value_to_tt(bestValue, ss->ply), false, BOUND_LOWER,
-                               DEPTH_UNSEARCHED, Move::none(), unadjustedStaticEval,
-                               tt.generation());
-            return bestValue;
+            bool stand_pat = true;
+
+            // In non-PV nodes, if the static evaluation is not improving and there's
+            // no TT-entry to back it up, the stand-pat score might be too optimistic.
+            // In this case, we choose to search moves instead of returning immediately.
+            if (!PvNode && !ss->ttHit)
+            {
+                const bool improving = ss->staticEval > (ss - 2)->staticEval;
+                if (!improving)
+                    stand_pat = false;
+            }
+
+            if (stand_pat)
+            {
+                if (!is_decisive(bestValue))
+                    bestValue = (bestValue + beta) / 2;
+                if (!ss->ttHit)
+                    ttWriter.write(posKey, value_to_tt(bestValue, ss->ply), false, BOUND_LOWER,
+                                   DEPTH_UNSEARCHED, Move::none(), unadjustedStaticEval,
+                                   tt.generation());
+                return bestValue;
+            }
         }
 
         if (bestValue > alpha)
