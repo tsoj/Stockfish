@@ -809,6 +809,21 @@ Value Search::Worker::search(
     if (((ss - 1)->currentMove).is_ok() && !(ss - 1)->inCheck && !priorCapture && !ttHit)
     {
         int bonus = std::clamp(-10 * int((ss - 1)->staticEval + ss->staticEval), -1858, 1492) + 661;
+
+        if ((ss - 2)->staticEval != VALUE_NONE)
+        {
+            // If the static evaluation changes for two consecutive plies in the same
+            // direction, we amplify the history bonus. This rewards finding moves
+            // that continue a favorable trend, or punishing moves that fail to
+            // reverse an unfavorable one.
+            const int delta_opp_move = ss->staticEval + (ss - 1)->staticEval;
+            const int delta_our_move = -(ss - 1)->staticEval - (ss - 2)->staticEval;
+
+            if ((delta_our_move > 0 && delta_opp_move > 0)
+                || (delta_our_move < 0 && delta_opp_move < 0))
+                bonus = bonus * 5 / 4;
+        }
+
         thisThread->mainHistory[~us][((ss - 1)->currentMove).from_to()] << bonus * 1057 / 1024;
         if (type_of(pos.piece_on(prevSq)) != PAWN && ((ss - 1)->currentMove).type_of() != PROMOTION)
             thisThread->pawnHistory[pawn_structure_index(pos)][pos.piece_on(prevSq)][prevSq]
