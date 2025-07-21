@@ -1228,6 +1228,13 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
 
+        // In quiet positions, if our static evaluation has improved across the
+        // opponent's last move, the current quiet move is more likely to be part
+        // of a good plan. We can search it with slightly less reduction. The
+        // 'opponentWorsening' flag is already false if we are in check.
+        if (!capture && !priorCapture && opponentWorsening)
+            r -= 415;
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
