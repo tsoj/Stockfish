@@ -1085,7 +1085,15 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3388;
 
-                Value baseFutility = (bestMove ? 46 : 230);
+                // If the TT suggests a good capture, we can prune quiet moves with bad history,
+                // especially if we have already found a move that raises alpha.
+                if (bestMove && ttCapture && (ttData.bound & BOUND_LOWER) && is_valid(ttData.value)
+                    && ttData.value > alpha && ttData.depth >= lmrDepth && history < 0)
+                {
+                    continue;
+                }
+
+                Value baseFutility = (bestValue ? 46 : 230);
                 Value futilityValue =
                   ss->staticEval + baseFutility + 117 * lmrDepth + 102 * (ss->staticEval > alpha);
 
