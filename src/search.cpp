@@ -1032,8 +1032,11 @@ moves_loop:  // When in check, search starts here
         // Depth conditions are important for mate finding.
         if (!rootNode && pos.non_pawn_material(us) && !is_loss(bestValue))
         {
-            // Skip quiet moves if movecount exceeds our FutilityMoveCount threshold
-            if (moveCount >= (3 + depth * depth) / (2 - improving))
+            // Skip quiet moves if movecount exceeds our FutilityMoveCount threshold.
+            // When not in check, make the threshold dynamic based on static evaluation:
+            // more aggressive when winning, less aggressive when losing.
+            const int base = 3 - (!ss->inCheck) * std::clamp(ss->staticEval / 256, -2, 2);
+            if (moveCount >= (base + depth * depth) / (2 - improving))
                 mp.skip_quiet_moves();
 
             // Reduced depth of the next LMR search
