@@ -1167,9 +1167,9 @@ moves_loop:  // When in check, search starts here
                 extension = -3;
 
             // If we are on a cutNode but the ttMove is not assumed to fail high
-            // over current beta
+            // over current beta. Scale reduction based on refutation strength.
             else if (cutNode)
-                extension = -2;
+                extension = -2 - (value > (beta + singularBeta) / 2);
         }
 
         // Step 16. Make the move
