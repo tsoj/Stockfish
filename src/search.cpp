@@ -1251,8 +1251,14 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
+                // Scale deeper threshold with history (good statScore lowers threshold for extension)
+                // and node type (more aggressive in PvNodes).
+                int histAdjust = std::clamp((ss->statScore - (ss - 1)->statScore) / 8192, -1, 1);
+
+                const bool doDeeperSearch =
+                  value
+                  > (bestValue + 42 + newDepth + histAdjust * (PvNode ? (depth / 2) : (depth / 4)));
+                const bool doShallowerSearch = value < bestValue + 9 + (cutNode ? 3 : 0);
 
                 newDepth += doDeeperSearch - doShallowerSearch;
 
