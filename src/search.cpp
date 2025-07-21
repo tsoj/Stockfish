@@ -935,10 +935,13 @@ Value Search::Worker::search(
             ss->continuationCorrectionHistory =
               &this->continuationCorrectionHistory[movedPiece][move.to_sq()];
 
-            // Perform a preliminary qsearch to verify that the move holds
-            value = -qsearch<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1);
+            // Perform a preliminary search to verify that the move holds.
+            // At depths <= 8, this will be a qsearch. At deeper depths, this becomes a
+            // shallow search, which is more accurate than a pure qsearch.
+            value =
+              -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, depth - 8, !cutNode);
 
-            // If the qsearch held, perform the regular search
+            // If the preliminary search held, perform the regular search
             if (value >= probCutBeta && probCutDepth > 0)
                 value = -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, probCutDepth,
                                        !cutNode);
