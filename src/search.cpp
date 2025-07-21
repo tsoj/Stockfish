@@ -1199,7 +1199,15 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for cut nodes
         if (cutNode)
+        {
             r += 2864 + 966 * !ttData.move;
+
+            // If a move improving alpha has been found, the node is proving more
+            // complex than a simple cut-node. Relax reductions for subsequent
+            // moves, treating the node more like a PV-node.
+            if (bestMove)
+                r -= 1180;
+        }
 
         // Increase reduction if ttMove is a capture
         if (ttCapture)
