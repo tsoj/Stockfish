@@ -1396,9 +1396,15 @@ moves_loop:  // When in check, search starts here
         if (move != bestMove && moveCount <= SEARCHEDLIST_CAPACITY)
         {
             if (capture)
-                capturesSearched.push_back(move);
+            {
+                if (ss->statScore < 0)
+                    capturesSearched.push_back(move);
+            }
             else
-                quietsSearched.push_back(move);
+            {
+                if (ss->statScore < 0)
+                    quietsSearched.push_back(move);
+            }
         }
     }
 
