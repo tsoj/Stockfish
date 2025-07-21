@@ -1256,6 +1256,18 @@ moves_loop:  // When in check, search starts here
 
                 newDepth += doDeeperSearch - doShallowerSearch;
 
+                // (*Scaler) Provide a depth-dependent bonus for moves with strong history in non-cutNodes,
+                // encouraging deeper exploration in stable (non-worsening) positions. This scales well to LTC
+                // by favoring tactical depth in complex lines without over-extending in shallow/explosive trees.
+                if (!cutNode && doDeeperSearch && ss->statScore >= 0 && !opponentWorsening
+                    && newDepth > d)
+                    newDepth += (depth >= 8) + (ss->statScore / (1024 * 2)) > 5;
+
+                // (*Scaler) For shallower cases, scale the decrement non-linearly with depth to prune
+                // more aggressively in wide/deep trees (LTC benefit) while being conservative shallow.
+                if (doShallowerSearch)
+                    newDepth -= 1 + (depth >= 12) / 2;
+
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
 
