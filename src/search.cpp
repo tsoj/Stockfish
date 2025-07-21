@@ -329,13 +329,19 @@ void Search::Worker::iterative_deepening() {
             alpha     = std::max(avg - delta, -VALUE_INFINITE);
             beta      = std::min(avg + delta, VALUE_INFINITE);
 
-            // Adjust optimism based on root move's averageScore
-            optimism[us]  = 137 * avg / (std::abs(avg) + 91);
-            optimism[~us] = -optimism[us];
+            // Adjust optimism based on root move's averageScore, scaled by instability
+            // and depth for LTC (deeper searches get moderated optimism to reduce variance)
+            double instability =
+              std::min(1.0, totBestMoveChanges / threads.size() / (rootDepth + 1));
+            int opt = 137 * avg / (std::abs(avg) + 91);
+            opt = int(opt * (1.0 - 0.2 * instability * (rootDepth > 20 ? 1.0 : rootDepth / 20.0)));
+            optimism[us] = Value(opt);
+            optimism[~us] =
+              -optimism[us] * (avg > 0 ? 1.1 : 0.9);  // Slight asymmetry for positive scores
 
             // Start with a small aspiration window and, in the case of a fail
             // high/low, re-search with a bigger window until we don't fail
-            // high/low anymore.
+            // high/low anymore. Widen delta more aggressively if instability is high (scales with LTC).
             int failedHighCnt = 0;
             while (true)
             {
@@ -386,7 +392,7 @@ void Search::Worker::iterative_deepening() {
                 else
                     break;
 
-                delta += delta / 3;
+                delta += delta / 3 + int(delta * instability / 4);  // Widen more if unstable
 
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }
