@@ -1228,6 +1228,14 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
 
+        // (*Scaler) In stable positions (not improving and opponent not worsening),
+        // increase reduction for non-PV cutNodes when statScore is mediocre, as these
+        // are more likely to fail high in deep LTC searches without needing full depth.
+        // Guard with depth and not inCheck to preserve tactics.
+        if (cutNode && depth >= 3 && !PvNode && !ss->inCheck && !improving && !opponentWorsening
+            && std::abs(ss->statScore) < 4000)  // Mediocre range avoids over-pruning extremes
+            r += allNode ? 512 : 1024;          // Stronger for cutNodes, scales with LTC depth
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
