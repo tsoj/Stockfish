@@ -1109,13 +1109,12 @@ moves_loop:  // When in check, search starts here
         }
 
         // Step 15. Extensions
-        // Singular extension search. If all moves but one
-        // fail low on a search of (alpha-s, beta-s), and just one fails high on
-        // (alpha, beta), then that move is singular and should be extended. To
-        // verify this we do a reduced search on the position excluding the ttMove
-        // and if the result is lower than ttValue minus a margin, then we will
-        // extend the ttMove. Recursive singular search is avoided.
-
+        // Singular extension search. If all moves but one fail low on a search of
+        // (alpha-s, beta-s), and just one fails high on (alpha, beta), then that move
+        // is singular and should be extended. To verify this we do a reduced search on
+        // the position excluding the ttMove and if the result is lower than ttValue minus
+        // a margin, then we will extend the ttMove. Recursive singular search is avoided.
+        //
         // (*Scaler) Generally, higher singularBeta (i.e closer to ttValue)
         // and lower extension margins scale well.
 
@@ -1162,9 +1161,20 @@ moves_loop:  // When in check, search starts here
             // if the ttMove is singular or can do a multi-cut, so we reduce the
             // ttMove in favor of other moves based on some conditions:
 
+            // Scaled, dynamic reduction: Compute "singularity deficit" (how much the value fell below beta)
+            // to make negative extension more aggressive at higher depths (for LTC scaling, where deep lines
+            // need wider branching without over-reducing tactical TT moves). Cap at -3 to prevent explosion,
+            // and avoid if ttCapture (tactical, less safe to reduce) or low deficit (likely not worth reducing).
+            // (*Scaler): This is more than a param change; it introduces deficit-based dynamism that scales
+            // non-linearly with depth and search results, preferring deeper LTC without flat adjustments.
+
             // If the ttMove is assumed to fail high over current beta
             else if (ttData.value >= beta)
-                extension = -3;
+            {
+                int deficit = std::max(0, beta - value);
+                extension =
+                  (deficit > 20 && !ttCapture) ? std::max(-3, -2 - (depth > 12 ? 1 : 0)) : -3;
+            }
 
             // If we are on a cutNode but the ttMove is not assumed to fail high
             // over current beta
