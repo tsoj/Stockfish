@@ -1172,6 +1172,21 @@ moves_loop:  // When in check, search starts here
                 extension = -2;
         }
 
+        // Recapture extensions: Extend if capturing on the previous move's square, with qsearch verification
+        // to confirm tactical value. Scale with depth and low material for LTC benefits (deeper endgames).
+        // Limit to prevent explosion (e.g., cap at +2, no trigger if already singularly extended).
+        else if (capture && move.to_sq() == prevSq && depth >= 8 && extension < 2
+                 && pos.non_pawn_material() < QueenValue * 2 + RookValue)
+        {
+            extension = 1;
+
+            // Verify with qsearch to potentially double-extend if promising (scales with tactics in LTC)
+            value = -qsearch<NonPV>(pos, ss, -alpha - 1, -alpha);
+
+            if (value > alpha)
+                extension = 2;
+        }
+
         // Step 16. Make the move
         do_move(pos, move, st, givesCheck);
 
