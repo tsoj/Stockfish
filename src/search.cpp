@@ -960,10 +960,15 @@ Value Search::Worker::search(
 moves_loop:  // When in check, search starts here
 
     // Step 12. A small Probcut idea
-    probCutBeta = beta + 400;
+    probCutBeta = beta + 400 - depth / 4 + improving * 50;
     if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4 && ttData.value >= probCutBeta
+        && (ss - 1)->statScore > 2000  // Only prune if previous had strong stats
+        && !PvNode                     // Avoid in PV for accuracy
         && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
+    {
+        (ss + 1)->cutoffCnt++;  // Boost LMR in subtrees with early probcut
         return probCutBeta;
+    }
 
     const PieceToHistory* contHist[] = {
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
