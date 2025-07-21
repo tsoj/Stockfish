@@ -881,15 +881,21 @@ Value Search::Worker::search(
             assert(!thisThread->nmpMinPly);  // Recursive verification is not allowed
 
             // Do verification search at high depths, with null move pruning disabled
-            // until ply exceeds nmpMinPly.
+            // until ply exceeds nmpMinPly. At very high depths (common in LTC), deepen
+            // verification slightly for better zugzwang detection, but cap to prevent explosion.
             thisThread->nmpMinPly = ss->ply + 3 * (depth - R) / 4;
 
-            Value v = search<NonPV>(pos, ss, beta - 1, beta, depth - R, false);
+            Depth verificationDepth =
+              depth - R + (depth >= 20 && pos.non_pawn_material() >= 2 * RookValue);
+
+            Value v = search<NonPV>(pos, ss, beta - 1, beta, verificationDepth, false);
 
             thisThread->nmpMinPly = 0;
 
-            if (v >= beta)
-                return nullValue;
+            // Make verification stricter at higher depths (scales for LTC) to avoid false
+            // prunings in deep trees, while clamping to prevent unproven high scores.
+            if (v >= beta + std::min(1 + depth / 5, 4))
+                return std::min(nullValue, VALUE_TB_WIN_IN_MAX_PLY - 1);
         }
     }
 
