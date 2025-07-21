@@ -1215,6 +1215,10 @@ moves_loop:  // When in check, search starts here
         if (move == ttData.move)
             r -= 2006;
 
+        // Increase reduction for moves with non-positive SEE
+        if (!pos.see_ge(move, 1))
+            r += 830;
+
         if (capture)
             ss->statScore =
               826 * int(PieceValue[pos.captured_piece()]) / 128
