@@ -1211,7 +1211,8 @@ moves_loop:  // When in check, search starts here
 
         r += (ss + 1)->quietMoveStreak * 50;
 
-        // For first picked move (ttMove) reduce reduction
+        // r += (ss + 1)->quietMoveStreak * 50;
+
         if (move == ttData.move)
             r -= 2006;
 
@@ -1223,10 +1224,16 @@ moves_loop:  // When in check, search starts here
         else
             ss->statScore = 2 * thisThread->mainHistory[us][move.from_to()]
                           + (*contHist[0])[movedPiece][move.to_sq()]
-                          + (*contHist[1])[movedPiece][move.to_sq()] - 3206;
+                          + (*contHist[1])[movedPiece][move.to_sq()]
+                          + (*contHist[2])[movedPiece][move.to_sq()] - 4014;
 
         // Decrease/increase reduction for moves with a good/bad history
-        r -= ss->statScore * 826 / 8192;
+        r -= ss->statScore * (826 + (depth * (ss->statScore > 0))) / 8192;
+
+        // Further decrease reduction for high-value captures when eval is promising (scales with depth)
+        if (capture && !PvNode && depth > 6 && ss->staticEval > alpha + 50
+            && PieceValue[pos.captured_piece()] > KnightValue)
+            r -= 1 + (depth > 12 && improving);
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
