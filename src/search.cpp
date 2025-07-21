@@ -1228,6 +1228,13 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
 
+        // Adjust reduction for chains of prior reductions (i.e., this move is in an already reduced branch).
+        // Scale the adjustment with both the prior reduction amount and current depth, making it more
+        // pronounced at higher depths (LTC scaler) to prevent over-reduction in deep tactical lines.
+        // Only apply in non-PV nodes where chains are safer to deepen slightly.
+        if (priorReduction > 0 && !PvNode)
+            r -= (priorReduction * (depth / 8));
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
