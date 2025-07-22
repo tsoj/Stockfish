@@ -1226,7 +1226,10 @@ moves_loop:  // When in check, search starts here
                           + (*contHist[1])[movedPiece][move.to_sq()] - 3206;
 
         // Decrease/increase reduction for moves with a good/bad history
-        r -= ss->statScore * 826 / 8192;
+        double histScaler = depth > 10
+                            ? 1.0 / (1.0 + std::exp(0.057 * (10 - depth)))
+                            : 1.0;  // Non-linear LTC scaler: stronger effect at higher depths
+        r -= int(ss->statScore * 826 / 8192 * histScaler);
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
