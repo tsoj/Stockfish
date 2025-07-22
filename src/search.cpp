@@ -1075,10 +1075,20 @@ moves_loop:  // When in check, search starts here
                 int history =
                   (*contHist[0])[movedPiece][move.to_sq()]
                   + (*contHist[1])[movedPiece][move.to_sq()]
-                  + thisThread->pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()];
+                  + thisThread->pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()]
+                  + (*contHist[2])[movedPiece][move.to_sq()];
 
-                // Continuation history based pruning
-                if (history < -4229 * depth)
+                // Continuation history based pruning, extended to ply-3 with depth/heat scaling for LTC
+                // (*Scaler): Deeper history checks only at low lmrDepth prune more selectively at high depths,
+                // scaling well as trees grow without STC overhead.
+                bool extendedContPrune = lmrDepth < 6
+                                      && ((*contHist[3])[movedPiece][move.to_sq()]
+                                            + (*contHist[4])[movedPiece][move.to_sq()]
+                                          < -2164 * (depth - (ss + 1)->cutoffCnt / 2));
+
+                // Base pruning with guard against volatile nodes (high child fail-highs) to preserve tactics
+                if (history < -4229 * depth && ((ss + 1)->cutoffCnt <= 3 || extendedContPrune)
+                    && (moveCount > 2 || !priorCapture || extendedContPrune))
                     continue;
 
                 history += 68 * thisThread->mainHistory[us][move.from_to()] / 32;
