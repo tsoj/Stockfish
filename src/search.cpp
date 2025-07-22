@@ -1835,7 +1835,7 @@ void update_pv(Move* pv, Move move, const Move* childPv) {
 }
 
 
-// Updates stats at the end of search() when a bestMove is found
+// Updates stats at the end of search() when // ... old code
 void update_all_stats(const Position& pos,
                       Stack*          ss,
                       Search::Worker& workerThread,
@@ -1858,9 +1858,16 @@ void update_all_stats(const Position& pos,
     {
         update_quiet_histories(pos, ss, workerThread, bestMove, bonus * 1059 / 1024);
 
-        // Decrease stats for all non-best quiet moves
-        for (Move move : quietsSearched)
-            update_quiet_histories(pos, ss, workerThread, move, -malus * 1310 / 1024);
+        // Decrease stats for all non-best quiet moves, with a penalty
+        // that increases for moves that were tried later.
+        for (size_t i = 0; i < quietsSearched.size(); ++i)
+        {
+            const int current_malus =
+              malus
+              + (malus * int(i) * int(i)) / (2 * SEARCHEDLIST_CAPACITY * SEARCHEDLIST_CAPACITY);
+            update_quiet_histories(pos, ss, workerThread, quietsSearched[i],
+                                   -current_malus * 1310 / 1024);
+        }
     }
     else
     {
@@ -1874,17 +1881,19 @@ void update_all_stats(const Position& pos,
     if (prevSq != SQ_NONE && ((ss - 1)->moveCount == 1 + (ss - 1)->ttHit) && !pos.captured_piece())
         update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, -malus * 580 / 1024);
 
-    // Decrease stats for all non-best capture moves
-    for (Move move : capturesSearched)
+    // Decrease stats for all non-best capture moves, with a penalty
+    // that increases for moves that were tried later.
+    for (size_t i = 0; i < capturesSearched.size(); ++i)
     {
-        movedPiece    = pos.moved_piece(move);
-        capturedPiece = type_of(pos.piece_on(move.to_sq()));
-        captureHistory[movedPiece][move.to_sq()][capturedPiece] << -malus * 1388 / 1024;
+        const int current_malus =
+          malus + (malus * int(i) * int(i)) / (2 * SEARCHEDLIST_CAPACITY * SEARCHEDLIST_CAPACITY);
+        movedPiece    = pos.moved_piece(capturesSearched[i]);
+        capturedPiece = type_of(pos.piece_on(capturesSearched[i].to_sq()));
+        captureHistory[movedPiece][capturesSearched[i].to_sq()][capturedPiece]
+          << -current_malus * 1388 / 1024;
     }
 }
-
-
-// Updates histories of the move pairs formed by moves
+// ... new code the move pairs formed by moves
 // at ply -1, -2, -3, -4, and -6 with current move.
 void update_continuation_histories(Stack* ss, Piece pc, Square to, int bonus) {
     static constexpr std::array<ConthistBonus, 6> conthist_bonuses = {
