@@ -1197,6 +1197,11 @@ moves_loop:  // When in check, search starts here
         r -= moveCount * 66;
         r -= std::abs(correctionValue) / 28047;
 
+        // If the parent move was heavily reduced, but the position looks good,
+        // be less aggressive with the reduction of the current move.
+        if (priorReduction >= 3 && opponentWorsening)
+            r -= 812;
+
         // Increase reduction for cut nodes
         if (cutNode)
             r += 2864 + 966 * !ttData.move;
