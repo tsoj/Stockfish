@@ -840,16 +840,25 @@ Value Search::Worker::search(
         auto futility_margin = [&](Depth d) {
             Value futilityMult = 93 - 20 * (cutNode && !ss->ttHit);
 
-            return futilityMult * d                      //
-                 - improving * futilityMult * 2          //
-                 - opponentWorsening * futilityMult / 3  //
+            // For LTC scaling: At deeper depths, reduce margin multiplier non-linearly to be more conservative
+            int adjustedMult = futilityMult - (depth >= 10 ? futilityMult / (3 + depth / 10) : 0);
+
+            return adjustedMult * d                      //
+                 - improving * adjustedMult * 2          //
+                 - opponentWorsening * adjustedMult / 3  //
                  + (ss - 1)->statScore / 376             //
                  + std::abs(correctionValue) / 168639;
         };
 
         if (!ss->ttPv && depth < 14 && eval - futility_margin(depth) >= beta && eval >= beta
             && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
+        {
+            // Inspired by example 50: For depths >=8 (scales to LTC), if TT provides a reliable lower bound >= beta + reduced margin, use TT for enhanced pruning
+            if (depth >= 8 && ss->ttHit && ttData.bound & BOUND_LOWER && ttData.depth >= depth - 4
+                && is_valid(ttData.value) && ttData.value >= beta + futility_margin(depth) / 4)
+                return (ttData.value + beta) / 2;  // Fail-soft with TT for better accuracy
             return beta + (eval - beta) / 3;
+        }
     }
 
     // Step 9. Null move search with verification search
