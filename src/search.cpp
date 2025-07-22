@@ -1029,7 +1029,7 @@ moves_loop:  // When in check, search starts here
             r += 968;
 
         if (ttData.ttImproving)
-            r -= 500;
+            r += 500;
 
         // Step 14. Pruning at shallow depth.
         // Depth conditions are important for mate finding.
