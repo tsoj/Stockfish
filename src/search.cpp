@@ -1443,6 +1443,11 @@ moves_loop:  // When in check, search starts here
         update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
                                       scaledBonus * 412 / 32768);
 
+        if (depth >= 8 && PvNode && !improving)
+            update_continuation_histories(ss - 2, pos.piece_on(prevSq), prevSq,
+                                          scaledBonus * 197
+                                            / 32768);  // Reduced strength for deeper propagation
+
         thisThread->mainHistory[~us][((ss - 1)->currentMove).from_to()]
           << scaledBonus * 203 / 32768;
 
