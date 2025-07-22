@@ -1170,6 +1170,11 @@ moves_loop:  // When in check, search starts here
             // over current beta
             else if (cutNode)
                 extension = -2;
+
+            // If the singular search found an alternative move that beats alpha,
+            // it's a strong signal that the TT move is not critical. Reduce it.
+            if (value > alpha && !is_decisive(value))
+                extension--;
         }
 
         // Step 16. Make the move
