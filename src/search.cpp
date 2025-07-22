@@ -1199,7 +1199,15 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for cut nodes
         if (cutNode)
-            r += 2864 + 966 * !ttData.move;
+        {
+            int cutBonus = 2864 + 966 * !ttData.move;
+
+            // Less aggressive in cut nodes for moves with positive history (scales with depth/history reliability)
+            if (ss->statScore > 0)
+                cutBonus -= std::min(1024, ss->statScore * depth / 4096);
+
+            r += cutBonus;
+        }
 
         // Increase reduction if ttMove is a capture
         if (ttCapture)
