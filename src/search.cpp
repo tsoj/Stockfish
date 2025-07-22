@@ -1199,7 +1199,13 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for cut nodes
         if (cutNode)
-            r += 2864 + 966 * !ttData.move;
+        {
+            int baseCutR = 2864 + 966 * !ttData.move;
+            // Scale down cutNode reduction if TT entry is from deeper search (trust TT more in LTC)
+            int ttDepthDiff = std::max(0, ttData.depth - depth);
+            baseCutR -= (ttData.bound != BOUND_UPPER ? (ttDepthDiff * 81) / 256 : 0);
+            r += std::max(0, baseCutR);
+        }
 
         // Increase reduction if ttMove is a capture
         if (ttCapture)
