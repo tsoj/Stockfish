@@ -1435,6 +1435,7 @@ moves_loop:  // When in check, search starts here
         bonusScale += 174 * ((ss - 1)->moveCount > 8);
         bonusScale += 144 * (!ss->inCheck && bestValue <= ss->staticEval - 104);
         bonusScale += 128 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 82);
+        bonusScale += 256 * (ss - 1)->isPvNode;
 
         bonusScale = std::max(bonusScale, 0);
 
