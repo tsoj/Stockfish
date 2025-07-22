@@ -28,13 +28,15 @@
 #include "misc.h"
 #include "syzygy/tbprobe.h"
 #include "thread.h"
+#include "types.h"
 
 namespace Stockfish {
 
 
 // TTEntry struct is the 10 bytes transposition table entry, defined as below:
 //
-// key        16 bit
+// key        15 bit
+// improving   1 bit
 // depth       8 bit
 // generation  5 bit
 // pv node     1 bit
@@ -50,9 +52,13 @@ struct TTEntry {
 
     // Convert internal bitfields to external types
     TTData read() const {
-        return TTData{Move(move16),           Value(value16),
-                      Value(eval16),          Depth(depth8 + DEPTH_ENTRY_OFFSET),
-                      Bound(genBound8 & 0x3), bool(genBound8 & 0x4)};
+        return TTData{Move(move16),
+                      Value(value16),
+                      Value(eval16),
+                      Depth(depth8 + DEPTH_ENTRY_OFFSET),
+                      Bound(genBound8 & 0x3),
+                      bool(genBound8 & 0x4),
+                      bool(keyImprove16 & 0x8000)};
     }
 
     bool is_occupied() const;
@@ -63,7 +69,7 @@ struct TTEntry {
    private:
     friend class TranspositionTable;
 
-    uint16_t key16;
+    uint16_t keyImprove16;  // 15 bits for key + 1 bit for improving flag
     uint8_t  depth8;
     uint8_t  genBound8;
     Move     move16;
@@ -93,22 +99,36 @@ bool TTEntry::is_occupied() const { return bool(depth8); }
 void TTEntry::save(
   Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, uint8_t generation8) {
 
+    const uint64_t previousKey15 = keyImprove16 & 0x7FFF;
+    const uint16_t key15         = uint16_t(k) & 0x7FFF;
+
+    bool improving = false;
+
+    // Check if this is an update to the same position and values are exact
+    if (previousKey15 == key15 && is_occupied() && (b & BOUND_LOWER)
+        && (Bound(genBound8 & 0x3) & BOUND_UPPER))
+    {
+        // Check if value improved
+        improving = v > Value(value16);
+    }
+    dbg_mean_of(improving);
+
     // Preserve the old ttmove if we don't have a new one
-    if (m || uint16_t(k) != key16)
+    if (m || key15 != previousKey15)
         move16 = m;
 
     // Overwrite less valuable entries (cheapest checks first)
-    if (b == BOUND_EXACT || uint16_t(k) != key16 || d - DEPTH_ENTRY_OFFSET + 2 * pv > depth8 - 4
+    if (b == BOUND_EXACT || key15 != previousKey15 || d - DEPTH_ENTRY_OFFSET + 2 * pv > depth8 - 4
         || relative_age(generation8))
     {
         assert(d > DEPTH_ENTRY_OFFSET);
         assert(d < 256 + DEPTH_ENTRY_OFFSET);
 
-        key16     = uint16_t(k);
-        depth8    = uint8_t(d - DEPTH_ENTRY_OFFSET);
-        genBound8 = uint8_t(generation8 | uint8_t(pv) << 2 | b);
-        value16   = int16_t(v);
-        eval16    = int16_t(ev);
+        keyImprove16 = key15 | (improving ? 0x8000 : 0);  // 15 bits key + 1 bit improving
+        depth8       = uint8_t(d - DEPTH_ENTRY_OFFSET);
+        genBound8    = uint8_t(generation8 | uint8_t(pv) << 2 | b);
+        value16      = int16_t(v);
+        eval16       = int16_t(ev);
     }
     else if (depth8 + DEPTH_ENTRY_OFFSET >= 5 && Bound(genBound8 & 0x3) != BOUND_EXACT)
         depth8--;
@@ -224,11 +244,12 @@ uint8_t TranspositionTable::generation() const { return generation8; }
 // TTEntry t2 if its replace value is greater than that of t2.
 std::tuple<bool, TTData, TTWriter> TranspositionTable::probe(const Key key) const {
 
-    TTEntry* const tte   = first_entry(key);
-    const uint16_t key16 = uint16_t(key);  // Use the low 16 bits as key inside the cluster
+    TTEntry* const tte = first_entry(key);
+    const uint16_t key15 =
+      uint16_t(key) & 0x7FFF;  // Use only the low 15 bits as key inside the cluster
 
     for (int i = 0; i < ClusterSize; ++i)
-        if (tte[i].key16 == key16)
+        if ((tte[i].keyImprove16 & 0x7FFF) == key15)
             // This gap is the main place for read races.
             // After `read()` completes that copy is final, but may be self-inconsistent.
             return {tte[i].is_occupied(), tte[i].read(), TTWriter(&tte[i])};
@@ -240,9 +261,10 @@ std::tuple<bool, TTData, TTWriter> TranspositionTable::probe(const Key key) cons
             > tte[i].depth8 - tte[i].relative_age(generation8))
             replace = &tte[i];
 
-    return {false,
-            TTData{Move::none(), VALUE_NONE, VALUE_NONE, DEPTH_ENTRY_OFFSET, BOUND_NONE, false},
-            TTWriter(replace)};
+    return {
+      false,
+      TTData{Move::none(), VALUE_NONE, VALUE_NONE, DEPTH_ENTRY_OFFSET, BOUND_NONE, false, false},
+      TTWriter(replace)};
 }
 
 
