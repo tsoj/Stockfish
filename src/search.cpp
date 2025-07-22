@@ -671,8 +671,6 @@ Value Search::Worker::search(
     ss->ttPv     = excludedMove ? ss->ttPv : PvNode || (ttHit && ttData.is_pv);
     ttCapture    = ttData.move && pos.capture_stage(ttData.move);
 
-    depth += ttData.ttImproving;
-
     // At this point, if excluded, skip straight to step 6, static eval. However,
     // to save indentation, we list the condition in all code between here and there.
 
@@ -1029,6 +1027,9 @@ moves_loop:  // When in check, search starts here
         // Bigger value is better for long time controls
         if (ss->ttPv)
             r += 968;
+
+        if (ttData.ttImproving)
+            r -= 500;
 
         // Step 14. Pruning at shallow depth.
         // Depth conditions are important for mate finding.

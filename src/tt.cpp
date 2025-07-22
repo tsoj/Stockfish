@@ -111,7 +111,6 @@ void TTEntry::save(
         // Check if value improved
         improving = v > Value(value16);
     }
-    dbg_mean_of(improving);
 
     // Preserve the old ttmove if we don't have a new one
     if (m || key15 != previousKey15)
