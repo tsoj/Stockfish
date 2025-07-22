@@ -1199,7 +1199,14 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for cut nodes
         if (cutNode)
+        {
             r += 2864 + 966 * !ttData.move;
+
+            // If static evaluation is improving in a cut node, we can be more
+            // aggressive with reductions, as the position is likely stable.
+            if (improving)
+                r += 450;
+        }
 
         // Increase reduction if ttMove is a capture
         if (ttCapture)
