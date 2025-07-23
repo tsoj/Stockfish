@@ -1436,6 +1436,11 @@ moves_loop:  // When in check, search starts here
         bonusScale += 144 * (!ss->inCheck && bestValue <= ss->staticEval - 104);
         bonusScale += 128 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 82);
 
+        // If the TT suggests the position is improving over time, it contradicts the
+        // fail-low result. The prior move was likely not that strong, so reduce its bonus.
+        if (ttHit && ttData.ttImproving)
+            bonusScale -= 350;
+
         bonusScale = std::max(bonusScale, 0);
 
         const int scaledBonus = std::min(159 * depth - 94, 1501) * bonusScale;
