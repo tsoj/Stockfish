@@ -1482,8 +1482,15 @@ moves_loop:  // When in check, search starts here
         && ((bestValue < ss->staticEval && bestValue < beta)  // negative correction & no fail high
             || (bestValue > ss->staticEval && bestMove)))     // positive correction & no fail low
     {
-        auto bonus = std::clamp(int(bestValue - ss->staticEval) * depth / 8,
-                                -CORRECTION_HISTORY_LIMIT / 4, CORRECTION_HISTORY_LIMIT / 4);
+        int raw_bonus = int(bestValue - ss->staticEval);
+
+        if (ss->ttHit)
+            // If the TT evaluation trend agrees with the search result, apply a larger
+            // correction. Otherwise, be more conservative.
+            raw_bonus = raw_bonus * ((raw_bonus > 0) == ttData.ttImproving ? 5 : 3) / 4;
+
+        auto bonus = std::clamp(raw_bonus * depth / 8, -CORRECTION_HISTORY_LIMIT / 4,
+                                CORRECTION_HISTORY_LIMIT / 4);
         update_correction_history(pos, ss, *thisThread, bonus);
     }
 
