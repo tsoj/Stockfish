@@ -1215,6 +1215,10 @@ moves_loop:  // When in check, search starts here
         if (move == ttData.move)
             r -= 2006;
 
+        // Decrease reduction in positions improving in iterative deepening (and if from TT)
+        if (ttData.value && ttData.ttImproving && depth >= 4 && !cutNode)
+            r -= 1090 + depth / 4;
+
         if (capture)
             ss->statScore =
               826 * int(PieceValue[pos.captured_piece()]) / 128
