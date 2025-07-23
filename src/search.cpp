@@ -1436,6 +1436,12 @@ moves_loop:  // When in check, search starts here
         bonusScale += 144 * (!ss->inCheck && bestValue <= ss->staticEval - 104);
         bonusScale += 128 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 82);
 
+        // If the TT suggests this position is getting worse for us, the opponent's
+        // move was better than expected. Give it a bigger bonus. Conversely, if our
+        // situation is improving, the opponent's move was less impressive.
+        if (ss->ttHit)
+            bonusScale += 175 * !ttData.ttImproving;
+
         bonusScale = std::max(bonusScale, 0);
 
         const int scaledBonus = std::min(159 * depth - 94, 1501) * bonusScale;
@@ -1456,7 +1462,8 @@ moves_loop:  // When in check, search starts here
     {
         Piece capturedPiece = pos.captured_piece();
         assert(capturedPiece != NO_PIECE);
-        thisThread->captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)] << 1080;
+        const int bonus = 1080 - 240 * (ss->ttHit && ttData.ttImproving);
+        thisThread->captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)] << bonus;
     }
 
     if (PvNode)
