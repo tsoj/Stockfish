@@ -840,10 +840,11 @@ Value Search::Worker::search(
         auto futility_margin = [&](Depth d) {
             Value futilityMult = 93 - 20 * (cutNode && !ss->ttHit);
 
-            return futilityMult * d                      //
-                 - improving * futilityMult * 2          //
-                 - opponentWorsening * futilityMult / 3  //
-                 + (ss - 1)->statScore / 376             //
+            return futilityMult * d                                  //
+                 - improving * futilityMult * 2                      //
+                 - opponentWorsening * futilityMult / 3              //
+                 - (ss->ttHit && ttData.ttImproving) * futilityMult  //
+                 + (ss - 1)->statScore / 376                         //
                  + std::abs(correctionValue) / 168639;
         };
 
