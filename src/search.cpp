@@ -1228,6 +1228,15 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
 
+        if (((ss - 1)->currentMove).is_ok() && !priorCapture)
+        {
+            int delta_stat = ss->statScore - (ss - 1)->statScore;
+            r -= delta_stat / (12651 - improving * 230);
+            // Strengthen the delta's impact at higher depths for LTC scaling, but limit to prevent explosions
+            r -=
+              (delta_stat * depth / 4) / 33000;  // depth / 4 to scale linearly with longer searches
+        }
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
