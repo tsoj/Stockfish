@@ -1140,8 +1140,11 @@ moves_loop:  // When in check, search starts here
                 int tripleMargin = 84 + 269 * PvNode - 253 * !ttCapture + 91 * ss->ttPv - corrValAdj
                                  - (ss->ply * 2 > thisThread->rootDepth * 3) * 54;
 
-                extension =
-                  1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
+                bool altDoubleExtension = depth >= 8 && ttData.depth >= depth
+                                       && value < singularBeta - 80 && ttData.ttImproving;
+
+                extension = 1 + (value < singularBeta - doubleMargin || altDoubleExtension)
+                          + (value < singularBeta - tripleMargin);
 
                 depth++;
             }
