@@ -337,6 +337,7 @@ void Search::Worker::iterative_deepening() {
             // high/low, re-search with a bigger window until we don't fail
             // high/low anymore.
             int failedHighCnt = 0;
+            int failedLowCnt  = 0;
             while (true)
             {
                 // Adjust the effective depth searched, but ensure at least one
@@ -374,19 +375,25 @@ void Search::Worker::iterative_deepening() {
                     beta  = (alpha + beta) / 2;
                     alpha = std::max(bestValue - delta, -VALUE_INFINITE);
 
+                    // Widen more aggressively on fail-low at shallower depths (scales to LTC: less widening at deep iterations)
+                    delta += delta / (2 + rootDepth / 4);
+
                     failedHighCnt = 0;
+                    ++failedLowCnt;
                     if (mainThread)
                         mainThread->stopOnPonderhit = false;
                 }
                 else if (bestValue >= beta)
                 {
                     beta = std::min(bestValue + delta, VALUE_INFINITE);
+
+                    // Widen less aggressively on fail-high at deeper depths, and incorporate failed count for quadratic growth
+                    delta += (delta / 3) * (1 + failedHighCnt / (1 + rootDepth / 5));
+
                     ++failedHighCnt;
                 }
                 else
                     break;
-
-                delta += delta / 3;
 
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }
