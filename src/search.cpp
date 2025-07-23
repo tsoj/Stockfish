@@ -1153,7 +1153,12 @@ moves_loop:  // When in check, search starts here
             // singular (multiple moves fail high), and we can prune the whole
             // subtree by returning a softbound.
             else if (value >= beta && !is_decisive(value))
-                return value;
+            {
+                // Scale multi-cut based on depth for LTC (less aggressive prune at high depth)
+                // Require stronger fail-high in deep LTC searches to avoid missing tactics
+                if (depth < 15 || value >= beta + 33 * (PvNode + improving) / 17 + depth / 7)
+                    return value;
+            }
 
             // Negative extensions
             // If other moves failed high over (ttValue - margin) without the
@@ -1164,12 +1169,14 @@ moves_loop:  // When in check, search starts here
 
             // If the ttMove is assumed to fail high over current beta
             else if (ttData.value >= beta)
-                extension = -3;
+                // Stronger reduction at low depth (STC efficiency), milder at high depth (LTC precision)
+                extension = -3 + std::clamp(depth / 7 - 3, 0, 2) * !improving;
 
             // If we are on a cutNode but the ttMove is not assumed to fail high
             // over current beta
             else if (cutNode)
-                extension = -2;
+                // Soften reduction if improving (tactics likely) or high_cutoffCnt sibling node
+                extension = -2 + ((ss + 1)->cutoffCnt < 3) * improving;
         }
 
         // Step 16. Make the move
