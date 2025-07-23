@@ -1215,6 +1215,9 @@ moves_loop:  // When in check, search starts here
         if (move == ttData.move)
             r -= 2006;
 
+        if (ttData.move && ttData.ttImproving && !cutNode && !rootNode && depth >= 6)
+            r--;
+
         if (capture)
             ss->statScore =
               826 * int(PieceValue[pos.captured_piece()]) / 128
