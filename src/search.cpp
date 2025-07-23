@@ -1197,6 +1197,14 @@ moves_loop:  // When in check, search starts here
         r -= moveCount * 66;
         r -= std::abs(correctionValue) / 28047;
 
+        // Decrease reduction if the TT entry's score has been improving over iterations
+        if (ss->ttHit && ttData.ttImproving)
+        {
+            int mn             = std::min(moveCount, int(reductions.size()) - 1);
+            int reductionScale = reductions[depth] * reductions[mn];
+            r -= reductionScale * 205 / 512;
+        }
+
         // Increase reduction for cut nodes
         if (cutNode)
             r += 2864 + 966 * !ttData.move;
