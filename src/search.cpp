@@ -1022,14 +1022,14 @@ moves_loop:  // When in check, search starts here
 
         Depth r = reduction(improving, depth, moveCount, delta);
 
+        if (ttData.ttImproving && move == ttData.move)
+            r -= 500;
+
         // Increase reduction for ttPv nodes (*Scaler)
         // Smaller or even negative value is better for short time controls
         // Bigger value is better for long time controls
         if (ss->ttPv)
             r += 968;
-
-        if (ttData.ttImproving)
-            r -= 500;
 
         // Step 14. Pruning at shallow depth.
         // Depth conditions are important for mate finding.
