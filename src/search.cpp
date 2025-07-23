@@ -1215,6 +1215,17 @@ moves_loop:  // When in check, search starts here
         if (move == ttData.move)
             r -= 2006;
 
+        // Reduce reduction for positions that are improving over iterations
+        if (ttData.ttImproving)
+        {
+            // Extra bonus for TT move in improving positions
+            if (move == ttData.move)
+                r -= 874;
+            // Smaller bonus for non-TT moves in improving positions
+            else if (!cutNode)
+                r -= 437;
+        }
+
         if (capture)
             ss->statScore =
               826 * int(PieceValue[pos.captured_piece()]) / 128
