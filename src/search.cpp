@@ -1177,6 +1177,7 @@ moves_loop:  // When in check, search starts here
 
         // Add extension to new depth
         newDepth += extension;
+        newDepth += (ttData.ttImproving && move == ttData.move && !ttCapture && extension < 2);
 
         // Update the current move (this must be done after singular extension search)
         ss->currentMove = move;
