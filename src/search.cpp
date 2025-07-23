@@ -1114,11 +1114,8 @@ moves_loop:  // When in check, search starts here
         // (alpha, beta), then that move is singular and should be extended. To
         // verify this we do a reduced search on the position excluding the ttMove
         // and if the result is lower than ttValue minus a margin, then we will
-        // extend the ttMove. Recursive singular search is avoided.
-
-        // (*Scaler) Generally, higher singularBeta (i.e closer to ttValue)
-        // and lower extension margins scale well.
-
+        // extend the ttMove. Recursive singular search // Step 15. Extensions
+        // Singular extension search. If we have an upcoming move that draws by repetition
         if (!rootNode && move == ttData.move && !excludedMove
             && depth >= 6 - (thisThread->completedDepth > 27) + ss->ttPv && is_valid(ttData.value)
             && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
@@ -1133,10 +1130,13 @@ moves_loop:  // When in check, search starts here
 
             if (value < singularBeta)
             {
-                int corrValAdj   = std::abs(correctionValue) / 248400;
-                int doubleMargin = -4 + 244 * PvNode - 206 * !ttCapture - corrValAdj
-                                 - 997 * ttMoveHistory / 131072
-                                 - (ss->ply > thisThread->rootDepth) * 47;
+                int corrValAdj = std::abs(correctionValue) / 248400;
+                int doubleMargin =
+                  -4 + 244 * PvNode - 206 * !ttCapture - corrValAdj - 997 * ttMoveHistory / 131072
+                  - (ss->ply > thisThread->rootDepth) * 47
+                  - (ss->statScore > 2000
+                       ? (thisThread->rootDepth / 2)
+                       : 0);  // Scale double ext more in LTC by tying to rootDepth if statScore high (good singular candidate)
                 int tripleMargin = 84 + 269 * PvNode - 253 * !ttCapture + 91 * ss->ttPv - corrValAdj
                                  - (ss->ply * 2 > thisThread->rootDepth * 3) * 54;
 
@@ -1164,12 +1164,20 @@ moves_loop:  // When in check, search starts here
 
             // If the ttMove is assumed to fail high over current beta
             else if (ttData.value >= beta)
-                extension = -3;
+                extension =
+                  -3
+                  - (depth > thisThread->rootDepth / 2 && ttData.value > beta + 100
+                       ? 1
+                       : 0);  // Extra reduction in LTC (deeper rootDepth) if ttValue far exceeds beta
 
             // If we are on a cutNode but the ttMove is not assumed to fail high
             // over current beta
             else if (cutNode)
-                extension = -2;
+                extension =
+                  -2
+                  - (depth > thisThread->rootDepth / 2 && (ss - 1)->statScore < -1000
+                       ? 1
+                       : 0);  // Extra reduction in LTC for cutNodes with poor prior statScore
         }
 
         // Step 16. Make the move
