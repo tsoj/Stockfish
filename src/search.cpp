@@ -1221,9 +1221,22 @@ moves_loop:  // When in check, search starts here
               + thisThread->captureHistory[movedPiece][move.to_sq()][type_of(pos.captured_piece())]
               - 5030;
         else
+        {
             ss->statScore = 2 * thisThread->mainHistory[us][move.from_to()]
                           + (*contHist[0])[movedPiece][move.to_sq()]
                           + (*contHist[1])[movedPiece][move.to_sq()] - 3206;
+
+            // Incorporate lowPlyHistory for quiet moves to reduce reduction on early-proven patterns,
+            // scaled by depth for LTC benefit (deeper searches refine lowPly data, leading to less reduction).
+            if (ss->ply < LOW_PLY_HISTORY_SIZE)
+                ss->statScore +=
+                  thisThread->lowPlyHistory[ss->ply][move.from_to()] * std::min(depth / 16, 2);
+
+            // Weight a deeper continuation history if position is improving, emphasizing long-term
+            // quality for LTC (accumulates over iterations without STC overhead).
+            if (improving)
+                ss->statScore += (*contHist[2])[movedPiece][move.to_sq()] / 2;
+        }
 
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
