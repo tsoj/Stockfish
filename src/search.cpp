@@ -1201,6 +1201,12 @@ moves_loop:  // When in check, search starts here
         if (cutNode)
             r += 2864 + 966 * !ttData.move;
 
+        // Decrease reduction if the TT entry for this position has improved recently.
+        // This suggests the position is 'hot' and may have hidden tactical potential.
+        // The effect is stronger at deeper depths and in expected cut-nodes.
+        if (ttData.ttImproving)
+            r -= 150 + 25 * depth + 200 * cutNode;
+
         // Increase reduction if ttMove is a capture
         if (ttCapture)
             r += 1210 + (depth < 8) * 963;
