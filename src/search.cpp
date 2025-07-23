@@ -1078,7 +1078,14 @@ moves_loop:  // When in check, search starts here
                   + thisThread->pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()];
 
                 // Continuation history based pruning
-                if (history < -4229 * depth)
+                int threshold = -4229 * depth;
+                // If the TT entry for this position indicates an improving evaluation trend,
+                // be more reluctant to prune moves based on potentially outdated
+                // historical data. We make the pruning threshold more difficult to reach.
+                if (ttData.ttImproving)
+                    threshold = threshold * 1126 / 1024;  // ~1.1
+
+                if (history < threshold)
                     continue;
 
                 history += 68 * thisThread->mainHistory[us][move.from_to()] / 32;
