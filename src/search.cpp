@@ -1127,6 +1127,11 @@ moves_loop:  // When in check, search starts here
             Value singularBeta  = ttData.value - (58 + 76 * (ss->ttPv && !PvNode)) * depth / 57;
             Depth singularDepth = newDepth / 2;
 
+            // If position is improving in TT and we're approaching 50-move rule,
+            // use a tighter singular margin to more aggressively extend critical moves
+            if (ttData.ttImproving && pos.rule50_count() > 40)
+                singularBeta += (56 - pos.rule50_count()) * depth / 64;
+
             ss->excludedMove = move;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
             ss->excludedMove = Move::none();
