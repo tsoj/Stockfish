@@ -1209,6 +1209,10 @@ moves_loop:  // When in check, search starts here
         if ((ss + 1)->cutoffCnt > 2)
             r += 1036 + allNode * 848;
 
+        // Decrease reduction if TT shows position is improving (encourage deeper search in critical lines)
+        if (ttData.ttImproving && depth >= 8 && !PvNode)
+            r -= 612;
+
         r += (ss + 1)->quietMoveStreak * 50;
 
         // For first picked move (ttMove) reduce reduction
