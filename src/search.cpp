@@ -323,6 +323,9 @@ void Search::Worker::iterative_deepening() {
             // Reset UCI info selDepth for each depth and each PV line
             selDepth = 0;
 
+            // Probe TT for root position to get ttData.ttImproving
+            auto [ttHit, ttData, ttWriter] = tt.probe(rootPos.key());
+
             // Reset aspiration window starting size
             delta     = 5 + std::abs(rootMoves[pvIdx].meanSquaredScore) / 11134;
             Value avg = rootMoves[pvIdx].averageScore;
@@ -386,7 +389,9 @@ void Search::Worker::iterative_deepening() {
                 else
                     break;
 
-                delta += delta / 3;
+                // If position is improving from previous TT entry, widen more aggressively
+                // for better LTC scaling (fewer re-searches in deep improving lines)
+                delta += delta / 3 + (ttHit && ttData.ttImproving ? delta / 3 : 0);
 
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }
