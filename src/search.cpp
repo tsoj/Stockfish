@@ -1143,6 +1143,9 @@ moves_loop:  // When in check, search starts here
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
+                if (ttData.ttImproving)
+                    extension++;
+
                 depth++;
             }
 
@@ -1164,12 +1167,12 @@ moves_loop:  // When in check, search starts here
 
             // If the ttMove is assumed to fail high over current beta
             else if (ttData.value >= beta)
-                extension = -3;
+                extension = -3 + ttData.ttImproving;
 
             // If we are on a cutNode but the ttMove is not assumed to fail high
             // over current beta
             else if (cutNode)
-                extension = -2;
+                extension = -2 + ttData.ttImproving;
         }
 
         // Step 16. Make the move
