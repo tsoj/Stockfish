@@ -1255,6 +1255,7 @@ moves_loop:  // When in check, search starts here
                 const bool doShallowerSearch = value < bestValue + 9;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
+                newDepth += ttData.ttImproving;
 
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
