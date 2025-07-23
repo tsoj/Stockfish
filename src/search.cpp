@@ -1215,6 +1215,10 @@ moves_loop:  // When in check, search starts here
         if (move == ttData.move)
             r -= 2006;
 
+        // Decrease reduction if TT shows improving trend but static eval does not
+        if (ttData.ttImproving && !improving)
+            r -= 1024 - cutNode * 512;
+
         if (capture)
             ss->statScore =
               826 * int(PieceValue[pos.captured_piece()]) / 128
