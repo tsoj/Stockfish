@@ -1028,9 +1028,6 @@ moves_loop:  // When in check, search starts here
         if (ss->ttPv)
             r += 968;
 
-        if (ttData.ttImproving)
-            r -= 500;
-
         // Step 14. Pruning at shallow depth.
         // Depth conditions are important for mate finding.
         if (!rootNode && pos.non_pawn_material(us) && !is_loss(bestValue))
@@ -1127,7 +1124,7 @@ moves_loop:  // When in check, search starts here
             && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (58 + 76 * (ss->ttPv && !PvNode)) * depth / 57;
+            Value singularBeta  = ttData.value - (58 + 76 * (ss->ttPv && !PvNode) + 30 * ttData.ttImproving) * depth / 57;
             Depth singularDepth = newDepth / 2;
 
             ss->excludedMove = move;
