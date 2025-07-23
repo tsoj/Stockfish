@@ -1191,6 +1191,12 @@ moves_loop:  // When in check, search starts here
             r -= 2437 + PvNode * 926 + (ttData.value > alpha) * 901
                + (ttData.depth >= depth) * (943 + cutNode * 1180);
 
+        // If the TT entry indicates an improving evaluation over iterations, this suggests
+        // instability and that the position might be better than it seems. We should
+        // search more carefully by reducing less. The effect is stronger on PV lines.
+        if (ttData.ttImproving)
+            r -= 380 + 250 * ss->ttPv;
+
         // These reduction adjustments have no proven non-linear scaling
 
         r += 316;  // Base reduction offset to compensate for other tweaks
