@@ -1172,6 +1172,12 @@ moves_loop:  // When in check, search starts here
                 extension = -2;
         }
 
+        // If the position's eval is improving over iterations, it might be unstable.
+        // Extend the TT move slightly to get a more stable evaluation, but only if
+        // it wasn't already extended for singularity, which is a stronger reason.
+        if (ttData.ttImproving && !extension && move == ttData.move)
+            extension = 1;
+
         // Step 16. Make the move
         do_move(pos, move, st, givesCheck);
 
