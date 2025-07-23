@@ -1166,9 +1166,8 @@ moves_loop:  // When in check, search starts here
             else if (ttData.value >= beta)
                 extension = -3;
 
-            // If we are on a cutNode but the ttMove is not assumed to fail high
-            // over current beta
-            else if (cutNode)
+            // If we are on a cutNode, or if other moves seem better than the ttMove.
+            else if (cutNode || ttData.value <= value)
                 extension = -2;
         }
 
