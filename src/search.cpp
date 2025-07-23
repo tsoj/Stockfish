@@ -1275,9 +1275,18 @@ moves_loop:  // When in check, search starts here
 
             r -= ttMoveHistory / 8;
 
+            // Make reduction thresholds scale with depth for better LTC behavior
+            int thresh1 = 3864 + depth / 4;  // Increases pruning at deeper levels
+            int thresh2 = thresh1 + depth / 3
+                        + 512 * allNode;  // More aggressive for allNodes (scaler inspired by ex.15)
+
+            // Add micro-extension if local statScore is exceptionally good (scales with history accumulation in LTC)
+            int microExt = !ttData.move && ss->statScore > (depth * 512) && depth >= 3 ? 1 : 0;
+
             // Note that if expected reduction is high, we reduce search depth here
-            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha,
-                                   newDepth - (r > 3564) - (r > 4969 && newDepth > 2), !cutNode);
+            value = -search<NonPV>(
+              pos, ss + 1, -(alpha + 1), -alpha,
+              newDepth + microExt - (r > thresh1) - (r > thresh2 && newDepth > 2), !cutNode);
         }
 
         // For PV nodes only, do a full PV search on the first move or after a fail high,
