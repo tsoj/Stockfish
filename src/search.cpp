@@ -1231,6 +1231,12 @@ moves_loop:  // When in check, search starts here
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
+            // Scaler: For non-captures without TT move, decrease reduction if TT entry has
+            // sufficient depth, trusting TT more at LTC where it's deeper/populated.
+            // Modulate by cutNode to avoid over-widening in expected cutoffs.
+            if (!capture && !ttData.move && ttData.depth >= depth - 3)
+                r -= 1 + !cutNode;
+
             // In general we want to cap the LMR depth search at newDepth, but when
             // reduction is negative, we allow this move a limited search extension
             // beyond the first move depth.
