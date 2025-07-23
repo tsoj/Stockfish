@@ -1226,11 +1226,18 @@ moves_loop:  // When in check, search starts here
                           + (*contHist[1])[movedPiece][move.to_sq()] - 3206;
 
         // Decrease/increase reduction for moves with a good/bad history
-        r -= ss->statScore * 826 / 8192;
+        r -= ss->statScore * 844 / 8192;
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
+            // Increase reduction in drawish positions (high rule50, no improvement)
+            // (*Scaler) More aggressive in LTC where high rule50 is common in deep endgames
+            if (!capture && !givesCheck && !improving && pos.rule50_count() > 30
+                && !pos.non_pawn_material(us))
+                r += 256 * (pos.rule50_count() - 30)
+                   / 10;  // Scales with excess rule50 (e.g., +1 ply red. at 40)
+
             // In general we want to cap the LMR depth search at newDepth, but when
             // reduction is negative, we allow this move a limited search extension
             // beyond the first move depth.
