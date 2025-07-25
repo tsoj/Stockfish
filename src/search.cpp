@@ -1367,7 +1367,11 @@ moves_loop:  // When in check, search starts here
 
                 // Reduce other moves if we have found at least one score improvement
                 if (depth > 2 && depth < 16 && !is_decisive(value))
-                    depth -= 2;
+                {
+                    int extraReduction = cutNode + (ss + 1)->cutoffCnt / 4;
+                    extraReduction += (ss + 1)->quietMoveStreak <= std::max(1, (moveCount - 1) / 2);
+                    depth -= std::clamp(1 + extraReduction, 1, 3) * (depth < 7 ? 1 : 2);
+                }
 
                 assert(depth > 0);
                 alpha = value;  // Update alpha! Always alpha < beta
