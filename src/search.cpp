@@ -1175,7 +1175,7 @@ moves_loop:  // When in check, search starts here
         uint64_t nodeCount = rootNode ? uint64_t(nodes) : 0;
 
         // Decrease reduction for PvNodes (*Scaler)
-        if (ss->ttPv)
+        if (PvNode)
             r -= 2437 + PvNode * 926 + (ttData.value > alpha) * 901
                + (ttData.depth >= depth) * (943 + cutNode * 1180);
 
@@ -1237,10 +1237,20 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
+                // threshold: Make deeper threshold scale quadratically with depth for LTC
+                // (extensions rarer at shallow but more aggressive at depth, where LTC reaches more).
+                // Modulate by history (boost if high positive statScore) and opponentWorsening (trending positions
+                // benefit from extra depth in long searches). Cap at +2 to prevent explosion.
+                const bool doDeeperSearch = value > (bestValue + 42 + depth * depth / 64)
+                                                      + (ss->statScore / 1024) * opponentWorsening;
                 const bool doShallowerSearch = value < bestValue + 9;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                newDepth += std::clamp(
+                  int(doDeeperSearch) - int(doShallowerSearch), -1,
+                  std::min(
+                    2,
+                    !cutNode
+                      + ss->ttPv));  // Cap shallower/ext in cutNodes, allow +1 extra if ttPv (LTC scaler via deeper reliable lines)
 
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
@@ -1260,8 +1270,15 @@ moves_loop:  // When in check, search starts here
                 r += 1128;
 
             // Note that if expected reduction is high, we reduce search depth here
-            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha,
-                                   newDepth - (r > 3200) - (r > 4600 && newDepth > 2), !cutNode);
+            Depth doExtraSkipExt =
+              (!PvNode && ss->statScore < -4096
+               && depth - (r / 1024 + moveCount / 16) >= newDepth - 2)
+                ? -1
+                : 0;  // Light ext-skip if bad history, scaled by moveCount (LTC: sparser shallow, more depth focus)
+
+            value = -search<NonPV>(
+              pos, ss + 1, -(alpha + 1), -alpha,
+              newDepth - (r > 3200) - (r > 4600 && newDepth > 2) + doExtraSkipExt, !cutNode);
         }
 
         // For PV nodes only, do a full PV search on the first move or after a fail high,
@@ -1274,6 +1291,11 @@ moves_loop:  // When in check, search starts here
             // Extend move from transposition table if we are about to dive into qsearch.
             if (move == ttData.move && rootDepth > 8)
                 newDepth = std::max(newDepth, 1);
+
+            // Light extra ext if PvNode, capture, and high capture history (scales with LTC history accumulation)
+            if (!ttCapture && PvNode && capture
+                && captureHistory[movedPiece][move.to_sq()][type_of(pos.captured_piece())] > 4096)
+                newDepth++;
 
             value = -search<PV>(pos, ss + 1, -beta, -alpha, newDepth, false);
         }
