@@ -1062,12 +1062,13 @@ moves_loop:  // When in check, search starts here
             }
             else
             {
-                int history = (*contHist[0])[movedPiece][move.to_sq()]
+                int history = (*contHist[0])[movedPiece][move.to_sq()] * 2
                             + (*contHist[1])[movedPiece][move.to_sq()]
+                            + (*contHist[2])[movedPiece][move.to_sq()] / 2
                             + pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()];
 
                 // Continuation history based pruning
-                if (history < -4229 * depth)
+                if (history < -4229 * depth - 3500 * !givesCheck * depth / 8)
                     continue;
 
                 history += 68 * mainHistory[us][move.from_to()] / 32;
