@@ -1030,10 +1030,25 @@ moves_loop:  // When in check, search starts here
             // Reduced depth of the next LMR search
             int lmrDepth = newDepth - r / 1024;
 
+            int quietPruneThreshold = -4229 * depth;
+
+            int contSum =
+              (*contHist[0])[movedPiece][move.to_sq()] + (*contHist[1])[movedPiece][move.to_sq()];
+
+            // Use a more conservative threshold in cutNodes since they have high
+            // fail-high rates and we can afford to prune more aggressively. This
+            // scales to LTC by pruning wider subtrees at depth.
+            if (cutNode)
+                quietPruneThreshold += 500 * (depth / 4);
+
             if (capture || givesCheck)
             {
                 Piece capturedPiece = pos.piece_on(move.to_sq());
                 int   captHist = captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
+
+                if (!givesCheck && !ttCapture && lmrDepth < 5 && contSum < -653 * depth
+                    && depth > rootDepth * 1 / 2)  // prune more in LTC with depth scaling
+                    continue;
 
                 // Futility pruning for captures
                 if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
@@ -1062,12 +1077,18 @@ moves_loop:  // When in check, search starts here
             }
             else
             {
-                int history = (*contHist[0])[movedPiece][move.to_sq()]
-                            + (*contHist[1])[movedPiece][move.to_sq()]
-                            + pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()];
+                int history =
+                  contSum + pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()];
+
+                // Extend continuation history sum to deeper plies if depth is sufficient;
+                // this provides better signals in LTC with deeper average depth while
+                // avoiding over-pruning at low depths/STC.
+                if (depth >= 4)
+                    history += (*contHist[2])[movedPiece][move.to_sq()]
+                             + (*contHist[3])[movedPiece][move.to_sq()];
 
                 // Continuation history based pruning
-                if (history < -4229 * depth)
+                if (history < quietPruneThreshold)
                     continue;
 
                 history += 68 * mainHistory[us][move.from_to()] / 32;
@@ -1077,6 +1098,13 @@ moves_loop:  // When in check, search starts here
                 Value baseFutility = (bestMove ? 46 : 230);
                 Value futilityValue =
                   ss->staticEval + baseFutility + 117 * lmrDepth + 102 * (ss->staticEval > alpha);
+
+                // Incorporate history into futility margin for more dynamic pruning;
+                // subtract a scaled negative history term to make bad-history moves
+                // easier to prune (scales to LTC as history accumulates more reliably).
+                if (history < 0)
+                    futilityValue -=
+                      std::max(-200, history / (15000 + depth * 100));  // depth scaling for LTC
 
                 // Futility pruning: parent node
                 // (*Scaler): Generally, more frequent futility pruning
