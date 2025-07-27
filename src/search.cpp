@@ -1222,9 +1222,13 @@ moves_loop:  // When in check, search starts here
             // beyond the first move depth.
             // To prevent problems when the max value is less than the min value,
             // std::clamp has been replaced by a more robust implementation.
-            Depth d = std::max(1, std::min(newDepth - r / 1024,
-                                           newDepth + !allNode + (PvNode && !bestMove)))
-                    + PvNode;
+            // (*Scaler): Allow extra extension room for high-statScore moves at deeper
+            // depths, promoting selective depth in LTC without flat bonuses.
+            int extraExtension = (depth > 10 && ss->statScore > 600) ? (depth / 8) / 2 : 0;
+            extraExtension     = std::min(extraExtension, 2);  // Cap to avoid explosion (note 122)
+            Depth d            = std::max(1, std::min(newDepth - r / 1024,
+                                                      newDepth + !allNode + (PvNode && !bestMove)))
+                    + PvNode + extraExtension;
 
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
@@ -1237,7 +1241,9 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
+                // (*Scaler): Make doDeeperSearch more selective at high depths by scaling
+                // threshold with depth, reducing tunnel vision in LTC (note 124).
+                const bool doDeeperSearch = value > (bestValue + 42 + 2 * newDepth + (depth / 10));
                 const bool doShallowerSearch = value < bestValue + 9;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
@@ -1246,7 +1252,10 @@ moves_loop:  // When in check, search starts here
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
 
                 // Post LMR continuation history updates
-                update_continuation_histories(ss, movedPiece, move.to_sq(), 1508);
+                // (*Scaler): Scale bonus with depth for stronger updates in deep LTC
+                // lines, but less at shallow depths to reduce noise (note 110).
+                update_continuation_histories(ss, movedPiece, move.to_sq(),
+                                              1508 + (depth > 12 ? (depth - 10) * 20 : 0));
             }
             else if (value > alpha && value < bestValue + 9)
                 newDepth--;
