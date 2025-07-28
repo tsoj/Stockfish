@@ -1075,8 +1075,15 @@ moves_loop:  // When in check, search starts here
                 lmrDepth += history / 3388;
 
                 Value baseFutility = (bestMove ? 46 : 230);
-                Value futilityValue =
-                  ss->staticEval + baseFutility + 117 * lmrDepth + 102 * (ss->staticEval > alpha);
+                // Adapt futility margin based on game phase - higher in middlegame, lower in endgame
+                Value phaseAdjustment = 100 * (100 - std::min(pos.rule50_count(), 100)) / 100;
+                // Consider evaluation confidence - smaller margins when eval is close to alpha
+                Value evalConfidence       = std::max(VALUE_ZERO, alpha - ss->staticEval);
+                Value confidenceAdjustment = evalConfidence > 200 ? evalConfidence / 8 : 0;
+
+                Value futilityValue = ss->staticEval + baseFutility + phaseAdjustment
+                                    + 117 * lmrDepth + 102 * (ss->staticEval > alpha)
+                                    - confidenceAdjustment;
 
                 // Futility pruning: parent node
                 // (*Scaler): Generally, more frequent futility pruning
