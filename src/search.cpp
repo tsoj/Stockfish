@@ -1203,6 +1203,13 @@ moves_loop:  // When in check, search starts here
         if (move == ttData.move)
             r -= 2006;
 
+        // Reduce reduction for positions with significant improvement in static evaluation
+        if ((ss - 1)->staticEval != VALUE_NONE && ss->staticEval > (ss - 1)->staticEval + 50)
+        {
+            Value evalDiff = (ss->staticEval - (ss - 1)->staticEval);
+            r -= std::min(evalDiff * depth / 32, 2000);
+        }
+
         if (capture)
             ss->statScore = 826 * int(PieceValue[pos.captured_piece()]) / 128
                           + captureHistory[movedPiece][move.to_sq()][type_of(pos.captured_piece())];
