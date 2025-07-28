@@ -1070,6 +1070,11 @@ moves_loop:  // When in check, search starts here
                 if (history < -4229 * depth)
                     continue;
 
+                // If our position is not improving, be more aggressive in pruning moves
+                // that have a bad history score.
+                if (!improving && history < -2500 * depth)
+                    continue;
+
                 history += 68 * mainHistory[us][move.from_to()] / 32;
 
                 lmrDepth += history / 3388;
