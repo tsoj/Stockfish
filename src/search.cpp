@@ -1189,6 +1189,20 @@ moves_loop:  // When in check, search starts here
         if (cutNode)
             r += 3000;
 
+        // Positional context awareness for reductions
+        // When evaluation is far from search window, adjust reduction severity
+        const Value marginScale     = Value(400);
+        const Value evalMarginUpper = ss->staticEval - (beta + Value(300));
+        const Value evalMarginLower = (alpha - Value(300)) - ss->staticEval;
+
+        // In decisively winning positions (far above beta), increase reduction
+        if (evalMarginUpper > VALUE_ZERO)
+            r += std::min(12 * depth, 72) * evalMarginUpper / marginScale;
+
+        // In decisively losing positions (far below alpha), decrease reduction
+        if (evalMarginLower > VALUE_ZERO)
+            r -= std::min(18 * depth, 108) * evalMarginLower / marginScale;
+
         // Increase reduction if ttMove is a capture
         if (ttCapture)
             r += 1350;
