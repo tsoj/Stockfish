@@ -1114,11 +1114,38 @@ moves_loop:  // When in check, search starts here
             && ttData.depth >= depth - 3)
         {
             Value singularBeta  = ttData.value - (58 + 76 * (ss->ttPv && !PvNode)) * depth / 57;
-            Depth singularDepth = newDepth / 2;
+            Depth singularDepth = std::max(1, newDepth / 2);
 
             ss->excludedMove = move;
-            value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
+
+            // Adaptive multi-depth singular search improves robustness and LTC scaling
+            // Single-depth singular search often produces inconsistent results due to
+            // horizon effects. By trying multiple depths with early termination, we
+            // make extension decisions more accurate while maintaining efficiency.
+            Value singularValue = VALUE_NONE;
+            bool  tryDeeper     = true;
+            for (int i = 0; i <= 2 && tryDeeper && singularDepth + i < depth; ++i)
+            {
+                Depth tryDepth = singularDepth + i;
+                singularValue =
+                  search<NonPV>(pos, ss, singularBeta - 1, singularBeta, tryDepth, cutNode);
+
+                // Early termination when move is clearly singular
+                if (singularValue < singularBeta)
+                    tryDeeper = false;
+
+                // Early termination when move is clearly not singular
+                // Adaptive margin scales with depth for better LTC performance
+                if (singularValue >= singularBeta + 8 + (PvNode ? 6 : 0) + depth / 5)
+                    tryDeeper = false;
+
+                // Special early termination for PV nodes where accuracy is critical
+                if (PvNode && i > 0 && singularValue <= singularBeta + 3)
+                    tryDeeper = false;
+            }
+
             ss->excludedMove = Move::none();
+            value            = singularValue;
 
             if (value < singularBeta)
             {
