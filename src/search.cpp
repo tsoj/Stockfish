@@ -1438,7 +1438,12 @@ moves_loop:  // When in check, search starts here
     {
         Piece capturedPiece = pos.captured_piece();
         assert(capturedPiece != NO_PIECE);
-        captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)] << 1080;
+
+        // Scale bonus proportionally to the value of the captured piece
+        int valueScale = std::max(1, PieceValue[capturedPiece] / PieceValue[PAWN]);
+        int bonus      = std::min(95 * depth * valueScale, 1350);
+
+        captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)] << bonus;
     }
 
     if (PvNode)
