@@ -1156,7 +1156,7 @@ moves_loop:  // When in check, search starts here
 
             // If we are on a cutNode but the ttMove is not assumed to fail high
             // over current beta
-            else if (cutNode)
+            else if (cutNode || value > ttData.value)
                 extension = -2;
         }
 
