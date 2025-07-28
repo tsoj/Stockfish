@@ -877,7 +877,13 @@ Value Search::Worker::search(
             // until ply exceeds nmpMinPly.
             nmpMinPly = ss->ply + 3 * (depth - R) / 4;
 
-            Value v = search<NonPV>(pos, ss, beta - 1, beta, depth - R, false);
+            // Extend verification depth slightly in non-improving positions
+            // to better detect zugzwang (scales with depth for LTC)
+            Depth verificationDepth = depth - R;
+            if (depth >= 10 && !improving)
+                verificationDepth++;
+
+            Value v = search<NonPV>(pos, ss, beta - 1, beta, verificationDepth, false);
 
             nmpMinPly = 0;
 
