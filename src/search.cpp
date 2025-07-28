@@ -1214,6 +1214,12 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 826 / 8192;
 
+        // Also consider the quality of the opponent's previous quiet move. A good
+        // move from the opponent requires a more careful (deeper) response, so we
+        // reduce less.
+        if (!priorCapture)
+            r -= (ss - 1)->statScore * 826 / 8192;
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
