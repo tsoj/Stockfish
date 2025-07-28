@@ -1160,6 +1160,11 @@ moves_loop:  // When in check, search starts here
                 extension = -2;
         }
 
+        // Extension for captures in complex tactical positions
+        else if (capture && !rootNode && depth >= 7 && cutNode && moveCount > 2
+                 && ss->staticEval + 250 >= beta && std::abs(correctionValue) > 900000)
+            extension = 1;
+
         // Step 16. Make the move
         do_move(pos, move, st, givesCheck);
 
