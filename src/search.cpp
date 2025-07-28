@@ -1113,7 +1113,12 @@ moves_loop:  // When in check, search starts here
             && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (58 + 76 * (ss->ttPv && !PvNode)) * depth / 57;
+            // Calculate how much better the TT move is compared to beta
+            int   scoreDiff        = ttData.value - beta;
+            int   marginAdjustment = 2 * std::max(0, scoreDiff) / depth;
+            Value singularityMargin =
+              std::max(32, (83 + 91 * (ss->ttPv && !PvNode)) * depth / 64 - marginAdjustment);
+            Value singularBeta  = ttData.value - singularityMargin;
             Depth singularDepth = newDepth / 2;
 
             ss->excludedMove = move;
