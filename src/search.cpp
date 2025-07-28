@@ -1397,7 +1397,20 @@ moves_loop:  // When in check, search starts here
         bestValue = (bestValue * depth + beta) / (depth + 1);
 
     if (!moveCount)
-        bestValue = excludedMove ? alpha : ss->inCheck ? mated_in(ss->ply) : VALUE_DRAW;
+    {
+        if (excludedMove)
+            bestValue = alpha;
+        else if (ss->inCheck)
+            bestValue = mated_in(ss->ply);
+        else  // Stalemate
+        {
+            // For stalemates, adjust the score slightly based on static
+            // evaluation. This helps to distinguish good stalemates (from
+            // a losing position) from bad ones (from a winning position).
+            Value contempt = std::clamp(Value(ss->staticEval / 4), Value(-50), Value(50));
+            bestValue      = VALUE_DRAW + contempt;
+        }
+    }
 
     // If there is a move that produces search value greater than alpha,
     // we update the stats of searched moves.
