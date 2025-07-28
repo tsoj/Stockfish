@@ -1113,7 +1113,16 @@ moves_loop:  // When in check, search starts here
             && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (58 + 76 * (ss->ttPv && !PvNode)) * depth / 57;
+            // Adjust singular beta margin based on the TT entry depth. A deeper entry is more
+            // reliable, so we use a smaller margin (higher beta), making the singularity
+            // test stricter. This scales well with increasing search depth and time controls.
+            const int tt_depth_diff         = ttData.depth - depth;
+            const int margin_scaling_factor = std::clamp(100 - tt_depth_diff * 5, 50, 120);
+
+            int singularBeta_margin = (58 + 76 * (ss->ttPv && !PvNode)) * depth / 57;
+            singularBeta_margin     = (singularBeta_margin * margin_scaling_factor) / 100;
+
+            Value singularBeta  = ttData.value - singularBeta_margin;
             Depth singularDepth = newDepth / 2;
 
             ss->excludedMove = move;
