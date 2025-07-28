@@ -1271,6 +1271,11 @@ moves_loop:  // When in check, search starts here
             (ss + 1)->pv    = pv;
             (ss + 1)->pv[0] = Move::none();
 
+            // Extend PV search when finding a move significantly better than alpha (for LTC scaling)
+            int improvement = value > alpha ? value - alpha : 0;
+            if (improvement > 25 && depth > 4 && !is_decisive(value))
+                newDepth += 1 + (improvement > 50);
+
             // Extend move from transposition table if we are about to dive into qsearch.
             if (move == ttData.move && rootDepth > 8)
                 newDepth = std::max(newDepth, 1);
