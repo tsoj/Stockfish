@@ -1155,8 +1155,9 @@ moves_loop:  // When in check, search starts here
                 extension = -3;
 
             // If we are on a cutNode but the ttMove is not assumed to fail high
-            // over current beta
-            else if (cutNode)
+            // over current beta. Also reduce if the singular search found a move
+            // that scores better than the ttMove's predicted score.
+            else if (cutNode || value > ttData.value)
                 extension = -2;
         }
 
