@@ -1195,7 +1195,7 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction if next ply has a lot of fail high
         if ((ss + 1)->cutoffCnt > 2)
-            r += 1036 + allNode * 848;
+            r += 1036 + allNode * 848 + (depth > 10 ? (35 - depth) * 64 : 0);
 
         r += (ss + 1)->quietMoveStreak * 50;
 
@@ -1241,6 +1241,9 @@ moves_loop:  // When in check, search starts here
                 const bool doShallowerSearch = value < bestValue + 9;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
+
+                if ((ss + 1)->cutoffCnt > 4)
+                    newDepth -= doDeeperSearch ? 0 : 1;
 
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
