@@ -1235,10 +1235,17 @@ moves_loop:  // When in check, search starts here
             // doesn't scale well to longer TCs
             if (value > alpha && d < newDepth)
             {
-                // Adjust full-depth search based on LMR results - if the result was
-                // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 42 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
+                // Depth-scaled SEE bonus for statScore of marginal captures (positive but small SEE): scale SEE value by depth/6
+                // to reduce statScore-based penalties at higher depths, encouraging tactical exploration in LTC without
+                // changing tuned params. Clamp to ensure it only helps non-losing captures.
+                int seeScore    = capture ? pos.see_ge(move) / std::max(6, depth) : 0;
+                int scaledScore = ss->statScore + std::min(seeScore, ss->statScore / 6 + 18);
+
+                // Adjust full-depth search based on LMR results and scaled score - if good enough (exceeds value thresholds
+                // with scaledScore boost), search deeper; if mediocre, search shallower.
+                const bool doDeeperSearch =
+                  value > (bestValue + 42 + 2 * newDepth) + scaledScore / 64;
+                const bool doShallowerSearch = value < bestValue + 9 - scaledScore / 128;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
 
