@@ -1191,7 +1191,14 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction if ttMove is a capture
         if (ttCapture)
-            r += 1350;
+        {
+            // Apply full penalty to quiet moves
+            if (!capture)
+                r += 1350;
+            // Apply partial penalty to other capture moves (not the TT move)
+            else if (move != ttData.move)
+                r += 675;
+        }
 
         // Increase reduction if next ply has a lot of fail high
         if ((ss + 1)->cutoffCnt > 2)
