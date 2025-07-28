@@ -1143,6 +1143,25 @@ moves_loop:  // When in check, search starts here
             else if (value >= beta && !is_decisive(value))
                 return value;
 
+            // Symmetric multi-cut like pruning for presumed fail-low of TT move.
+            // After initial verification yields afail-low, confirm by short search after the move.
+            // Scaler: Depth-dependent margin for more aggressive fail-low pruning at LTC depths.
+            else if (value <= alpha && !is_decisive(value) && !givesCheck && !ttCapture
+                     && singularDepth >= 3)
+            {
+                // Perform a reduced search after actually making the TT move to verify it singularly fails low.
+                do_move(pos, move, st, givesCheck);
+                Value verificationValue =
+                  -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, depth - 4, !cutNode);
+                undo_move(pos, move);
+
+                // Return alpha as soft bound only if confirmation search matches a depth-scaled margin
+                // (scales with LTC: larger margin for deeper, more reliable verification).
+                int failLowMargin = 0 + 9 * depth / (7 - PvNode);
+                if (verificationValue <= alpha - failLowMargin && !is_decisive(verificationValue))
+                    return alpha;
+            }
+
             // Negative extensions
             // If other moves failed high over (ttValue - margin) without the
             // ttMove on a reduced search, but we cannot do multi-cut because
