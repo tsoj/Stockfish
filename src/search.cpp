@@ -1185,6 +1185,11 @@ moves_loop:  // When in check, search starts here
         r -= moveCount * 66;
         r -= std::abs(correctionValue) / 28047;
 
+        // Reduce reduction in narrow PV windows, proportional to depth
+        // This improves precision where it matters most for LTC performance
+        if (PvNode && delta < 100)
+            r -= depth * 15;
+
         // Increase reduction for cut nodes
         if (cutNode)
             r += 3000;
