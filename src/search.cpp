@@ -1160,6 +1160,21 @@ moves_loop:  // When in check, search starts here
                 extension = -2;
         }
 
+        // Tactical Refutation Extension.
+        // Extend checks that are replies to quiet, non-checking moves.
+        // This helps find tactical refutations that are not yet TT moves and therefore
+        // would not be considered for singular extension.
+        if (extension == 0          // Not already singularly extended
+            && givesCheck           // Current move is a check
+            && !priorCapture        // Opponent's move was quiet
+            && !cutNode             // Not in a node expected to fail-high
+            && !(ss - 1)->inCheck)  // Opponent's move was not a check
+        {
+            // SEE check prevents extending moves that are obvious blunders.
+            if (pos.see_ge(move, VALUE_ZERO))
+                extension = 1;
+        }
+
         // Step 16. Make the move
         do_move(pos, move, st, givesCheck);
 
