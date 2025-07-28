@@ -1185,6 +1185,15 @@ moves_loop:  // When in check, search starts here
         r -= moveCount * 66;
         r -= std::abs(correctionValue) / 28047;
 
+        // Increase reduction if the opponent played a solid move that did not worsen their
+        // evaluation. Our own follow-up moves are less likely to be strong, and can be
+        // reduced more aggressively. This is guarded, as (ss-1)->staticEval can be invalid.
+        if ((ss - 1)->staticEval != VALUE_NONE && ss->staticEval <= -(ss - 1)->staticEval)
+        {
+            int reductionScale = reductions[depth] * reductions[moveCount];
+            r += reductionScale * 102 / 512;
+        }
+
         // Increase reduction for cut nodes
         if (cutNode)
             r += 3000;
