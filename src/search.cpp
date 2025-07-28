@@ -1211,8 +1211,14 @@ moves_loop:  // When in check, search starts here
                           + (*contHist[0])[movedPiece][move.to_sq()]
                           + (*contHist[1])[movedPiece][move.to_sq()];
 
+        // Apply asymmetric scaling for better LTC performance:
+        // - Preserve full bonus for strong positive history (good moves)
+        // - Apply 25% extra penalty for strong negative history (bad moves)
+        // This honors the principle from note #235: "Policy bonus asymmetry works"
+        int adjustedStatScore = ss->statScore - std::max(0, -ss->statScore / 4);
+
         // Decrease/increase reduction for moves with a good/bad history
-        r -= ss->statScore * 826 / 8192;
+        r -= adjustedStatScore * 826 / 8192;
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
