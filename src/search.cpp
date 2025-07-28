@@ -681,11 +681,12 @@ Value Search::Worker::search(
             // Bonus for a quiet ttMove that fails high
             if (!ttCapture)
                 update_quiet_histories(pos, ss, *this, ttData.move,
-                                       std::min(125 * depth - 77, 1157));
+                                       std::min(125 * depth - 77, 1157) * (1 + int(improving) / 2));
 
             // Extra penalty for early quiet moves of the previous ply
             if (prevSq != SQ_NONE && (ss - 1)->moveCount <= 3 && !priorCapture)
-                update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, -2301);
+                update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
+                                              -2301 - 100 * improving);
         }
 
         // Partial workaround for the graph history interaction problem
@@ -698,12 +699,18 @@ Value Search::Worker::search(
                 do_move(pos, ttData.move, st);
                 Key nextPosKey                             = pos.key();
                 auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(nextPosKey);
+                Value nextEval                             = -evaluate(pos);
                 undo_move(pos, ttData.move);
 
                 // Check that the ttValue after the tt move would also trigger a cutoff
                 if (!is_valid(ttDataNext.value))
                     return ttData.value;
                 if ((ttData.value >= beta) == (-ttDataNext.value >= beta))
+                    return ttData.value;
+
+                // Scaler: At higher depths (LTC), allow cutoff if evals are consistent within a depth-scaled margin
+                Value evalDelta = ttData.eval != VALUE_NONE ? std::abs(ttData.eval + nextEval) : 0;
+                if (evalDelta < 66 * (depth / 4))
                     return ttData.value;
             }
             else
