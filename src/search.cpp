@@ -1189,9 +1189,21 @@ moves_loop:  // When in check, search starts here
         if (cutNode)
             r += 3000;
 
-        // Increase reduction if ttMove is a capture
-        if (ttCapture)
-            r += 1350;
+        // Adjust reduction based on TT move vs current move properties.
+        if (ttData.move)
+        {
+            if (ttCapture)
+            {
+                // If TT move is a capture, reduce quiet moves more aggressively.
+                r += capture ? 1350 : 1900;
+            }
+            else if (capture)
+            {
+                // If TT move is quiet, a tactical capture might be a refutation,
+                // so we reduce it less.
+                r -= 600;
+            }
+        }
 
         // Increase reduction if next ply has a lot of fail high
         if ((ss + 1)->cutoffCnt > 2)
