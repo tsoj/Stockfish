@@ -1035,18 +1035,22 @@ moves_loop:  // When in check, search starts here
                 Piece capturedPiece = pos.piece_on(move.to_sq());
                 int   captHist = captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
 
-                // Futility pruning for captures
+                // Unified SEE-based pruning for captures and checks. The default threshold
+                // is based on depth and history.
+                Value seeThreshold = -std::clamp(158 * depth + captHist / 31, 0, 283 * depth);
+
+                // Under futility conditions, we raise the SEE threshold. Instead of a
+                // cheap but inaccurate prune based on captured piece value, we demand
+                // a higher SEE to justify searching the move.
                 if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
                 {
-                    Value futilityValue = ss->staticEval + 232 + 224 * lmrDepth
-                                        + PieceValue[capturedPiece] + 131 * captHist / 1024;
-                    if (futilityValue <= alpha)
-                        continue;
+                    Value futilityBase =
+                      ss->staticEval + 232 + 224 * lmrDepth + 131 * captHist / 1024;
+                    if (futilityBase <= alpha)
+                        seeThreshold = std::max(seeThreshold, alpha - futilityBase);
                 }
 
-                // SEE based pruning for captures and checks
-                int margin = std::clamp(158 * depth + captHist / 31, 0, 283 * depth);
-                if (!pos.see_ge(move, -margin))
+                if (!pos.see_ge(move, seeThreshold))
                 {
                     bool mayStalemateTrap =
                       depth > 2 && alpha < 0 && pos.non_pawn_material(us) == PieceValue[movedPiece]
