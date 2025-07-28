@@ -890,9 +890,20 @@ Value Search::Worker::search(
 
     // Step 10. Internal iterative reductions
     // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Especially if they make IIR less aggressive.
+    // Scale IIR based on node type: more aggressive for pure cut nodes, less for improving PV.
+    // (*Scaler) This differentiation provides better scaling across time controls.
     if (!allNode && depth >= 6 && !ttData.move)
-        depth--;
+    {
+        Depth reduction = 1;
+
+        if (cutNode && !ss->ttPv)
+            reduction++;  // More aggressive for pure cut nodes
+
+        if (PvNode && (improving || ss->ttPv))
+            reduction--;  // Less aggressive when following improving PV paths
+
+        depth -= reduction;
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
