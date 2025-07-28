@@ -73,12 +73,15 @@ using SearchedList                  = ValueList<Move, SEARCHEDLIST_CAPACITY>;
 // tests at these types of time controls.
 
 int correction_value(const Worker& w, const Position& pos, const Stack* const ss) {
-    const Color us    = pos.side_to_move();
-    const auto  m     = (ss - 1)->currentMove;
-    const auto  pcv   = w.pawnCorrectionHistory[pawn_structure_index<Correction>(pos)][us];
-    const auto  micv  = w.minorPieceCorrectionHistory[minor_piece_index(pos)][us];
-    const auto  wnpcv = w.nonPawnCorrectionHistory[non_pawn_index<WHITE>(pos)][WHITE][us];
-    const auto  bnpcv = w.nonPawnCorrectionHistory[non_pawn_index<BLACK>(pos)][BLACK][us];
+    const Color us     = pos.side_to_move();
+    const Color them   = ~us;
+    const auto  m      = (ss - 1)->currentMove;
+    const auto& pcv_h  = w.pawnCorrectionHistory[pawn_structure_index<Correction>(pos)];
+    const auto  pcv    = pcv_h[us] - pcv_h[them];
+    const auto& micv_h = w.minorPieceCorrectionHistory[minor_piece_index(pos)];
+    const auto  micv   = micv_h[us] - micv_h[them];
+    const auto  wnpcv  = w.nonPawnCorrectionHistory[non_pawn_index<WHITE>(pos)][WHITE][us];
+    const auto  bnpcv  = w.nonPawnCorrectionHistory[non_pawn_index<BLACK>(pos)][BLACK][us];
     const auto  cntcv =
       m.is_ok() ? (*(ss - 2)->continuationCorrectionHistory)[pos.piece_on(m.to_sq())][m.to_sq()]
                  : 0;
@@ -96,14 +99,20 @@ void update_correction_history(const Position& pos,
                                Stack* const    ss,
                                Search::Worker& workerThread,
                                const int       bonus) {
-    const Move  m  = (ss - 1)->currentMove;
-    const Color us = pos.side_to_move();
+    const Move  m    = (ss - 1)->currentMove;
+    const Color us   = pos.side_to_move();
+    const Color them = ~us;
 
     static constexpr int nonPawnWeight = 172;
 
     workerThread.pawnCorrectionHistory[pawn_structure_index<Correction>(pos)][us]
       << bonus * 111 / 128;
+    workerThread.pawnCorrectionHistory[pawn_structure_index<Correction>(pos)][them]
+      << -bonus * 111 / 128;
+
     workerThread.minorPieceCorrectionHistory[minor_piece_index(pos)][us] << bonus * 151 / 128;
+    workerThread.minorPieceCorrectionHistory[minor_piece_index(pos)][them] << -bonus * 151 / 128;
+
     workerThread.nonPawnCorrectionHistory[non_pawn_index<WHITE>(pos)][WHITE][us]
       << bonus * nonPawnWeight / 128;
     workerThread.nonPawnCorrectionHistory[non_pawn_index<BLACK>(pos)][BLACK][us]
