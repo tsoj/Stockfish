@@ -1113,8 +1113,9 @@ moves_loop:  // When in check, search starts here
             && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (58 + 76 * (ss->ttPv && !PvNode)) * depth / 57;
-            Depth singularDepth = newDepth / 2;
+            Value singularBeta = ttData.value - (58 + 76 * (ss->ttPv && !PvNode)) * depth / 57;
+            // Deeper singular searches in longer root searches for LTC scaling
+            Depth singularDepth = newDepth / 2 + std::max(0, (rootDepth - depth) / 5);
 
             ss->excludedMove = move;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
@@ -1127,9 +1128,12 @@ moves_loop:  // When in check, search starts here
                                  - 997 * ttMoveHistory / 131072 - (ss->ply > rootDepth) * 47;
                 int tripleMargin = 84 + 269 * PvNode - 253 * !ttCapture + 91 * ss->ttPv - corrValAdj
                                  - (ss->ply * 2 > rootDepth * 3) * 54;
+                int quadMargin = tripleMargin * 3 / 2;
 
-                extension =
-                  1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
+                extension = 1 + (value < singularBeta - doubleMargin)
+                          + (value < singularBeta - tripleMargin)
+                          + (rootDepth > 30 && depth >= 12 && moveCount < 4
+                             && value < singularBeta - quadMargin && corrValAdj > 200);
 
                 depth++;
             }
@@ -1141,7 +1145,8 @@ moves_loop:  // When in check, search starts here
             // singular (multiple moves fail high), and we can prune the whole
             // subtree by returning a softbound.
             else if (value >= beta && !is_decisive(value))
-                return value;
+                return std::min(value, (value + beta)
+                                         / 2);  // Soften the bound for better fail-soft in LTC
 
             // Negative extensions
             // If other moves failed high over (ttValue - margin) without the
