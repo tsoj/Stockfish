@@ -1190,11 +1190,21 @@ moves_loop:  // When in check, search starts here
         if (ttCapture)
             r += 1350;
 
-        // Increase reduction if next ply has a lot of fail high
+        // Scale reduction adjustment based on actual cutoff count
         if ((ss + 1)->cutoffCnt > 2)
-            r += 935 + allNode * 763;
+        {
+            int cutoffBonus = 935 + allNode * 763;
+            // Additional bonus scales with cutoff count but with diminishing returns
+            cutoffBonus += std::min((ss + 1)->cutoffCnt - 2, 8) * (100 + depth / 4);
+            r += cutoffBonus;
+        }
 
-        r += (ss + 1)->quietMoveStreak * 51;
+        // Non-linear scaling for quiet move streak with depth consideration
+        int streakBonus = (ss + 1)->quietMoveStreak * 51;
+        // Add quadratic component that increases with depth
+        streakBonus +=
+          std::min((ss + 1)->quietMoveStreak * (ss + 1)->quietMoveStreak, 64) * (depth / 8);
+        r += streakBonus;
 
         // For first picked move (ttMove) reduce reduction
         if (move == ttData.move)
