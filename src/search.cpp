@@ -1016,6 +1016,10 @@ moves_loop:  // When in check, search starts here
 
         Depth r = reduction(improving, depth, moveCount, delta);
 
+        // Adjust reduction based on position complexity
+        // Reduce reduction (search more deeply) for complex positions
+        r -= std::abs(correctionValue) / 54320;
+
         // Increase reduction for ttPv nodes (*Scaler)
         // Smaller or even negative value is better for short time controls
         // Bigger value is better for long time controls
