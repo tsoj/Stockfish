@@ -1360,7 +1360,11 @@ moves_loop:  // When in check, search starts here
 
                 // Reduce other moves if we have found at least one score improvement
                 if (depth > 2 && depth < 16 && !is_decisive(value))
-                    depth -= 2;
+                {
+                    int improvement = value - alpha;
+                    int reduction = 2 + (improvement > 100) - (depth <= 8) + (move == ttData.move);
+                    depth -= std::max(1, reduction);
+                }
 
                 assert(depth > 0);
                 alpha = value;  // Update alpha! Always alpha < beta
