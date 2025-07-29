@@ -811,11 +811,36 @@ Value Search::Worker::search(
     // Use static evaluation difference to improve quiet move ordering
     if (((ss - 1)->currentMove).is_ok() && !(ss - 1)->inCheck && !priorCapture)
     {
-        int bonus = std::clamp(-10 * int((ss - 1)->staticEval + ss->staticEval), -1979, 1561) + 630;
+        // Calculate base bonus with non-linear scaling for extreme differences
+        int evalDiff   = (ss - 1)->staticEval + ss->staticEval;
+        int scaledDiff = evalDiff * (100 + std::min(50, std::abs(evalDiff) / 20)) / 100;
+        int bonus      = std::clamp(-10 * scaledDiff, -1979, 1561) + 630;
+
+        // Adjust bonus based on position complexity
+        int complexityFactor = pos.count<ALL_PIECES>() > 24 ? 12
+                             : pos.count<ALL_PIECES>() > 16 ? 6
+                                                            : 0;
+        bonus                = bonus * (100 + complexityFactor) / 100;
+
         mainHistory[~us][((ss - 1)->currentMove).from_to()] << bonus * 935 / 1024;
+
         if (type_of(pos.piece_on(prevSq)) != PAWN && ((ss - 1)->currentMove).type_of() != PROMOTION)
+        {
             pawnHistory[pawn_structure_index(pos)][pos.piece_on(prevSq)][prevSq]
               << bonus * 1428 / 1024;
+
+            // Also update continuation history for more comprehensive move ordering
+            if (((ss - 2)->currentMove).is_ok())
+            {
+                Piece prevPiece = pos.piece_on(prevSq);
+                (*(ss - 2)->continuationHistory)[prevPiece][prevSq] << bonus * 512 / 1024;
+            }
+
+            // Add penalty for the source square to discourage moving pieces from good squares
+            Square fromSq = ((ss - 1)->currentMove).from_sq();
+            pawnHistory[pawn_structure_index(pos)][pos.piece_on(fromSq)][fromSq]
+              << -bonus * 512 / 1024;
+        }
     }
 
     // Set up the improving flag, which is true if current static evaluation is
