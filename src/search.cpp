@@ -1352,8 +1352,18 @@ moves_loop:  // When in check, search starts here
 
                 if (value >= beta)
                 {
-                    // (* Scaler) Especially if they make cutoffCnt increment more often.
-                    ss->cutoffCnt += (extension < 2) || PvNode;
+                    // (* Scaler) Scale cutoff counter increment based on quality of cutoff
+                    int increment = (extension < 2) || PvNode ? 1 : 0;
+
+                    // Bonus for TT move causing cutoff (strongest signal of good move ordering)
+                    if (move == ttData.move)
+                        increment += 2;
+
+                    // Bonus for significant margin above beta (scaled by depth)
+                    int margin = std::min(3, (value - beta) / (128 * (1 + depth / 4)));
+                    increment += margin;
+
+                    ss->cutoffCnt += increment;
                     assert(value >= beta);  // Fail high
                     break;
                 }
