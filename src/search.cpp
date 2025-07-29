@@ -877,7 +877,12 @@ Value Search::Worker::search(
         // Do not return unproven mate or TB scores
         if (nullValue >= beta && !is_win(nullValue))
         {
-            if (nmpMinPly || depth < 16)
+            // Dynamic depth threshold based on how much nullValue exceeds beta
+            // If nullValue is much higher than beta, we trust it more and skip verification at greater depths
+            Value margin           = nullValue - beta;
+            Depth dynamicThreshold = 12 + margin / 50;
+
+            if (nmpMinPly || depth < dynamicThreshold)
                 return nullValue;
 
             assert(!nmpMinPly);  // Recursive verification is not allowed
@@ -886,7 +891,14 @@ Value Search::Worker::search(
             // until ply exceeds nmpMinPly.
             nmpMinPly = ss->ply + 3 * (depth - R) / 4;
 
-            Value v = search<NonPV>(pos, ss, beta - 1, beta, depth - R, false);
+            // Adjust verification depth based on confidence in nullValue
+            // If nullValue is much higher than beta, use shallower verification
+            // If it's just barely above beta, use deeper verification
+            Depth verificationReduction = R + margin / 100;
+            verificationReduction =
+              std::min(verificationReduction, depth - 1);  // Ensure at least depth 1
+
+            Value v = search<NonPV>(pos, ss, beta - 1, beta, depth - verificationReduction, false);
 
             nmpMinPly = 0;
 
