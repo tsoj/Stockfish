@@ -1182,6 +1182,11 @@ moves_loop:  // When in check, search starts here
         r -= moveCount * 69;
         r -= std::abs(correctionValue) / 27160;
 
+        // Decrease reduction for positions with high evaluation magnitude
+        // where deeper search is needed to confirm evaluation
+        if (std::abs(ss->staticEval) > 200 && depth > 4)
+            r -= 512;
+
         // Increase reduction for cut nodes
         if (cutNode)
             r += 3000;
