@@ -1038,13 +1038,27 @@ moves_loop:  // When in check, search starts here
                 Piece capturedPiece = pos.piece_on(move.to_sq());
                 int   captHist = captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
 
-                // Futility pruning for captures
+                // Futility pruning for captures with verification search
                 if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
                 {
                     Value futilityValue = ss->staticEval + 225 + 220 * lmrDepth
                                         + 275 * (move.to_sq() == prevSq) + PieceValue[capturedPiece]
                                         + 131 * captHist / 1024;
-                    if (futilityValue <= alpha)
+
+                    // If futility value is significantly below alpha, verify with shallow search
+                    if (futilityValue <= alpha - 150)
+                    {
+                        StateInfo stVerify;
+                        do_move(pos, move, stVerify, givesCheck, nullptr);
+                        Value verificationValue = -qsearch<NonPV>(pos, ss + 1, -alpha, -alpha + 1);
+                        undo_move(pos, move);
+
+                        if (!threads.stop.load(std::memory_order_relaxed)
+                            && verificationValue <= alpha)
+                            continue;
+                    }
+                    // If futility value is moderately below alpha, skip without verification
+                    else if (futilityValue <= alpha)
                         continue;
                 }
 
