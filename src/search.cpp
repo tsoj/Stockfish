@@ -1030,6 +1030,23 @@ moves_loop:  // When in check, search starts here
             if (moveCount >= (3 + depth * depth) / (2 - improving))
                 mp.skip_quiet_moves();
 
+            // Additional pruning based on consecutive quiet moves and previous ply activity
+            if (!capture && !givesCheck && moveCount > 2)
+            {
+                // If we're in a streak of quiet moves and the previous ply also had high move count,
+                // we can be more aggressive with pruning
+                if ((ss->quietMoveStreak > 3 || (ss - 1)->moveCount > 12) && depth < 12
+                    && !is_loss(bestValue) && !(ss - 1)->inCheck)
+                {
+                    // Reduce the history threshold for moves that are likely to be pruned anyway
+                    if ((*contHist[0])[movedPiece][move.to_sq()]
+                          + (*contHist[1])[movedPiece][move.to_sq()]
+                          + pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()]
+                        < -2000 * depth)
+                        continue;
+                }
+            }
+
             // Reduced depth of the next LMR search
             int lmrDepth = newDepth - r / 1024;
 
