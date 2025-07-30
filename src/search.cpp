@@ -916,7 +916,14 @@ Value Search::Worker::search(
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
         MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &captureHistory);
-        Depth      probCutDepth = std::max(depth - 5, 0);
+
+        // Adaptive depth reduction based on node characteristics
+        Depth probCutDepth =
+          std::max(depth - 4 - (cutNode && !ss->ttPv) - (!improving && !ss->ttPv), 1);
+
+        // Pre-calculate some values for efficiency
+        const bool canPrune  = !is_decisive(beta) && !is_decisive(probCutBeta);
+        int        moveCount = 0;
 
         while ((move = mp.next_move()) != Move::none())
         {
@@ -926,6 +933,10 @@ Value Search::Worker::search(
                 continue;
 
             assert(pos.capture_stage(move));
+
+            // Limit ProbCut attempts to avoid excessive overhead
+            if (++moveCount > 3 + depth)
+                break;
 
             movedPiece = pos.moved_piece(move);
 
@@ -937,7 +948,7 @@ Value Search::Worker::search(
             // If the qsearch held, perform the regular search
             if (value >= probCutBeta && probCutDepth > 0)
                 value = -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, probCutDepth,
-                                       !cutNode);
+                                       !cutNode && !ss->ttPv);
 
             undo_move(pos, move);
 
@@ -947,9 +958,16 @@ Value Search::Worker::search(
                 ttWriter.write(posKey, value_to_tt(value, ss->ply), ss->ttPv, BOUND_LOWER,
                                probCutDepth + 1, move, unadjustedStaticEval, tt.generation());
 
-                if (!is_decisive(value))
+                // More aggressive pruning when conditions are favorable
+                if (canPrune && value > probCutBeta + 50)
                     return value - (probCutBeta - beta);
+                else if (canPrune)
+                    return value - std::min((probCutBeta - beta) / 2, 150);
             }
+
+            // Early exit if we're not finding good enough moves
+            if (moveCount > 1 && value < probCutBeta - 200 - 50 * depth)
+                break;
         }
     }
 
