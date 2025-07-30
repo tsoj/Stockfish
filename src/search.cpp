@@ -1196,9 +1196,26 @@ moves_loop:  // When in check, search starts here
 
         r += (ss + 1)->quietMoveStreak * 51;
 
-        // For first picked move (ttMove) reduce reduction
+        // For first picked move (ttMove) reduce reduction based on TT bound reliability
         if (move == ttData.move)
-            r -= 2043;
+        {
+            int bonus = -2043;
+            if (ttData.bound == BOUND_EXACT)
+            {
+                // Exact bound, use standard bonus
+            }
+            else if (ttData.bound & BOUND_LOWER)
+            {
+                // Failed high - move is likely good, search it even more deeply
+                bonus -= 300;
+            }
+            else if (ttData.bound & BOUND_UPPER)
+            {
+                // Failed low - move might be bad, search it less deeply
+                bonus += 500;
+            }
+            r += bonus;
+        }
 
         if (capture)
             ss->statScore = 782 * int(PieceValue[pos.captured_piece()]) / 128
