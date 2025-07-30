@@ -861,6 +861,18 @@ Value Search::Worker::search(
     {
         assert((ss - 1)->currentMove != Move::null());
 
+        // Avoid null move pruning if opponent's last move was a strong capture or promotion
+        // This helps prevent missing tactics after opponent's strong moves
+        Move prevMove = (ss - 1)->currentMove;
+        if (prevMove.is_ok() && pos.capture_stage(prevMove))
+        {
+            Piece captured  = pos.captured_piece();
+            Piece prevPiece = pos.piece_on(prevMove.to_sq());
+            // Skip null move if opponent captured a valuable piece or made a promotion
+            if (type_of(captured) >= ROOK || type_of(prevPiece) == QUEEN)
+                goto moves_loop;
+        }
+
         // Null move dynamic reduction based on depth
         Depth R = 7 + depth / 3;
 
