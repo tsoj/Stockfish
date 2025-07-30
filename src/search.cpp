@@ -1268,6 +1268,12 @@ moves_loop:  // When in check, search starts here
             if (move == ttData.move && rootDepth > 8)
                 newDepth = std::max(newDepth, 1);
 
+            // Give depth-dependent extension to TT move in PV nodes for better accuracy at deeper searches.
+            // This helps get a more accurate score for the principal variation, especially important for LTC.
+            // The extension scales with depth to provide more accuracy where it matters most.
+            if (move == ttData.move && depth > 8)
+                newDepth += (depth > 16) + (depth > 24);
+
             value = -search<PV>(pos, ss + 1, -beta, -alpha, newDepth, false);
         }
 
