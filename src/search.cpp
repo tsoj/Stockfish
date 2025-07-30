@@ -1079,8 +1079,11 @@ moves_loop:  // When in check, search starts here
                 lmrDepth += history / 3233;
 
                 Value baseFutility = (bestMove ? 46 : 230);
-                Value futilityValue =
-                  ss->staticEval + baseFutility + 131 * lmrDepth + 91 * (ss->staticEval > alpha);
+                // Add bonuses for improving positions and opponent worsening
+                // These make futility pruning less aggressive in promising positions
+                int   positionalBonus = 47 * improving + 29 * opponentWorsening;
+                Value futilityValue   = ss->staticEval + baseFutility + 131 * lmrDepth
+                                    + 91 * (ss->staticEval > alpha) + positionalBonus;
 
                 // Futility pruning: parent node
                 // (*Scaler): Generally, more frequent futility pruning
@@ -1096,7 +1099,11 @@ moves_loop:  // When in check, search starts here
                 lmrDepth = std::max(lmrDepth, 0);
 
                 // Prune moves with negative SEE
-                if (!pos.see_ge(move, -26 * lmrDepth * lmrDepth))
+                // Less aggressive SEE pruning for PV nodes to maintain higher accuracy
+                int seeThreshold = -26 * lmrDepth * lmrDepth;
+                if (PvNode)
+                    seeThreshold += 13 * lmrDepth;
+                if (!pos.see_ge(move, seeThreshold))
                     continue;
             }
         }
