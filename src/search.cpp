@@ -850,9 +850,16 @@ Value Search::Worker::search(
                  + std::abs(correctionValue) / 171290;
         };
 
+        // More aggressive futility pruning for non-cut nodes
         if (!ss->ttPv && depth < 14 && eval - futility_margin(depth) >= beta && eval >= beta
             && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
-            return beta + (eval - beta) / 3;
+        {
+            // For non-PV nodes, we can be more aggressive with the return value
+            if (!cutNode)
+                return eval;
+            else
+                return beta + (eval - beta) / 3;
+        }
     }
 
     // Step 9. Null move search with verification search
