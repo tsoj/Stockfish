@@ -1071,7 +1071,9 @@ moves_loop:  // When in check, search starts here
                             + pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()];
 
                 // Continuation history based pruning
-                if (history < -4361 * depth)
+                // Prune less aggressively for pawn moves since they have strategic implications
+                // and are critical in endgames (pawn structures can't be reversed)
+                if (history < -4361 * depth + 700 * depth * (type_of(movedPiece) == PAWN))
                     continue;
 
                 history += 71 * mainHistory[us][move.from_to()] / 32;
