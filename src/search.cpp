@@ -1194,7 +1194,9 @@ moves_loop:  // When in check, search starts here
         if ((ss + 1)->cutoffCnt > 2)
             r += 935 + allNode * 763;
 
-        r += (ss + 1)->quietMoveStreak * 51;
+        // Adjust quiet move streak reduction based on position improvement
+        // Reduce less for quiet move streaks in non-improving positions
+        r += (ss + 1)->quietMoveStreak * (51 - 20 * !improving);
 
         // For first picked move (ttMove) reduce reduction
         if (move == ttData.move)
