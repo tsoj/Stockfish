@@ -1035,7 +1035,13 @@ moves_loop:  // When in check, search starts here
 
             if (capture || givesCheck)
             {
-                Piece capturedPiece = pos.piece_on(move.to_sq());
+                Square capturedSq;
+                if (move.type_of() == EN_PASSANT)
+                    capturedSq = make_square(file_of(move.to_sq()), rank_of(move.from_sq()));
+                else
+                    capturedSq = move.to_sq();
+
+                Piece capturedPiece = pos.piece_on(capturedSq);
                 int   captHist = captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
 
                 // Futility pruning for captures
