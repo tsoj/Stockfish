@@ -843,11 +843,16 @@ Value Search::Worker::search(
         auto futility_margin = [&](Depth d) {
             Value futilityMult = 90 - 20 * (cutNode && !ss->ttHit);
 
+            // Adjust futility margin based on rule50 count
+            int rule50Adj = 0;
+            if (pos.rule50_count() > 70)
+                rule50Adj = pos.rule50_count() / 5 - 15;
+
             return futilityMult * d                      //
                  - improving * futilityMult * 2          //
                  - opponentWorsening * futilityMult / 3  //
                  + (ss - 1)->statScore / 356             //
-                 + std::abs(correctionValue) / 171290;
+                 + rule50Adj;
         };
 
         if (!ss->ttPv && depth < 14 && eval - futility_margin(depth) >= beta && eval >= beta
