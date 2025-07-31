@@ -1339,6 +1339,22 @@ moves_loop:  // When in check, search starts here
         int inc = (value == bestValue && ss->ply + 2 >= rootDepth && (int(nodes) & 14) == 0
                    && !is_win(std::abs(value) + 1));
 
+        // Enhance alternative move promotion with additional tactical awareness
+        if (value == bestValue && !capture && !is_decisive(value) && moveCount > 1)
+        {
+            // Promote alternative quiet moves in tactical positions
+            if (pos.checkers() || ss->inCheck || (ss - 1)->inCheck)
+                inc |= ((int(nodes) & 6) == 0);
+
+            // Promote alternative moves with good history scores
+            if (!inc && !pos.checkers() && ss->statScore > 0)
+            {
+                int history_threshold = std::max(2000, 350 * depth);
+                if (ss->statScore > history_threshold && (int(nodes) & 30) == 0)
+                    inc = 1;
+            }
+        }
+
         if (value + inc > bestValue)
         {
             bestValue = value;
