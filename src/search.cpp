@@ -1197,8 +1197,10 @@ moves_loop:  // When in check, search starts here
         r += (ss + 1)->quietMoveStreak * 51;
 
         // For first picked move (ttMove) reduce reduction
+        // Further reduce reduction for TT moves that previously caused cutoffs (BOUND_LOWER)
+        // This scaler improves LTC performance by searching highly reliable moves more thoroughly
         if (move == ttData.move)
-            r -= 2043;
+            r -= 2043 + 180 * (ttData.bound & BOUND_LOWER);
 
         if (capture)
             ss->statScore = 782 * int(PieceValue[pos.captured_piece()]) / 128
