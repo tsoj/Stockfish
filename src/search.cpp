@@ -1071,21 +1071,25 @@ moves_loop:  // When in check, search starts here
                             + pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()];
 
                 // Continuation history based pruning
-                if (history < -4361 * depth)
+                if (history < -4361 * depth - 320 * (ss - 1)->statScore / 1024)
                     continue;
 
                 history += 71 * mainHistory[us][move.from_to()] / 32;
 
                 lmrDepth += history / 3233;
 
-                Value baseFutility = (bestMove ? 46 : 230);
+                // Adjust pruning threshold based on position evaluation and move quality
+                Value baseFutility = (bestMove ? 46 : 230)
+                                   + std::max(0, 31 * (ss->staticEval - bestValue) / 32)
+                                   - 25 * improving;
+
                 Value futilityValue =
                   ss->staticEval + baseFutility + 131 * lmrDepth + 91 * (ss->staticEval > alpha);
 
-                // Futility pruning: parent node
-                // (*Scaler): Generally, more frequent futility pruning
-                // scales well with respect to time and threads
-                if (!ss->inCheck && lmrDepth < 11 && futilityValue <= alpha)
+                // Enhanced futility pruning: parent node
+                // Incorporates opponent worsening and move count context
+                if (!ss->inCheck && lmrDepth < 11 + (PvNode && !ss->ttPv)
+                    && futilityValue <= alpha - 20 * ((ss - 1)->moveCount > 8))
                 {
                     if (bestValue <= futilityValue && !is_decisive(bestValue)
                         && !is_win(futilityValue))
@@ -1095,8 +1099,10 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth = std::max(lmrDepth, 0);
 
-                // Prune moves with negative SEE
-                if (!pos.see_ge(move, -26 * lmrDepth * lmrDepth))
+                // Prune moves with negative SEE, adjusted by position context
+                int seeMargin = -26 * lmrDepth * lmrDepth - 12 * (ss->staticEval < alpha - 150)
+                              + 8 * ((ss - 1)->statScore > 0);
+                if (!pos.see_ge(move, seeMargin))
                     continue;
             }
         }
