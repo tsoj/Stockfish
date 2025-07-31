@@ -1121,7 +1121,13 @@ moves_loop:  // When in check, search starts here
             Depth singularDepth = newDepth / 2;
 
             ss->excludedMove = move;
-            value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
+            // Use more precise window for PV nodes to get better value estimates
+            if (PvNode)
+                value =
+                  search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
+            else
+                value =
+                  search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
             ss->excludedMove = Move::none();
 
             if (value < singularBeta)
@@ -1135,7 +1141,9 @@ moves_loop:  // When in check, search starts here
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
-                depth++;
+                // Increase depth for successful singular extensions to enhance their effect
+                if (extension > 0)
+                    depth++;
             }
 
             // Multi-cut pruning
@@ -1162,6 +1170,13 @@ moves_loop:  // When in check, search starts here
             // over current beta
             else if (cutNode)
                 extension = -2;
+
+            // Additional check for nearly singular moves that are still strong
+            else if (value >= singularBeta - 20 * depth && ttData.value > alpha)
+            {
+                // Small positive extension for moves that are nearly singular but still strong
+                extension = (ttData.value > beta - 50) ? 1 : 0;
+            }
         }
 
         // Step 16. Make the move
