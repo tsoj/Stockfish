@@ -915,10 +915,15 @@ Value Search::Worker::search(
     {
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
+        // Scale ProbCut attempts based on previous move count and tactical activity
+        int probCutLimit =
+          2 + (pos.non_pawn_material(pos.side_to_move()) > QueenValue) + ((ss - 1)->moveCount <= 2);
+
         MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &captureHistory);
         Depth      probCutDepth = std::max(depth - 5, 0);
+        int        probCutCount = 0;
 
-        while ((move = mp.next_move()) != Move::none())
+        while ((move = mp.next_move()) != Move::none() && probCutCount < probCutLimit)
         {
             assert(move.is_ok());
 
@@ -926,6 +931,7 @@ Value Search::Worker::search(
                 continue;
 
             assert(pos.capture_stage(move));
+            probCutCount++;
 
             movedPiece = pos.moved_piece(move);
 
