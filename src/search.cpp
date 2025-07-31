@@ -700,8 +700,11 @@ Value Search::Worker::search(
         // For high rule50 counts don't produce transposition table cutoffs.
         if (pos.rule50_count() < 91)
         {
+            // Enhanced verification for TT cutoffs to prevent graph history issues
+            // Only verify in positions with sufficient tactical complexity
             if (depth >= 8 && ttData.move && pos.pseudo_legal(ttData.move) && pos.legal(ttData.move)
-                && !is_decisive(ttData.value))
+                && !is_decisive(ttData.value)
+                && (pos.checkers() || pos.non_pawn_material(pos.side_to_move()) > QueenValue))
             {
                 do_move(pos, ttData.move, st, nullptr);
                 Key nextPosKey                             = pos.key();
@@ -709,13 +712,34 @@ Value Search::Worker::search(
                 undo_move(pos, ttData.move);
 
                 // Check that the ttValue after the tt move would also trigger a cutoff
+                // and that we have sufficient tactical context
                 if (!is_valid(ttDataNext.value))
                     return ttData.value;
                 if ((ttData.value >= beta) == (-ttDataNext.value >= beta))
                     return ttData.value;
             }
-            else
+            // Simpler cutoff for quiet positions or shallow depths
+            else if (depth < 8 || !pos.checkers())
+            {
                 return ttData.value;
+            }
+            // For deep tactical positions without verification, be more conservative
+            else if (is_valid(ttData.value) && (ttData.bound & BOUND_EXACT))
+            {
+                return ttData.value;
+            }
+            else if (ttData.value >= beta && !is_win(ttData.value))
+            {
+                return (ttData.value + beta) / 2;
+            }
+            else if (ttData.value <= alpha && !is_loss(ttData.value))
+            {
+                return (ttData.value + alpha) / 2;
+            }
+            else
+            {
+                return ttData.value;
+            }
         }
     }
 
