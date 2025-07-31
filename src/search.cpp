@@ -700,6 +700,7 @@ Value Search::Worker::search(
         // For high rule50 counts don't produce transposition table cutoffs.
         if (pos.rule50_count() < 91)
         {
+            // Verify the TT value is stable by checking the next ply
             if (depth >= 8 && ttData.move && pos.pseudo_legal(ttData.move) && pos.legal(ttData.move)
                 && !is_decisive(ttData.value))
             {
@@ -712,6 +713,24 @@ Value Search::Worker::search(
                 if (!is_valid(ttDataNext.value))
                     return ttData.value;
                 if ((ttData.value >= beta) == (-ttDataNext.value >= beta))
+                    return ttData.value;
+            }
+            else
+                return ttData.value;
+        }
+        // Even for high rule50 counts, we can still use the TT value if we can verify it's safe
+        else if (!is_decisive(ttData.value))
+        {
+            // For high rule50 positions, be more conservative and verify the TT move
+            // doesn't lead to a position where we would fail low
+            if (ttData.move && pos.pseudo_legal(ttData.move) && pos.legal(ttData.move))
+            {
+                do_move(pos, ttData.move, st, nullptr);
+                Value nextEval = -evaluate(pos);
+                undo_move(pos, ttData.move);
+
+                // Only allow cutoff if the next position doesn't look like it would fail low
+                if ((ttData.value >= beta) == (nextEval >= -beta))
                     return ttData.value;
             }
             else
