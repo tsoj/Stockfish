@@ -1085,12 +1085,34 @@ moves_loop:  // When in check, search starts here
                 // Futility pruning: parent node
                 // (*Scaler): Generally, more frequent futility pruning
                 // scales well with respect to time and threads
+                // Adaptive futility margin based on position characteristics
                 if (!ss->inCheck && lmrDepth < 11 && futilityValue <= alpha)
                 {
-                    if (bestValue <= futilityValue && !is_decisive(bestValue)
-                        && !is_win(futilityValue))
-                        bestValue = futilityValue;
-                    continue;
+                    // Increase futility margin in positions with high piece activity
+                    // or when the king is less safe
+                    if (pos.non_pawn_material(pos.side_to_move()) > QueenValue)
+                    {
+                        Value activityBonus =
+                          (pos.count<KNIGHT>() + pos.count<BISHOP>() + 2 * pos.count<QUEEN>()) * 5;
+                        Value kingSafetyMeasure = pos.checkers()           ? 20
+                                                : (pos.count<QUEEN>() > 2) ? 15
+                                                                           : 0;
+
+                        if (futilityValue + activityBonus + kingSafetyMeasure <= alpha)
+                        {
+                            if (bestValue <= futilityValue && !is_decisive(bestValue)
+                                && !is_win(futilityValue))
+                                bestValue = futilityValue;
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        if (bestValue <= futilityValue && !is_decisive(bestValue)
+                            && !is_win(futilityValue))
+                            bestValue = futilityValue;
+                        continue;
+                    }
                 }
 
                 lmrDepth = std::max(lmrDepth, 0);
