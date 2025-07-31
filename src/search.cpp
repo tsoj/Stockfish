@@ -1120,9 +1120,14 @@ moves_loop:  // When in check, search starts here
             Value singularBeta  = ttData.value - (56 + 79 * (ss->ttPv && !PvNode)) * depth / 58;
             Depth singularDepth = newDepth / 2;
 
-            ss->excludedMove = move;
+            // Save moveCount before singular search to prevent corruption
+            // (#139: "ss->moveCount gets corrupted after singular search because it reflects
+            // the excluded search's move count rather than the current search")
+            int savedMoveCount = ss->moveCount;
+            ss->excludedMove   = move;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
             ss->excludedMove = Move::none();
+            ss->moveCount    = savedMoveCount;
 
             if (value < singularBeta)
             {
