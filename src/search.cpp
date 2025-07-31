@@ -367,12 +367,14 @@ void Search::Worker::iterative_deepening() {
                     && nodes > 10000000)
                     main_manager()->pv(*this, threads, tt, rootDepth);
 
-                // In case of failing low/high increase aspiration window and re-search,
-                // otherwise exit the loop.
+                // In case of failing low/high increase aspiration window and
+                // re-search, otherwise exit the loop.
                 if (bestValue <= alpha)
                 {
-                    beta  = (alpha + beta) / 2;
-                    alpha = std::max(bestValue - delta, -VALUE_INFINITE);
+                    beta = (alpha + beta) / 2;
+                    // More conservative adjustment considering previous failures
+                    alpha =
+                      std::max(std::min(bestValue - delta, alpha - delta / 2), -VALUE_INFINITE);
 
                     failedHighCnt = 0;
                     if (mainThread)
@@ -380,7 +382,11 @@ void Search::Worker::iterative_deepening() {
                 }
                 else if (bestValue >= beta)
                 {
-                    beta = std::min(bestValue + delta, VALUE_INFINITE);
+                    // Adjust beta based on history of failures
+                    Value betaAdjust = delta;
+                    if (failedHighCnt > 1)
+                        betaAdjust += delta / 2;
+                    beta = std::min(bestValue + betaAdjust, VALUE_INFINITE);
                     ++failedHighCnt;
                 }
                 else
