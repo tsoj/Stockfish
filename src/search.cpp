@@ -1190,8 +1190,8 @@ moves_loop:  // When in check, search starts here
         if (ttCapture)
             r += 1350;
 
-        // Increase reduction if next ply has a lot of fail high
-        if ((ss + 1)->cutoffCnt > 2)
+        // Increase reduction if next ply has a lot of fail high and current position is NOT on PV
+        if ((ss + 1)->cutoffCnt > 2 && !ss->ttPv)
             r += 935 + allNode * 763;
 
         r += (ss + 1)->quietMoveStreak * 51;
