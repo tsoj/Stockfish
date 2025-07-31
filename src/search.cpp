@@ -861,6 +861,12 @@ Value Search::Worker::search(
     {
         assert((ss - 1)->currentMove != Move::null());
 
+        // Skip null move if evaluation is unstable across recent plies
+        // This prevents premature cutoffs in positions where eval fluctuates
+        if (abs(ss->staticEval - (ss - 2)->staticEval) > 150 * depth
+            && abs((ss - 2)->staticEval - (ss - 4)->staticEval) > 100 * depth)
+            goto moves_loop;
+
         // Null move dynamic reduction based on depth
         Depth R = 7 + depth / 3;
 
