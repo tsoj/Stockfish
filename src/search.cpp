@@ -1411,11 +1411,19 @@ moves_loop:  // When in check, search starts here
         bonusScale += 177 * ((ss - 1)->moveCount > 8);
         bonusScale += 141 * (!ss->inCheck && bestValue <= ss->staticEval - 94);
         bonusScale += 141 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 76);
+        bonusScale += 98 * (PvNode && !ss->ttHit);  // PV nodes without TT hit are more reliable
 
         bonusScale = std::max(bonusScale, 0);
 
-        const int scaledBonus = std::min(155 * depth - 88, 1416) * bonusScale;
+        // More sophisticated depth scaling that considers node type
+        int depthFactor = std::min(155 * depth - 88, 1416);
+        // Reduce bonus in cut nodes where fail low is less meaningful
+        if (cutNode)
+            depthFactor = depthFactor * 7 / 10;
 
+        const int scaledBonus = depthFactor * bonusScale;
+
+        // Apply the bonus with better scaling
         update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
                                       scaledBonus * 397 / 32768);
 
