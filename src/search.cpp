@@ -1232,17 +1232,11 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch    = value > (bestValue + 43 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
+                const bool doDeeperSearch     = value > (bestValue + 43 + 2 * newDepth);
+                const bool doShallowerSearch  = value < bestValue + 9;
+                const bool doEvenDeeperSearch = value > alpha + 100 + 20 * depth;
 
-                // Adaptive re-search depth based on how much LMR exceeded alpha
-                int reSearchDepthAdjustment = 0;
-                if (value > alpha + 100 + 20 * depth)
-                    reSearchDepthAdjustment = 1;
-                else if (value < alpha + 25)
-                    reSearchDepthAdjustment = -1;
-
-                newDepth += doDeeperSearch - doShallowerSearch + reSearchDepthAdjustment;
+                newDepth += doDeeperSearch - doShallowerSearch + doEvenDeeperSearch;
 
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
