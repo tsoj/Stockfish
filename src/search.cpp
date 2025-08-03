@@ -956,10 +956,11 @@ Value Search::Worker::search(
 
 moves_loop:  // When in check, search starts here
 
-    // Step 12. A small Probcut idea
+    // Step 12. A small Probcut idea - improved with PV node protection and capture-only condition
     probCutBeta = beta + 417;
-    if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4 && ttData.value >= probCutBeta
-        && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
+    if (!ss->ttPv && ttCapture && (ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4
+        && ttData.value >= probCutBeta && !is_decisive(beta) && is_valid(ttData.value)
+        && !is_decisive(ttData.value))
         return probCutBeta;
 
     const PieceToHistory* contHist[] = {
