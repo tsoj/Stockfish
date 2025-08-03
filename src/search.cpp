@@ -1079,9 +1079,17 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3233;
 
-                Value baseFutility = (bestMove ? 46 : 230);
-                Value futilityValue =
-                  ss->staticEval + baseFutility + 131 * lmrDepth + 91 * (ss->staticEval > alpha);
+                // Calculate excess = bestValue - alpha, clamped to 0
+                Value excess = std::max(VALUE_ZERO, bestValue - alpha);
+                // Smooth transition for baseFutility from 230 (excess=0) to 46 (excess=200)
+                Value baseFutility = 230 - std::min<Value>(184, excess * 184 / 200);
+
+                // Calculate evalExcess = ss->staticEval - alpha, clamped to 0
+                Value evalExcess = std::max(VALUE_ZERO, ss->staticEval - alpha);
+                // Smooth transition for extra bonus from 0 (evalExcess=0) to 91 (evalExcess=100)
+                Value extraBonus = std::min<Value>(91, evalExcess * 91 / 100);
+
+                Value futilityValue = ss->staticEval + baseFutility + 131 * lmrDepth + extraBonus;
 
                 // Futility pruning: parent node
                 // (*Scaler): Generally, more frequent futility pruning
