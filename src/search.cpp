@@ -1832,6 +1832,14 @@ void update_all_stats(const Position& pos,
         // Increase stats for the best move in case it was a capture move
         capturedPiece = type_of(pos.piece_on(bestMove.to_sq()));
         captureHistory[movedPiece][bestMove.to_sq()][capturedPiece] << bonus * 1235 / 1024;
+
+        // Also update continuation history for valuable captures that check opponent's king
+        // or capture high-value pieces (rook or queen)
+        if (pos.gives_check(bestMove) || capturedPiece > BISHOP)
+        {
+            int continuationBonus = bonus * 700 / 1024;
+            update_continuation_histories(ss, movedPiece, bestMove.to_sq(), continuationBonus);
+        }
     }
 
     // Extra penalty for a quiet early move that was not a TT move in
@@ -1844,7 +1852,12 @@ void update_all_stats(const Position& pos,
     {
         movedPiece    = pos.moved_piece(move);
         capturedPiece = type_of(pos.piece_on(move.to_sq()));
-        captureHistory[movedPiece][move.to_sq()][capturedPiece] << -malus * 1354 / 1024;
+
+        // Reduce malus for captures of high-value pieces that failed
+        // Recognize these might be good moves in different contexts
+        int effectiveMalus = capturedPiece > BISHOP ? malus * 700 / 1024 : malus;
+
+        captureHistory[movedPiece][move.to_sq()][capturedPiece] << -effectiveMalus * 1354 / 1024;
     }
 }
 
