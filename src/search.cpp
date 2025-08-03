@@ -1192,7 +1192,10 @@ moves_loop:  // When in check, search starts here
             r += 1350;
 
         // Increase reduction if next ply has a lot of fail high
-        if ((ss + 1)->cutoffCnt > 2)
+        // For allNodes at deeper depths, require more cutoffs to increase reduction
+        // This makes the search less aggressive at LTC where accuracy matters more
+        int cutoffThreshold = 2 + (allNode && depth > 12);
+        if ((ss + 1)->cutoffCnt > cutoffThreshold)
             r += 935 + allNode * 763;
 
         r += (ss + 1)->quietMoveStreak * 51;
