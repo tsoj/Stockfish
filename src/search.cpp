@@ -1354,7 +1354,12 @@ moves_loop:  // When in check, search starts here
                 if (value >= beta)
                 {
                     // (* Scaler) Especially if they make cutoffCnt increment more often.
-                    ss->cutoffCnt += (extension < 2) || PvNode;
+                    int increment = (extension < 2) || PvNode;
+                    // Moves with very poor history that cause cutoffs provide strong evidence
+                    // for more aggressive reductions, particularly at meaningful depths
+                    if (ss->statScore < -1000 && depth > 8)
+                        increment += 1;
+                    ss->cutoffCnt += increment;
                     assert(value >= beta);  // Fail high
                     break;
                 }
