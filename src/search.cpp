@@ -1205,12 +1205,33 @@ moves_loop:  // When in check, search starts here
             ss->statScore = 782 * int(PieceValue[pos.captured_piece()]) / 128
                           + captureHistory[movedPiece][move.to_sq()][type_of(pos.captured_piece())];
         else
-            ss->statScore = 2 * mainHistory[us][move.from_to()]
-                          + (*contHist[0])[movedPiece][move.to_sq()]
-                          + (*contHist[1])[movedPiece][move.to_sq()];
+        {
+            int pawnIndex        = pawn_structure_index(pos);
+            int pawnHistoryValue = pawnHistory[pawnIndex][movedPiece][move.to_sq()];
+
+            // Calculate base statScore with different weights for check vs non-check
+            if (ss->inCheck)
+            {
+                ss->statScore = mainHistory[us][move.from_to()]
+                              + 2 * (*contHist[0])[movedPiece][move.to_sq()]
+                              + (*contHist[1])[movedPiece][move.to_sq()]
+                              - 4926;  // Offset to adjust for check context
+            }
+            else
+            {
+                ss->statScore = 2 * mainHistory[us][move.from_to()]
+                              + (*contHist[0])[movedPiece][move.to_sq()]
+                              + (*contHist[1])[movedPiece][move.to_sq()]
+                              + (pawnHistoryValue > 0 ? pawnHistoryValue : pawnHistoryValue / 4);
+            }
+        }
 
         // Decrease/increase reduction for moves with a good/bad history
-        r -= ss->statScore * 789 / 8192;
+        // Use different scaling for check vs non-check positions
+        if (ss->inCheck)
+            r -= ss->statScore * 789 / 16384;
+        else
+            r -= ss->statScore * 789 / 14790;
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
