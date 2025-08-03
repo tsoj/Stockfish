@@ -1212,6 +1212,12 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 789 / 8192;
 
+        // Adjust reduction based on evaluation confidence
+        // Lower confidence (evaluation close to 0) means we should search deeper (smaller reduction)
+        int evalConfidence = std::abs(ss->staticEval);
+        int pvFactor       = PvNode ? 2 : 1;  // Double the adjustment for PV nodes
+        r -= (20000 - evalConfidence) * pvFactor * 2 / 20000;
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
