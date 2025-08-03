@@ -1039,6 +1039,19 @@ moves_loop:  // When in check, search starts here
                 Piece capturedPiece = pos.piece_on(move.to_sq());
                 int   captHist = captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
 
+                // Early continuation history pruning for captures
+                if (lmrDepth < 5)
+                {
+                    int contHistScore =
+                      (*contHist[0])[movedPiece][move.to_sq()]
+                      + (*contHist[1])[movedPiece][move.to_sq()]
+                      + pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()];
+
+                    // Prune captures with very negative continuation history at shallow depths
+                    if (contHistScore < -1500 * lmrDepth * lmrDepth)
+                        continue;
+                }
+
                 // Futility pruning for captures
                 if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
                 {
