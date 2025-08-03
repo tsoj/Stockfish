@@ -1027,8 +1027,28 @@ moves_loop:  // When in check, search starts here
         // Depth conditions are important for mate finding.
         if (!rootNode && pos.non_pawn_material(us) && !is_loss(bestValue))
         {
-            // Skip quiet moves if movecount exceeds our FutilityMoveCount threshold
-            if (moveCount >= (3 + depth * depth) / (2 - improving))
+            // Adaptive move count pruning based on continuation history quality
+            int historyThreshold = (3 + depth * depth) / (2 - improving);
+            if (quietsSearched.size() > 2)
+            {
+                // Calculate average continuation history score of searched quiet moves
+                int avgContHist = 0;
+                for (Move m : quietsSearched)
+                {
+                    Piece pc = pos.moved_piece(m);
+                    avgContHist += (*contHist[0])[pc][m.to_sq()] + (*contHist[1])[pc][m.to_sq()]
+                                 + pawnHistory[pawn_structure_index(pos)][pc][m.to_sq()];
+                }
+                avgContHist /= (3 * quietsSearched.size());
+
+                // Adjust threshold based on quality of searched moves
+                // Negative history means poor moves searched so far - prune more aggressively
+                // Positive history means promising moves - search more quiet moves
+                historyThreshold += avgContHist / 3233;
+            }
+
+            // Skip quiet moves if movecount exceeds our adaptive FutilityMoveCount threshold
+            if (moveCount >= historyThreshold)
                 mp.skip_quiet_moves();
 
             // Reduced depth of the next LMR search
