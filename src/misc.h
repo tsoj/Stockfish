@@ -35,6 +35,9 @@
 #define stringify2(x) #x
 #define stringify(x) stringify2(x)
 
+// Forward declaration
+using Depth = int;
+
 namespace Stockfish {
 
 std::string engine_version_info();
@@ -67,12 +70,21 @@ struct PipeDeleter {
 // Returns std::nullopt if the file does not exist.
 std::optional<std::string> read_file_to_string(const std::string& path);
 
-void dbg_hit_on(bool cond, int slot = 0);
-void dbg_mean_of(int64_t value, int slot = 0);
-void dbg_stdev_of(int64_t value, int slot = 0);
-void dbg_extremes_of(int64_t value, int slot = 0);
-void dbg_correl_of(int64_t value1, int64_t value2, int slot = 0);
+void dbg_hit_on(bool cond, int slot, Depth depth);
+void dbg_mean_of(int64_t value, int slot, Depth depth);
+void dbg_stdev_of(int64_t value, int slot, Depth depth);
+void dbg_extremes_of(int64_t value, int slot, Depth depth);
+void dbg_correl_of(int64_t value1, int64_t value2, int slot, Depth depth);
+
+// Convenience wrappers for backward compatibility (default depth = 0)
+inline void dbg_hit_on(bool cond, int slot = 0) { dbg_hit_on(cond, slot, 0); }
+inline void dbg_mean_of(int64_t value, int slot = 0) { dbg_mean_of(value, slot, 0); }
+inline void dbg_stdev_of(int64_t value, int slot = 0) { dbg_stdev_of(value, slot, 0); }
+inline void dbg_extremes_of(int64_t value, int slot = 0) { dbg_extremes_of(value, slot, 0); }
+inline void dbg_correl_of(int64_t value1, int64_t value2, int slot = 0) { dbg_correl_of(value1, value2, slot, 0); }
+
 void dbg_print();
+void dbg_print_depth(Depth depth);
 void dbg_clear();
 
 using TimePoint = std::chrono::milliseconds::rep;  // A value in milliseconds
