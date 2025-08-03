@@ -1077,7 +1077,19 @@ moves_loop:  // When in check, search starts here
 
                 history += 71 * mainHistory[us][move.from_to()] / 32;
 
-                lmrDepth += history / 3233;
+                // Make history impact node-type dependent for better LMR scaling:
+                // - Cut nodes: More aggressive LMR (lower divisor = higher impact)
+                // - PV nodes: Less aggressive LMR (higher divisor = lower impact)
+                // - All nodes: Default impact
+                // (*Scaler) This contextual adjustment scales well to LTC by adapting
+                // to different node types' requirements, improving search efficiency
+                int historyFactor = 3233;
+                if (cutNode)
+                    historyFactor = 2800;  // ~15% more impact for cut nodes
+                else if (PvNode)
+                    historyFactor = 3800;  // ~18% less impact for PV nodes
+
+                lmrDepth += history / historyFactor;
 
                 Value baseFutility = (bestMove ? 46 : 230);
                 Value futilityValue =
