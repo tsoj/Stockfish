@@ -719,6 +719,38 @@ Value Search::Worker::search(
         }
     }
 
+    // At PV nodes we check for an early TT cutoff under stringent conditions
+    // This is particularly valuable at LTC where deeper TT entries are more common
+    if (PvNode && !excludedMove && ss->ttHit && ttData.depth > depth && is_valid(ttData.value)
+        && (ttData.bound & BOUND_EXACT) && !is_decisive(ttData.value) && alpha < ttData.value
+        && ttData.value < beta && pos.rule50_count() < 91)
+    {
+        // Verify the TT move leads to a position with a consistent exact value
+        if (depth >= 8 && ttData.move && pos.pseudo_legal(ttData.move) && pos.legal(ttData.move))
+        {
+            const int cv = correction_value(*this, pos, ss);
+            do_move(pos, ttData.move, st, nullptr);
+            Key nextPosKey                             = pos.key();
+            auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(nextPosKey);
+            undo_move(pos, ttData.move);
+
+            // Check that the next position also has an exact value that's consistent
+            // with the current position's value, accounting for correction history
+            if (ttHitNext && (ttDataNext.bound & BOUND_EXACT) && is_valid(ttDataNext.value)
+                && !is_decisive(ttDataNext.value))
+            {
+                Value adjustedValue     = ttData.value + cv / 131072;
+                Value nextAdjustedValue = -ttDataNext.value + cv / 131072;
+
+                // Allow small discrepancy due to correction history adjustments
+                if (std::abs(adjustedValue - nextAdjustedValue) <= 3)
+                    return ttData.value;
+            }
+        }
+        else
+            return ttData.value;
+    }
+
     // Step 5. Tablebases probe
     if (!rootNode && !excludedMove && tbConfig.cardinality)
     {
