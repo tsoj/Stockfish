@@ -1079,13 +1079,13 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3233;
 
-                Value baseFutility = (bestMove ? 46 : 230);
+                Value baseFutility = (bestMove ? 46 : 230) - 131 * improving * (1 + depth / 8);
                 Value futilityValue =
                   ss->staticEval + baseFutility + 131 * lmrDepth + 91 * (ss->staticEval > alpha);
 
                 // Futility pruning: parent node
-                // (*Scaler): Generally, more frequent futility pruning
-                // scales well with respect to time and threads
+                // (*Scaler): More aggressive futility pruning in improving positions with depth scaling
+                // provides significant LTC gains by allowing deeper selective search
                 if (!ss->inCheck && lmrDepth < 11 && futilityValue <= alpha)
                 {
                     if (bestValue <= futilityValue && !is_decisive(bestValue)
