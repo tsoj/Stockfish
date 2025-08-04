@@ -899,10 +899,25 @@ Value Search::Worker::search(
     improving |= ss->staticEval >= beta;
 
     // Step 10. Internal iterative reductions
-    // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Especially if they make IIR less aggressive.
-    if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    // At sufficient depth, reduce depth for PV/Cut nodes based on TT move quality.
+    // (*Scaler) Graduated reduction based on TT depth difference scales well with LTC.
+    if (!allNode && depth >= 6 && priorReduction <= 3)
+    {
+        // Base reduction if no TT move
+        if (!ttData.move)
+        {
+            depth--;
+        }
+        // Graduated reduction based on TT depth difference
+        else
+        {
+            int depthDiff = depth - ttData.depth;
+            if (depthDiff > 0)
+            {
+                depth -= std::min(depthDiff / 4, 1);
+            }
+        }
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
