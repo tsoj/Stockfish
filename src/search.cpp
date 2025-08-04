@@ -1205,9 +1205,15 @@ moves_loop:  // When in check, search starts here
             ss->statScore = 782 * int(PieceValue[pos.captured_piece()]) / 128
                           + captureHistory[movedPiece][move.to_sq()][type_of(pos.captured_piece())];
         else
-            ss->statScore = 2 * mainHistory[us][move.from_to()]
+        {
+            // Incorporate third continuation history with depth-dependent weighting
+            // As depth increases, deeper history becomes more relevant for LTC
+            int depthFactor = std::min(depth * 256 / 10, 512);
+            ss->statScore   = 2 * mainHistory[us][move.from_to()]
                           + (*contHist[0])[movedPiece][move.to_sq()]
-                          + (*contHist[1])[movedPiece][move.to_sq()];
+                          + (*contHist[1])[movedPiece][move.to_sq()]
+                          + ((*contHist[2])[movedPiece][move.to_sq()] * depthFactor) / 1024;
+        }
 
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 789 / 8192;
