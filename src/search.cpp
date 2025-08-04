@@ -1222,6 +1222,13 @@ moves_loop:  // When in check, search starts here
             // std::clamp has been replaced by a more robust implementation.
             Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 1 + PvNode)) + PvNode;
 
+            // Apply non-linear history bonus for exceptionally strong moves
+            // This creates a preferential treatment for moves with the highest history scores,
+            // which scales well for LTC by focusing search resources on the most promising lines.
+            // The bonus increases with score quality but caps at +2 plies to prevent excessive depth.
+            if (ss->statScore > 6000)
+                d = std::min(d + std::min(2, (ss->statScore - 6000) / 4000), newDepth);
+
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
