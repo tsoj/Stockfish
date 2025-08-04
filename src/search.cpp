@@ -1042,9 +1042,26 @@ moves_loop:  // When in check, search starts here
                 // Futility pruning for captures
                 if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
                 {
-                    Value futilityValue = ss->staticEval + 225 + 220 * lmrDepth
-                                        + 275 * (move.to_sq() == prevSq) + PieceValue[capturedPiece]
-                                        + 131 * captHist / 1024;
+                    Value baseFutility = 225 + 220 * lmrDepth + 275 * (move.to_sq() == prevSq)
+                                       + PieceValue[capturedPiece] + 131 * captHist / 1024;
+
+                    // Additional bonus for direct recaptures of the piece just taken
+                    if (priorCapture && move.to_sq() == prevSq)
+                        baseFutility += 150;
+
+                    // Relax futility margin in PV nodes for more accurate search
+                    if (ss->ttPv)
+                        baseFutility += 100;
+
+                    // When losing, search more deeply to find defensive resources
+                    if (ss->staticEval < beta - 200)
+                        baseFutility += 75;
+
+                    // When the position is not improving, search more deeply to find better moves
+                    if (!improving)
+                        baseFutility += 50;
+
+                    Value futilityValue = ss->staticEval + baseFutility;
                     if (futilityValue <= alpha)
                         continue;
                 }
