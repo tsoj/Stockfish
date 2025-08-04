@@ -825,6 +825,32 @@ Value Search::Worker::search(
     // false otherwise. The improving flag is used in various pruning heuristics.
     improving = ss->staticEval > (ss - 2)->staticEval;
 
+    // Enhanced improvement detection using TT data (especially valuable at LTC)
+    if (!excludedMove && ss->ttHit && (ttData.bound & BOUND_LOWER)
+        && ttData.value > ss->staticEval + std::min(40, depth * 3 + 10)
+        && ttData.depth >= depth + std::max(2, depth / 3) && depth >= 8)
+        improving = true;
+
+    // Multi-ply trend analysis for more reliable improvement detection
+    if (ss->ply > 5)
+    {
+        int   improvementCount = 0;
+        Value prevEval         = ss->staticEval;
+
+        // Check improvement trend over last 6 plies (3 full moves)
+        for (int i = 2; i <= 6 && (ss - i)->staticEval != VALUE_NONE; i += 2)
+        {
+            Value diff = prevEval - (ss - i)->staticEval;
+            if (diff > 10)  // Meaningful improvement threshold
+                improvementCount++;
+            prevEval = (ss - i)->staticEval;
+        }
+
+        // Require consistent improvement pattern
+        if (improvementCount >= 2 && improvementCount * 15 > depth)
+            improving = true;
+    }
+
     opponentWorsening = ss->staticEval > -(ss - 1)->staticEval;
 
     if (priorReduction >= (depth < 10 ? 1 : 3) && !opponentWorsening)
