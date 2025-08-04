@@ -1070,6 +1070,12 @@ moves_loop:  // When in check, search starts here
                 int history = (*contHist[0])[movedPiece][move.to_sq()]
                             + (*contHist[1])[movedPiece][move.to_sq()]
                             + pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()];
+                // Incorporate additional continuation history at deeper depths
+                if (depth > 8)
+                {
+                    history += (*contHist[2])[movedPiece][move.to_sq()] / 2
+                             + (*contHist[3])[movedPiece][move.to_sq()] / 4;
+                }
 
                 // Continuation history based pruning
                 if (history < -4361 * depth)
