@@ -1077,13 +1077,23 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3233;
 
-                Value baseFutility = (bestMove ? 46 : 230);
+                Value baseFutility;
+                if (bestValue <= alpha)
+                {
+                    // Haven't found a move that beats alpha yet - be conservative
+                    baseFutility = 230;
+                }
+                else
+                {
+                    // Found at least one move that beats alpha - adjust based on improvement margin
+                    Value improvementMargin = std::min(bestValue - alpha, Value(300));
+                    baseFutility = Value(46 + (230 - 46) * (300 - improvementMargin) / 300);
+                }
                 Value futilityValue =
                   ss->staticEval + baseFutility + 131 * lmrDepth + 91 * (ss->staticEval > alpha);
 
                 // Futility pruning: parent node
-                // (*Scaler): Generally, more frequent futility pruning
-                // scales well with respect to time and threads
+                // (*Scaler): More nuanced futility pruning scales well with LTC
                 if (!ss->inCheck && lmrDepth < 11 && futilityValue <= alpha)
                 {
                     if (bestValue <= futilityValue && !is_decisive(bestValue)
