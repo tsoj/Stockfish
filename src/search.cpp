@@ -1208,7 +1208,10 @@ moves_loop:  // When in check, search starts here
                           + (*contHist[1])[movedPiece][move.to_sq()];
 
         // Decrease/increase reduction for moves with a good/bad history
-        r -= ss->statScore * 789 / 8192;
+        if (givesCheck)
+            r -= ss->statScore * std::clamp(300 + 50 * std::min(depth, 10), 300, 800) / 8192;
+        else
+            r -= ss->statScore * 789 / 8192;
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
