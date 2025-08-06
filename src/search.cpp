@@ -1203,9 +1203,18 @@ moves_loop:  // When in check, search starts here
             ss->statScore = 782 * int(PieceValue[pos.captured_piece()]) / 128
                           + captureHistory[movedPiece][move.to_sq()][type_of(pos.captured_piece())];
         else
+        {
             ss->statScore = 2 * mainHistory[us][move.from_to()]
                           + (*contHist[0])[movedPiece][move.to_sq()]
                           + (*contHist[1])[movedPiece][move.to_sq()];
+
+            // For non-PV nodes, use additional continuation history for better move ordering
+            if (!PvNode)
+            {
+                ss->statScore += (*contHist[2])[movedPiece][move.to_sq()] / 2
+                               + (*contHist[3])[movedPiece][move.to_sq()] / 4;
+            }
+        }
 
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 789 / 8192;
