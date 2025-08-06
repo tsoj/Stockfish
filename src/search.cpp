@@ -928,26 +928,35 @@ Value Search::Worker::search(
 
             movedPiece = pos.moved_piece(move);
 
+            // Calculate history score for the move
+            int history =
+              captureHistory[movedPiece][move.to_sq()][type_of(pos.piece_on(move.to_sq()))];
+
+            // Adjust probCutBeta based on history score:
+            // - Moves with strong history get more aggressive ProbCut (higher threshold)
+            // - Moves with poor history get more conservative ProbCut (lower threshold)
+            Value adjustedProbCutBeta = probCutBeta + std::clamp(history / 300, -50, 50);
+
             do_move(pos, move, st, ss);
 
             // Perform a preliminary qsearch to verify that the move holds
-            value = -qsearch<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1);
+            value = -qsearch<NonPV>(pos, ss + 1, -adjustedProbCutBeta, -adjustedProbCutBeta + 1);
 
             // If the qsearch held, perform the regular search
-            if (value >= probCutBeta && probCutDepth > 0)
-                value = -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, probCutDepth,
-                                       !cutNode);
+            if (value >= adjustedProbCutBeta && probCutDepth > 0)
+                value = -search<NonPV>(pos, ss + 1, -adjustedProbCutBeta, -adjustedProbCutBeta + 1,
+                                       probCutDepth, !cutNode);
 
             undo_move(pos, move);
 
-            if (value >= probCutBeta)
+            if (value >= adjustedProbCutBeta)
             {
                 // Save ProbCut data into transposition table
                 ttWriter.write(posKey, value_to_tt(value, ss->ply), ss->ttPv, BOUND_LOWER,
                                probCutDepth + 1, move, unadjustedStaticEval, tt.generation());
 
                 if (!is_decisive(value))
-                    return value - (probCutBeta - beta);
+                    return value - (adjustedProbCutBeta - beta);
             }
         }
     }
