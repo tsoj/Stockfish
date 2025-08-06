@@ -1048,18 +1048,21 @@ moves_loop:  // When in check, search starts here
                 }
 
                 // SEE based pruning for captures and checks
-                int margin = std::clamp(158 * depth + captHist / 31, 0, 283 * depth);
+                int desperation = std::max(0, (alpha - ss->staticEval) * depth / 1000);
+                int margin = std::clamp(158 * depth + captHist / 31 - desperation, 0, 283 * depth);
                 if (!pos.see_ge(move, -margin))
                 {
-                    bool mayStalemateTrap =
-                      depth > 2 && alpha < 0 && pos.non_pawn_material(us) == PieceValue[movedPiece]
+                    bool mayDrawTrap =
+                      depth > 2 && alpha < 0
+                      && (pos.non_pawn_material(us) == PieceValue[movedPiece]
+                          || pos.rule50_count() > 80)
                       && PieceValue[movedPiece] >= RookValue
                       // it can't be stalemate if we moved a piece adjacent to the king
                       && !(attacks_bb<KING>(pos.square<KING>(us)) & move.from_sq())
-                      && !mp.can_move_king_or_pawn();
+                      && (!mp.can_move_king_or_pawn() || pos.rule50_count() > 80);
 
-                    // avoid pruning sacrifices of our last piece for stalemate
-                    if (!mayStalemateTrap)
+                    // avoid pruning sacrifices that could lead to drawing resources
+                    if (!mayDrawTrap)
                         continue;
                 }
             }
