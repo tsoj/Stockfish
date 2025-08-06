@@ -1077,7 +1077,14 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3233;
 
-                Value baseFutility = (bestMove ? 46 : 230);
+                // Calculate how much the position has improved
+                int improvement = std::min(350, std::max(0, ss->staticEval - (ss - 2)->staticEval));
+                // Non-linear scaling of improvement bonus: more significant improvements get proportionally
+                // larger bonuses but with diminishing returns for very large improvements
+                Value improvementBonus = (bestMove ? improvement / 7 : improvement / 10)
+                                       + improvement * improvement / 3500;
+
+                Value baseFutility = (bestMove ? 46 : 230) + improvementBonus;
                 Value futilityValue =
                   ss->staticEval + baseFutility + 131 * lmrDepth + 91 * (ss->staticEval > alpha);
 
