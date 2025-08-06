@@ -1116,7 +1116,12 @@ moves_loop:  // When in check, search starts here
             && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (56 + 79 * (ss->ttPv && !PvNode)) * depth / 58;
+            // Scale margins based on completed depth - higher depths use smaller margins
+            // This makes singularBeta closer to ttValue at higher depths, which scales better
+            // as indicated in the comment: "(*Scaler) Generally, higher singularBeta [...] and lower extension margins scale well."
+            int   marginScale = std::max(1, 100 - completedDepth / 2);
+            Value singularBeta =
+              ttData.value - (56 + 79 * (ss->ttPv && !PvNode)) * depth * marginScale / 5800;
             Depth singularDepth = newDepth / 2;
 
             ss->excludedMove = move;
@@ -1126,10 +1131,12 @@ moves_loop:  // When in check, search starts here
             if (value < singularBeta)
             {
                 int corrValAdj   = std::abs(correctionValue) / 249096;
-                int doubleMargin = 4 + 205 * PvNode - 223 * !ttCapture - corrValAdj
-                                 - 959 * ttMoveHistory / 131072 - (ss->ply > rootDepth) * 45;
-                int tripleMargin = 80 + 276 * PvNode - 249 * !ttCapture + 86 * ss->ttPv - corrValAdj
-                                 - (ss->ply * 2 > rootDepth * 3) * 53;
+                int doubleMargin = (4 + 205 * PvNode - 223 * !ttCapture - corrValAdj
+                                    - 959 * ttMoveHistory / 131072 - (ss->ply > rootDepth) * 45)
+                                 * marginScale / 100;
+                int tripleMargin = (80 + 276 * PvNode - 249 * !ttCapture + 86 * ss->ttPv
+                                    - corrValAdj - (ss->ply * 2 > rootDepth * 3) * 53)
+                                 * marginScale / 100;
 
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
