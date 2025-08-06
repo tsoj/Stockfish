@@ -1619,10 +1619,17 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             if (!givesCheck && move.to_sq() != prevSq && !is_loss(futilityBase)
                 && move.type_of() != PROMOTION)
             {
-                if (moveCount > 2)
-                    continue;
-
                 Value futilityValue = futilityBase + PieceValue[pos.piece_on(move.to_sq())];
+
+                // Dynamically adjust move count threshold based on move potential
+                int maxMoveCount = 2;
+                if (futilityValue > alpha + 100)
+                    maxMoveCount++;
+                if (futilityValue > alpha + 200)
+                    maxMoveCount++;
+
+                if (moveCount > maxMoveCount)
+                    continue;
 
                 // If static eval + value of piece we are going to capture is
                 // much lower than alpha, we can prune this move.
