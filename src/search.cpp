@@ -842,10 +842,10 @@ Value Search::Worker::search(
         auto futility_margin = [&](Depth d) {
             Value futilityMult = 90 - 20 * (cutNode && !ss->ttHit);
 
-            return futilityMult * d                      //
-                 - improving * futilityMult * 2          //
-                 - opponentWorsening * futilityMult / 3  //
-                 + (ss - 1)->statScore / 356             //
+            return futilityMult * d                                     //
+                 - improving * futilityMult * std::min(20, d * 2) / 10  //
+                 - opponentWorsening * futilityMult / 3                 //
+                 + (ss - 1)->statScore / 356                            //
                  + std::abs(correctionValue) / 171290;
         };
 
