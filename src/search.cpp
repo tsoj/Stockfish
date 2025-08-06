@@ -1363,7 +1363,25 @@ moves_loop:  // When in check, search starts here
 
                 // Reduce other moves if we have found at least one score improvement
                 if (depth > 2 && depth < 16 && !is_decisive(value))
-                    depth -= 2;
+                {
+                    // Base reduction of 2
+                    int reduction = 2;
+
+                    // Additional reduction if the move is very good (close to beta)
+                    // More reduction when closer to beta (up to +1 reduction)
+                    if (value > beta - 80)
+                        reduction += 1;
+
+                    // Additional reduction if the move has high history score
+                    // More reduction for moves with strong history (up to +1 reduction)
+                    if (ss->statScore > 6000)
+                        reduction += 1;
+
+                    // Cap reduction to avoid going too shallow, especially at lower depths
+                    reduction = std::min(reduction, depth / 2);
+
+                    depth -= reduction;
+                }
 
                 assert(depth > 0);
                 alpha = value;  // Update alpha! Always alpha < beta
