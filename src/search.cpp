@@ -1210,6 +1210,15 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 789 / 8192;
 
+        // Adjust reductions based on whether the position is improving
+        // In improving positions, increase reduction (search less deeply for non-PV moves)
+        // In non-improving positions, decrease reduction (search more deeply for non-PV moves)
+        // This scales with depth to provide better LTC performance
+        if (improving)
+            r += depth * 42;  // Increase reduction by ~0.04 plies per depth
+        else
+            r -= depth * 42;  // Decrease reduction by ~0.04 plies per depth
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
