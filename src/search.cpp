@@ -849,8 +849,12 @@ Value Search::Worker::search(
                  + std::abs(correctionValue) / 171290;
         };
 
-        if (!ss->ttPv && depth < 14 && eval - futility_margin(depth) >= beta && eval >= beta
-            && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
+        Value margin = futility_margin(depth);
+        if (!ss->ttPv && depth < 14 && eval - margin >= beta && eval >= beta
+            && (!ttData.move || ttCapture
+                || (is_valid(ttData.value) && (ttData.bound & BOUND_LOWER)
+                    && ttData.value > beta + margin / 2))
+            && !is_loss(beta) && !is_win(eval))
             return beta + (eval - beta) / 3;
     }
 
