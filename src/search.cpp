@@ -379,7 +379,16 @@ void Search::Worker::iterative_deepening() {
                 }
                 else if (bestValue >= beta)
                 {
+                    int exceed = bestValue - beta;
+
                     beta = std::min(bestValue + delta, VALUE_INFINITE);
+
+                    // If we failed high significantly (at least delta), increase delta more
+                    if (exceed >= delta)
+                    {
+                        delta += delta / 6;
+                    }
+
                     ++failedHighCnt;
                 }
                 else
