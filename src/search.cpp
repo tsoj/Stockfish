@@ -1025,8 +1025,52 @@ moves_loop:  // When in check, search starts here
         // Depth conditions are important for mate finding.
         if (!rootNode && pos.non_pawn_material(us) && !is_loss(bestValue))
         {
+            // Previous behavior:
             // Skip quiet moves if movecount exceeds our FutilityMoveCount threshold
-            if (moveCount >= (3 + depth * depth) / (2 - improving))
+            // if (moveCount >= (3 + depth * depth) / (2 - improving))
+            //     mp.skip_quiet_moves();
+            //
+            // Improved behavior:
+            // Compute a baseline "moveCountPruning" guard and inhibit skipping quiets
+            // in cases where several inexpensive signals indicate quiet moves might
+            // still be relevant. Signals used:
+            //  - previous ply had a TT hit AND very small moveCount (unstable node)
+            //  - strong continuation-history or main-history for the previous move
+            //  - near-equal static eval at deeper depths (potential tactical complexity)
+            //
+            // Thresholds are scaled with depth so the heuristic becomes more conservative
+            // in deeper searches (better LTC scaling).
+
+            bool moveCountPruning = moveCount >= (3 + depth * depth) / (2 - improving);
+
+            if (moveCountPruning)
+            {
+                // Inhibit skipping quiets if previous ply had a TT hit but only 0-1 moves:
+                // those nodes tend to be unstable (edge TT entries); be conservative.
+                if ((ss - 1)->moveCount <= 1 + (ss - 1)->ttHit)
+                    moveCountPruning = false;
+
+                // In deeper searches, if the static eval is near zero then tactical
+                // complexity is likely; be conservative and keep quiets available.
+                else if (depth >= 6 && std::abs(ss->staticEval) < Value(128))
+                    moveCountPruning = false;
+
+                // If continuation or main history for the previous move is strong,
+                // do not skip quiets: history suggests a quiet continuation may be good.
+                else if (prevSq != SQ_NONE)
+                {
+                    Piece prevPc  = pos.piece_on(prevSq);
+                    int   contVal = (*(ss - 1)->continuationHistory)[prevPc][prevSq];
+                    int   mainVal = mainHistory[~us][((ss - 1)->currentMove).from_to()];
+                    // Scaled thresholds to be more conservative at larger depth
+                    int contThreshold = 2048 + 128 * depth;
+                    int mainThreshold = 64;
+                    if (contVal > contThreshold || mainVal > mainThreshold)
+                        moveCountPruning = false;
+                }
+            }
+
+            if (moveCountPruning)
                 mp.skip_quiet_moves();
 
             // Reduced depth of the next LMR search
@@ -1076,6 +1120,14 @@ moves_loop:  // When in check, search starts here
                 history += 71 * mainHistory[us][move.from_to()] / 32;
 
                 lmrDepth += history / 3233;
+
+                // If moveCountPruning is active we allow the existing skip_quiet_moves()
+                // decision to run. However, be slightly less aggressive in the LMR depth
+                // adjustment for cases with reasonably positive history (prevents throwing
+                // out moves that historically tend to be refutations). This is a small,
+                // depth-scaled correction that reduces harmful pruning at LTC.
+                if (moveCountPruning && history > -1024)
+                    lmrDepth += std::max(0, std::min(2, depth / 8));
 
                 Value baseFutility = (bestMove ? 46 : 230);
                 Value futilityValue =
