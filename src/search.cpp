@@ -905,35 +905,68 @@ Value Search::Worker::search(
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
     // returns a value much above beta, we can (almost) safely prune the previous move.
+    // Improvements:
+    //  - Only attempt probcut on expected cut nodes (cutNode).
+    //  - Cap how many candidate captures we try (dynamic with depth and local cutoff activity).
+    //  - Add a very cheap conservative static/SEE-like filter based on captured piece value
+    //    (and on captureHistory as a secondary signal) before launching qsearch.
     probCutBeta = beta + 215 - 60 * improving;
     if (depth >= 3
         && !is_decisive(beta)
         // If value from transposition table is lower than probCutBeta, don't attempt
         // probCut there
-        && !(is_valid(ttData.value) && ttData.value < probCutBeta))
+        && !(is_valid(ttData.value) && ttData.value < probCutBeta)
+        // ProbCut is most appropriate for expected cut nodes; avoid using it in ALL/PV nodes.
+        && cutNode)
     {
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
         MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &captureHistory);
         Depth      probCutDepth = std::max(depth - 5, 0);
 
-        while ((move = mp.next_move()) != Move::none())
+        // Dynamic limit on how many candidate captures to try:
+        // - base 3 attempts
+        // - allow more attempts for deeper searches (depth >= 10)
+        // - allow more attempts when the next ply already shows a tendency to cutoff
+        int probCutTried = 0;
+        int probCutMax   = 3 + (depth >= 10) + ((ss + 1)->cutoffCnt > 1 ? 2 : 0);
+        probCutMax       = std::min(8, probCutMax);
+
+        while ((move = mp.next_move()) != Move::none() && probCutTried < probCutMax)
         {
             assert(move.is_ok());
 
             if (move == excludedMove || !pos.legal(move))
                 continue;
 
+            // ProbCut operates on captures only (MovePicker is already in the captures stage)
             assert(pos.capture_stage(move));
 
-            movedPiece = pos.moved_piece(move);
+            // Cheap static-based pre-filter:
+            // If even the immediate material gain of this capture (captured piece value)
+            // plus a small margin is very unlikely to bridge the gap to probCutBeta,
+            // skip the expensive qsearch.
+            movedPiece          = pos.moved_piece(move);
+            Piece capturedPiece = pos.piece_on(move.to_sq());
+            int   capturedVal   = PieceValue[type_of(capturedPiece)];
+
+            int staticGap = int(probCutBeta) - int(ss->staticEval) - 96;  // margin
+            // Secondary signal: captureHistory for this capture (per-thread, so cheap)
+            int hist = captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
+            // Conservative decision: if the immediate material gain is far too small AND
+            // past history doesn't suggest this capture is special, skip it.
+            if (staticGap > capturedVal + 300 && hist < 4000)
+                continue;
+
+            // We're willing to try this capture candidate
+            ++probCutTried;
 
             do_move(pos, move, st, ss);
 
             // Perform a preliminary qsearch to verify that the move holds
             value = -qsearch<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1);
 
-            // If the qsearch held, perform the regular search
+            // If the qsearch held, perform the regular reduced search
             if (value >= probCutBeta && probCutDepth > 0)
                 value = -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, probCutDepth,
                                        !cutNode);
@@ -942,10 +975,11 @@ Value Search::Worker::search(
 
             if (value >= probCutBeta)
             {
-                // Save ProbCut data into transposition table
+                // Save ProbCut data into transposition table (as before)
                 ttWriter.write(posKey, value_to_tt(value, ss->ply), ss->ttPv, BOUND_LOWER,
                                probCutDepth + 1, move, unadjustedStaticEval, tt.generation());
 
+                // Return a softened value as before, but never return unproven mate/TB.
                 if (!is_decisive(value))
                     return value - (probCutBeta - beta);
             }
