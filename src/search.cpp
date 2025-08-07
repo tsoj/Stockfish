@@ -855,13 +855,58 @@ Value Search::Worker::search(
     }
 
     // Step 9. Null move search with verification search
-    if (cutNode && ss->staticEval >= beta - 19 * depth + 403 && !excludedMove
+    //
+    // Improvements:
+    //  - require corrected static eval >= beta (guard against graph/history adjustments)
+    //  - compute a dynamic null-move reduction R that scales with:
+    //      * how far corrected static eval is above beta (more margin -> larger R)
+    //      * parent statScore (small moderation)
+    //      * TT confidence (moderate moderation)
+    //  - clamp R to sane bounds and use it in the existing verification logic
+    if (cutNode && ss->staticEval >= beta - 19 * depth + 403
+        && to_corrected_static_eval(eval, correctionValue) >= beta && !excludedMove
         && pos.non_pawn_material(us) && ss->ply >= nmpMinPly && !is_loss(beta))
     {
         assert((ss - 1)->currentMove != Move::null());
 
-        // Null move dynamic reduction based on depth
-        Depth R = 7 + depth / 3;
+        // Base reduction from historical formula
+        int baseR = 7 + depth / 3;
+
+        // Use corrected static eval for margin computation
+        const int correctedEval = int(to_corrected_static_eval(eval, correctionValue));
+        const int marginCp      = correctedEval - int(beta);  // centipawn margin above beta
+
+        // Extra reduction proportional to margin: 1 extra ply per ~200 cp, clamped
+        int extraR = 0;
+        if (marginCp > 200)
+            extraR = std::min(8, marginCp / 200);
+
+        // Small history moderation based on parent statScore.
+        // Positive parent statScore -> be slightly more conservative (reduce R).
+        // Negative parent statScore -> allow slightly more reduction (increase R).
+        int histModeration = (ss - 1)->statScore / 4096;  // small scale
+        histModeration     = std::clamp(histModeration, -2, 2);
+
+        // TT-based moderation:
+        // - if TT suggests value < beta, be more conservative (reduce R)
+        // - if TT strongly suggests value >= beta + margin, allow slightly more reduction
+        int ttModeration = 0;
+        if (ss->ttHit && is_valid(ttData.value))
+        {
+            if (ttData.value < beta - 50)
+                ttModeration = 2;
+            else if (ttData.value < beta)
+                ttModeration = 1;
+            else if (ttData.value >= beta + 50)
+                ttModeration = -1;
+        }
+
+        int Rint = baseR + extraR - histModeration - ttModeration;
+
+        // Keep R in sane bounds: at least 1, not crazily larger than depth (cap at depth+6).
+        Rint = std::max(1, std::min(Rint, int(depth + 6)));
+
+        Depth R = Depth(Rint);
 
         ss->currentMove                   = Move::null();
         ss->continuationHistory           = &continuationHistory[0][0][NO_PIECE][0];
@@ -881,9 +926,9 @@ Value Search::Worker::search(
 
             assert(!nmpMinPly);  // Recursive verification is not allowed
 
-            // Do verification search at high depths, with null move pruning disabled
-            // until ply exceeds nmpMinPly.
-            nmpMinPly = ss->ply + 3 * (depth - R) / 4;
+            // Make verification slightly conservative when R is small (i.e. we were conservative),
+            // or slightly more aggressive when R was large. Clamp to at least 1 ply.
+            nmpMinPly = ss->ply + std::max(1, 3 * (depth - R) / 4);
 
             Value v = search<NonPV>(pos, ss, beta - 1, beta, depth - R, false);
 
