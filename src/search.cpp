@@ -906,16 +906,23 @@ Value Search::Worker::search(
     // If we have a good enough capture (or queen promotion) and a reduced search
     // returns a value much above beta, we can (almost) safely prune the previous move.
     probCutBeta = beta + 215 - 60 * improving;
-    if (depth >= 3
+
+    if (!PvNode          // Restrict ProbCut to non-PV nodes
+        && cutNode       // ... and only at expected cut nodes
+        && !ss->inCheck  // ... not when in check (Step 12 handles that)
+        && depth >= 3
         && !is_decisive(beta)
-        // If value from transposition table is lower than probCutBeta, don't attempt
-        // probCut there
+        // If value from transposition table is lower than probCutBeta, don't attempt probCut here
         && !(is_valid(ttData.value) && ttData.value < probCutBeta))
     {
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
         MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &captureHistory);
         Depth      probCutDepth = std::max(depth - 5, 0);
+
+        // Budget attempts to avoid spending too much work here; scale gently with depth/cut-node
+        int tries    = 0;
+        int maxTries = 3 + (depth >= 6) + 1;  // 3 base +1 if deeper +1 because we are at cut nodes
 
         while ((move = mp.next_move()) != Move::none())
         {
@@ -926,14 +933,46 @@ Value Search::Worker::search(
 
             assert(pos.capture_stage(move));
 
+            // SEE prefilter: require enough material gain to plausibly beat probCutBeta
+            int minGain      = int(probCutBeta) - int(ss->staticEval);
+            int seeThreshold = std::max(0, minGain - 64);
+            if (!pos.see_ge(move, seeThreshold))
+                continue;
+
+            if (tries >= maxTries)
+                break;
+            ++tries;
+
             movedPiece = pos.moved_piece(move);
 
             do_move(pos, move, st, ss);
 
+            // Fast child TT lower-bound check: if child already proves a cutoff at sufficient depth,
+            // accept immediately and avoid duplicate qsearch/search work.
+            Key nextPosKey                             = pos.key();
+            auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(nextPosKey);
+
+            bool childPredictsCut =
+              ttHitNext && is_valid(ttDataNext.value) && (ttDataNext.bound & BOUND_LOWER)
+              && ttDataNext.value >= probCutBeta && ttDataNext.depth >= probCutDepth
+              && !is_decisive(ttDataNext.value);
+
+            if (childPredictsCut)
+            {
+                undo_move(pos, move);
+
+                // Save ProbCut data into transposition table using child's value
+                ttWriter.write(posKey, value_to_tt(ttDataNext.value, ss->ply), ss->ttPv,
+                               BOUND_LOWER, probCutDepth + 1, move, unadjustedStaticEval,
+                               tt.generation());
+
+                return ttDataNext.value - (probCutBeta - beta);
+            }
+
             // Perform a preliminary qsearch to verify that the move holds
             value = -qsearch<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1);
 
-            // If the qsearch held, perform the regular search
+            // If the qsearch held, perform the regular reduced search
             if (value >= probCutBeta && probCutDepth > 0)
                 value = -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, probCutDepth,
                                        !cutNode);
