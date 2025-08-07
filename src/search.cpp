@@ -1213,33 +1213,61 @@ moves_loop:  // When in check, search starts here
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
-            // In general we want to cap the LMR depth search at newDepth, but when
-            // reduction is negative, we allow this move a limited search extension
-            // beyond the first move depth.
-            // To prevent problems when the max value is less than the min value,
-            // std::clamp has been replaced by a more robust implementation.
-            Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 1 + PvNode)) + PvNode;
+            // Adaptive LMR cap:
+            // Allow occasional deeper LMR for:
+            //  - moves with strong history (ss->statScore),
+            //  - moves backed by TT (ss->ttHit / ss->ttPv),
+            //  - tactical moves (captures or checks),
+            //  - a deterministic per-position parity bit to diversify LTC searches.
+            int       allowDeeper = 0;
+            const Key parity      = pos.key() & 1ULL;  // deterministic "random" per-position
+            if (r < -2048 && parity)  // strong negative reduction -> investigate more
+                allowDeeper = 2;
+            if (ss->statScore > 4096)  // strong history -> more slack
+                allowDeeper = std::max(allowDeeper, 1);
+            if (ss->ttPv || ss->ttHit)  // TT suggests move is promising
+                allowDeeper = std::max(allowDeeper, 1);
+            if (capture || givesCheck)  // tactical moves deserve extra care
+                allowDeeper = std::max(allowDeeper, 1);
+
+            // Compute the reduced search depth 'd' with the adaptive allowance.
+            Depth cappedMax   = newDepth + 1 + PvNode + allowDeeper;
+            Depth baseReduced = newDepth - r / 1024;
+            Depth d           = std::max(1, std::min(baseReduced, cappedMax)) + PvNode;
 
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
 
-            // Do a full-depth search when reduced LMR search fails high
-            // (*Scaler) Usually doing more shallower searches
-            // doesn't scale well to longer TCs
+            // If the reduced search fails high, decide whether to re-search full depth.
             if (value > alpha)
             {
-                // Adjust full-depth search based on LMR results - if the result was
-                // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch = d < newDepth && value > (bestValue + 43 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
-
-                newDepth += doDeeperSearch - doShallowerSearch;
-
-                if (newDepth > d)
+                // For tactical moves prefer immediate full-depth re-search if reduced depth
+                // was smaller than full depth — avoids missing captures/check tactics.
+                if ((capture || givesCheck) && d < newDepth)
+                {
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                }
+                else
+                {
+                    // Adjust full-depth search based on LMR results - if the result was
+                    // good enough search deeper, if it was bad enough search shallower.
+                    // Make the deeper-search threshold slightly easier for moves with
+                    // good statScore (scales well for LTC).
+                    int        stat_margin_reduction = std::clamp(ss->statScore / 2048, 0, 20);
+                    const bool doDeeperSearch =
+                      d < newDepth
+                      && value > (bestValue + 43 + 2 * newDepth - stat_margin_reduction);
+                    const bool doShallowerSearch = value < bestValue + 9;
 
-                // Post LMR continuation history updates
+                    newDepth += doDeeperSearch - doShallowerSearch;
+
+                    if (newDepth > d)
+                        value =
+                          -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                }
+
+                // Post LMR continuation history updates (move proved interesting)
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1412);
             }
         }
