@@ -1116,12 +1116,21 @@ moves_loop:  // When in check, search starts here
             && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (56 + 79 * (ss->ttPv && !PvNode)) * depth / 58;
-            Depth singularDepth = newDepth / 2;
+            Value ttValue      = ttData.value;
+            Value singularBeta = ttValue - (56 + 79 * (ss->ttPv && !PvNode)) * depth / 58;
+
+            // Ensure singularDepth at least 1 to avoid qsearch-only edge cases.
+            Depth singularDepth = std::max(Depth(1), newDepth / 2);
+
+            // Protect ss state from being polluted by the excluded search.
+            int savedMoveCount = ss->moveCount;
 
             ss->excludedMove = move;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
             ss->excludedMove = Move::none();
+
+            // Restore moveCount to avoid unintended side-effects on parent heuristics.
+            ss->moveCount = savedMoveCount;
 
             if (value < singularBeta)
             {
@@ -1137,28 +1146,41 @@ moves_loop:  // When in check, search starts here
                 depth++;
             }
 
-            // Multi-cut pruning
-            // Our ttMove is assumed to fail high based on the bound of the TT entry,
-            // and if after excluding the ttMove with a reduced search we fail high
-            // over the original beta, we assume this expected cut-node is not
-            // singular (multiple moves fail high), and we can prune the whole
-            // subtree by returning a softbound.
+            // Multi-cut pruning: if excluding ttMove still yields a beta cutoff, prune.
             else if (value >= beta && !is_decisive(value))
                 return value;
 
-            // Negative extensions
-            // If other moves failed high over (ttValue - margin) without the
-            // ttMove on a reduced search, but we cannot do multi-cut because
-            // (ttValue - margin) is lower than the original beta, we do not know
-            // if the ttMove is singular or can do a multi-cut, so we reduce the
-            // ttMove in favor of other moves based on some conditions:
+            // Negative extensions: be conservative and verify before applying large reductions.
+            else if (ttValue >= beta)
+            {
+                // Tentative aggressive reduction (same sign as previous behavior):
+                int tentativeNegExt = -2 - int(!PvNode);  // -3 for non-PV, -2 for PV
 
-            // If the ttMove is assumed to fail high over current beta
-            else if (ttData.value >= beta)
-                extension = -3;
+                // Verify the reduced depth while including ttMove (do NOT exclude it).
+                // The verification depth may become <= 0; clamp to at least 1.
+                int   verifyDepthInt = int(singularDepth) + tentativeNegExt;
+                Depth verifyDepth    = std::max(Depth(1), Depth(verifyDepthInt));
+
+                // Do a verification zero/full window search to confirm whether
+                // a reduced search still yields a cutoff.
+                Value verify = search<NonPV>(pos, ss, beta - 1, beta, verifyDepth, cutNode);
+
+                if (verify >= beta)
+                    return verify;  // safe cutoff preserved even after reduction
+
+                // If verification is "close" to beta, be conservative and only apply
+                // a mild reduction; closeness threshold scales with depth (scaler).
+                // This avoids throwing away near-cutoffs due to aggressive -3 reductions.
+                int proximity = 48 + 8 * int(depth);  // scaler: grows with depth (LTC-friendly)
+
+                if (verify + proximity >= beta)
+                    extension = -1;  // milder negative extension (less likely to lose cutoff)
+                else
+                    extension = tentativeNegExt;  // keep the aggressive reduction
+            }
 
             // If we are on a cutNode but the ttMove is not assumed to fail high
-            // over current beta
+            // over current beta, use a standard mild negative reduction.
             else if (cutNode)
                 extension = -2;
         }
