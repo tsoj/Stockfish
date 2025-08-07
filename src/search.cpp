@@ -1116,12 +1116,35 @@ moves_loop:  // When in check, search starts here
             && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (56 + 79 * (ss->ttPv && !PvNode)) * depth / 58;
-            Depth singularDepth = newDepth / 2;
+            Value singularBeta = ttData.value - (56 + 79 * (ss->ttPv && !PvNode)) * depth / 58;
+
+            // Avoid falling into qsearch where excludedMove is not handled:
+            // make sure the singular verification search has at least depth 1.
+            Depth singularDepth = std::max(Depth(1), newDepth / 2);
+
+            // The excluded search runs on the same 'ss' pointer and therefore may
+            // clobber a handful of ephemeral Stack fields (moveCount, currentMove,
+            // pv pointers, continuation-history pointers, ...). Historically this
+            // has led to subtle corruption (e.g. moveCount reflecting the excluded
+            // search) after the singular test returns. The singular test is rare,
+            // so it is cheap and much safer to snapshot the nearby stack entries
+            // that the nested call might mutate and restore them afterwards.
+            //
+            // We back up ss - 6 .. ss + 2 which covers the continuation history
+            // window and the usual per-ply ephemeral fields used by search().
+            constexpr int                                       BACKUP_BEFORE = 6;
+            constexpr int                                       BACKUP_AFTER  = 2;
+            std::array<Stack, BACKUP_BEFORE + BACKUP_AFTER + 1> stackBackup;
+            for (int i = -BACKUP_BEFORE; i <= BACKUP_AFTER; ++i)
+                stackBackup[i + BACKUP_BEFORE] = *(ss + i);
 
             ss->excludedMove = move;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
             ss->excludedMove = Move::none();
+
+            // Restore the stack region to avoid corruption of the outer search frame.
+            for (int i = -BACKUP_BEFORE; i <= BACKUP_AFTER; ++i)
+                *(ss + i) = stackBackup[i + BACKUP_BEFORE];
 
             if (value < singularBeta)
             {
