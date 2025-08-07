@@ -896,11 +896,48 @@ Value Search::Worker::search(
 
     improving |= ss->staticEval >= beta;
 
-    // Step 10. Internal iterative reductions
-    // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Especially if they make IIR less aggressive.
+    // Step 10. Adaptive Internal Iterative Reductions (AIIR)
+    // Replace the simple 'depth--' with an adaptive, LTC-friendly heuristic that:
+    //  - avoids reducing PV nodes unless really deep,
+    //  - backs-off reductions when the position looks "interesting" (improving,
+    //    opponentWorsening, TT hints, in-check),
+    //  - scales reduction aggressiveness down as rootDepth grows (longer time controls),
+    //  - prevents stacking reductions across consecutive plies.
     if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    {
+        // Base reduction: 1 ply for moderate depths, 2 for deeper nodes.
+        int iir = (depth >= 12) ? 2 : 1;
+
+        // PV nodes are critical: be conservative and remove one unit of reduction.
+        if (PvNode)
+            iir = std::max(0, iir - 1);
+
+        // LTC-friendly scaling: larger rootDepth => less aggressive reductions.
+        // rootDepth typically grows when we have more time, so reduce iir by 0..2.
+        int root_scale = std::min(2, rootDepth / 8);
+        iir            = std::max(0, iir - root_scale);
+
+        // If the static eval indicates the position is improving for us or the
+        // opponent is worsening then search more fully (reduce less).
+        if (improving || opponentWorsening)
+            iir = std::max(0, iir - 1);
+
+        // If there was a useful TT hit (even without a tt move) be conservative.
+        if (ss->ttHit)
+            iir = std::max(0, iir - 1);
+
+        // Avoid stacking reductions across consecutive plies.
+        if (priorReduction > 0)
+            iir = std::max(0, iir - 1);
+
+        // Never reduce tactical nodes in check.
+        if (ss->inCheck)
+            iir = 0;
+
+        // Apply reduction but never reduce below depth == 1.
+        if (iir > 0)
+            depth = std::max(depth - iir, 1);
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
