@@ -1037,30 +1037,57 @@ moves_loop:  // When in check, search starts here
                 Piece capturedPiece = pos.piece_on(move.to_sq());
                 int   captHist = captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
 
-                // Futility pruning for captures
-                if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
+                // Blend continuation history into capture heuristics so captures that
+                // historically lead to good continuations are pruned more conservatively.
+                int cont0   = (*contHist[0])[movedPiece][move.to_sq()];
+                int cont1   = (*contHist[1])[movedPiece][move.to_sq()];
+                int contSum = cont0 + cont1;
+
+                // Scale continuation contribution conservatively: 1/4 of contSum is
+                // added to captHist (cheap, integer op).
+                int effCaptHist = captHist + (contSum >> 2);
+
+                // If this is the TT suggested move, avoid aggressive capture pruning.
+                // TT moves are strong ordering hints and pruning them here is risky.
+                if (move == ttData.move)
                 {
-                    Value futilityValue = ss->staticEval + 225 + 220 * lmrDepth
-                                        + 275 * (move.to_sq() == prevSq) + PieceValue[capturedPiece]
-                                        + 131 * captHist / 1024;
-                    if (futilityValue <= alpha)
-                        continue;
+                    // fall through without aggressive pruning (let normal search handle it)
                 }
-
-                // SEE based pruning for captures and checks
-                int margin = std::clamp(158 * depth + captHist / 31, 0, 283 * depth);
-                if (!pos.see_ge(move, -margin))
+                else
                 {
-                    bool mayStalemateTrap =
-                      depth > 2 && alpha < 0 && pos.non_pawn_material(us) == PieceValue[movedPiece]
-                      && PieceValue[movedPiece] >= RookValue
-                      // it can't be stalemate if we moved a piece adjacent to the king
-                      && !(attacks_bb<KING>(pos.square<KING>(us)) & move.from_sq())
-                      && !mp.can_move_king_or_pawn();
+                    // Futility pruning for captures (conservative when continuations look promising)
+                    if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
+                    {
+                        Value futilityValue = ss->staticEval + 225 + 220 * lmrDepth
+                                            + 275 * (move.to_sq() == prevSq)
+                                            + PieceValue[capturedPiece] + 131 * effCaptHist / 1024;
+                        if (futilityValue <= alpha)
+                            continue;
+                    }
 
-                    // avoid pruning sacrifices of our last piece for stalemate
-                    if (!mayStalemateTrap)
-                        continue;
+                    // SEE-based capture pruning. Incorporate continuation history into the
+                    // margin so captures that historically have good follow-ups survive.
+                    int margin = std::clamp(158 * depth + effCaptHist / 31, 0, 283 * depth);
+
+                    if (!pos.see_ge(move, -margin))
+                    {
+                        // Be more conservative about stalemate traps only when continuation
+                        // history is weak. A positive contSum suggests useful follow-ups
+                        // and should not be treated as a mere stalemate trap.
+                        bool mayStalemateTrap =
+                          depth > 2 && alpha < 0
+                          && pos.non_pawn_material(us) == PieceValue[movedPiece]
+                          && PieceValue[movedPiece] >= RookValue
+                          // it can't be stalemate if we moved a piece adjacent to the king
+                          && !(attacks_bb<KING>(pos.square<KING>(us)) & move.from_sq())
+                          && !mp.can_move_king_or_pawn()
+                          && contSum
+                               < 1536;  // only treat as potential stalemate trap if cont history weak
+
+                        // avoid pruning sacrifices of our last piece for stalemate
+                        if (!mayStalemateTrap)
+                            continue;
+                    }
                 }
             }
             else
