@@ -792,10 +792,17 @@ Value Search::Worker::search(
 
         ss->staticEval = eval = to_corrected_static_eval(unadjustedStaticEval, correctionValue);
 
-        // ttValue can be used as a better position evaluation
-        if (is_valid(ttData.value)
-            && (ttData.bound & (ttData.value > eval ? BOUND_LOWER : BOUND_UPPER)))
-            eval = ttData.value;
+        // ttValue can be used as a better position evaluation with depth-aware thresholds
+        if (is_valid(ttData.value))
+        {
+            // For TT values that raise evaluation, require closer depth match (more conservative)
+            if (ttData.value > eval && (ttData.bound & BOUND_LOWER) && depth - ttData.depth <= 4)
+                eval = ttData.value;
+            // For TT values that lower evaluation, allow slightly greater depth difference
+            else if (ttData.value < eval && (ttData.bound & BOUND_UPPER)
+                     && depth - ttData.depth <= 8)
+                eval = ttData.value;
+        }
     }
     else
     {
