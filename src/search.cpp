@@ -1075,9 +1075,23 @@ moves_loop:  // When in check, search starts here
 
                 history += 71 * mainHistory[us][move.from_to()] / 32;
 
+                // Non-linear history adjustment with beta distance scaling
+                int betaDistance     = std::min(200, std::max(0, beta - ss->staticEval));
+                int adjustmentFactor = 100 + betaDistance / 4;
+
+                // Apply non-linear transformation:
+                // - Stronger penalties for bad history (more negative)
+                // - Diminishing returns for good history
+                int nonLinearHistory;
+                if (history >= 0)
+                    nonLinearHistory = (history * 5000) / (5000 + history);
+                else
+                    nonLinearHistory = (history * 5000) / (5000 - history);
+
+                history = nonLinearHistory * adjustmentFactor / 100;
                 lmrDepth += history / 3233;
 
-                Value baseFutility = (bestMove ? 46 : 230);
+                Value baseFutility = (bestMove ? 46 : 230) - 180 * improving;
                 Value futilityValue =
                   ss->staticEval + baseFutility + 131 * lmrDepth + 91 * (ss->staticEval > alpha);
 
