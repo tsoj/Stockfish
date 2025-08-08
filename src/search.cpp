@@ -834,7 +834,14 @@ Value Search::Worker::search(
     // If eval is really low, skip search entirely and return the qsearch value.
     // For PvNodes, we must have a guard against mates being returned.
     if (!PvNode && eval < alpha - 495 - 290 * depth * depth)
-        return qsearch<NonPV>(pos, ss, alpha, beta);
+    {
+        // Use depth-adaptive verification: deeper searches get more conservative verification
+        // Base offset increases with depth but is capped to prevent excessive conservatism
+        int   offset            = std::min(10, 2 + depth / 2);
+        Value verificationValue = qsearch<NonPV>(pos, ss, alpha - offset, alpha - offset + 1);
+        if (verificationValue <= alpha - offset)
+            return verificationValue;
+    }
 
     // Step 8. Futility pruning: child node
     // The depth condition is important for mate finding.
