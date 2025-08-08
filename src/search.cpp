@@ -1095,7 +1095,13 @@ moves_loop:  // When in check, search starts here
                 lmrDepth = std::max(lmrDepth, 0);
 
                 // Prune moves with negative SEE
-                if (!pos.see_ge(move, -26 * lmrDepth * lmrDepth))
+                int seeThreshold = -26 * lmrDepth * lmrDepth;
+                if (history < 0)
+                    seeThreshold += history / 500;  // More negative threshold if history is bad
+                if (opponentWorsening)
+                    seeThreshold -=
+                      15 * lmrDepth;  // More aggressive pruning if opponent's position is worsening
+                if (!pos.see_ge(move, seeThreshold))
                     continue;
             }
         }
