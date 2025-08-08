@@ -1042,7 +1042,8 @@ moves_loop:  // When in check, search starts here
                 {
                     Value futilityValue = ss->staticEval + 225 + 220 * lmrDepth
                                         + 275 * (move.to_sq() == prevSq) + PieceValue[capturedPiece]
-                                        + 131 * captHist / 1024;
+                                        + 131 * captHist / 1024
+                                        + std::abs(correctionValue) / 100000;
                     if (futilityValue <= alpha)
                         continue;
                 }
