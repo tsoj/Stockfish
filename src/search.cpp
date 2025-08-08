@@ -1183,7 +1183,16 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for cut nodes
         if (cutNode)
+        {
             r += 3000 + 1024 * !ttData.move;
+
+            // Increase reduction proportionally to TT value confidence
+            if (ss->ttHit && ttData.value > beta && !is_decisive(ttData.value))
+            {
+                Value confidence = std::min(ttData.value - beta, Value(250));
+                r += confidence * 2;
+            }
+        }
 
         // Increase reduction if ttMove is a capture
         if (ttCapture)
