@@ -1415,6 +1415,14 @@ moves_loop:  // When in check, search starts here
         bonusScale += 141 * (!ss->inCheck && bestValue <= ss->staticEval - 94);
         bonusScale += 141 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 76);
 
+        // Increase bonus proportionally to fail low severity relative to depth
+        // This makes the bonus scale well across time controls and provides more nuanced information
+        if (bestValue < alpha - 80 * depth)
+        {
+            int severity = (alpha - bestValue) / (2 * depth);
+            bonusScale += std::min(severity, 250);  // Cap to prevent excessive bonuses
+        }
+
         bonusScale = std::max(bonusScale, 0);
 
         const int scaledBonus = std::min(155 * depth - 88, 1416) * bonusScale;
