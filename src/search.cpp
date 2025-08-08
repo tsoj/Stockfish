@@ -1193,7 +1193,10 @@ moves_loop:  // When in check, search starts here
         if ((ss + 1)->cutoffCnt > 2)
             r += 935 + allNode * 763;
 
-        r += (ss + 1)->quietMoveStreak * 51;
+        // Non-linear quiet move streak adjustment with quality consideration
+        int streak  = (ss + 1)->quietMoveStreak;
+        int quality = std::clamp(ss->statScore / 50000, -4, 4);
+        r += 51 * (streak + quality) / (1 + 0.1 * std::abs(streak + quality));
 
         // For first picked move (ttMove) reduce reduction
         if (move == ttData.move)
