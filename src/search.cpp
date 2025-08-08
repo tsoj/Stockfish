@@ -1207,6 +1207,11 @@ moves_loop:  // When in check, search starts here
                           + (*contHist[0])[movedPiece][move.to_sq()]
                           + (*contHist[1])[movedPiece][move.to_sq()];
 
+        // Reduce reduction for quiet moves continuing strong sequences in volatile positions
+        if (!capture && ss->quietMoveStreak < 3
+            && (ss->statScore > 2000 || (*contHist[0])[movedPiece][move.to_sq()] > 1500))
+            r -= 250 + std::min(350, depth * 100);
+
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 789 / 8192;
 
