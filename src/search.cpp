@@ -1208,7 +1208,13 @@ moves_loop:  // When in check, search starts here
                           + (*contHist[1])[movedPiece][move.to_sq()];
 
         // Decrease/increase reduction for moves with a good/bad history
-        r -= ss->statScore * 789 / 8192;
+        // Use different scaling for captures vs quiet moves
+        // For captures, trust history less (piece value is already a strong signal)
+        // For quiet moves, trust history more (it's the primary signal for PV lines)
+        if (capture)
+            r -= ss->statScore * 650 / 8192;
+        else
+            r -= ss->statScore * 950 / 8192;
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
