@@ -1199,6 +1199,10 @@ moves_loop:  // When in check, search starts here
         if (move == ttData.move)
             r -= 2043;
 
+        // Reduce reduction for tactical quiet moves that create immediate threats
+        if (!capture && pos.see_ge(move, 1) && pos.gives_check(move))
+            r -= 450 + 125 * improving;
+
         if (capture)
             ss->statScore = 782 * int(PieceValue[pos.captured_piece()]) / 128
                           + captureHistory[movedPiece][move.to_sq()][type_of(pos.captured_piece())];
