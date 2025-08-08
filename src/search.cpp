@@ -1200,8 +1200,14 @@ moves_loop:  // When in check, search starts here
             r -= 2043;
 
         if (capture)
+        {
             ss->statScore = 782 * int(PieceValue[pos.captured_piece()]) / 128
                           + captureHistory[movedPiece][move.to_sq()][type_of(pos.captured_piece())];
+            // Add bonus for recaptures as they are often good tactical moves
+            bool isRecapture = pos.captured_piece() && move.to_sq() == prevSq;
+            if (isRecapture)
+                ss->statScore += ss->statScore / 4;
+        }
         else
             ss->statScore = 2 * mainHistory[us][move.from_to()]
                           + (*contHist[0])[movedPiece][move.to_sq()]
