@@ -1405,28 +1405,28 @@ moves_loop:  // When in check, search starts here
             ttMoveHistory << (bestMove == ttData.move ? 811 : -848);
     }
 
-    // Bonus for prior quiet countermove that caused the fail low
+    // Penalty for prior quiet countermove that caused the fail low
     else if (!priorCapture && prevSq != SQ_NONE)
     {
-        int bonusScale = -215;
-        bonusScale += std::min(-(ss - 1)->statScore / 103, 337);
-        bonusScale += std::min(64 * depth, 552);
-        bonusScale += 177 * ((ss - 1)->moveCount > 8);
-        bonusScale += 141 * (!ss->inCheck && bestValue <= ss->staticEval - 94);
-        bonusScale += 141 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 76);
+        int penaltyScale = -215;
+        penaltyScale += std::min(-(ss - 1)->statScore / 103, 337);
+        penaltyScale += std::min(64 * depth, 552);
+        penaltyScale += 177 * ((ss - 1)->moveCount > 8);
+        penaltyScale += 141 * (!ss->inCheck && bestValue <= ss->staticEval - 94);
+        penaltyScale += 141 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 76);
 
-        bonusScale = std::max(bonusScale, 0);
+        penaltyScale = std::max(penaltyScale, 0);
 
-        const int scaledBonus = std::min(155 * depth - 88, 1416) * bonusScale;
+        const int scaledPenalty = std::min(155 * depth - 88, 1416) * penaltyScale;
 
         update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
-                                      scaledBonus * 397 / 32768);
+                                      -scaledPenalty * 397 / 32768);
 
-        mainHistory[~us][((ss - 1)->currentMove).from_to()] << scaledBonus * 224 / 32768;
+        mainHistory[~us][((ss - 1)->currentMove).from_to()] << -scaledPenalty * 224 / 32768;
 
         if (type_of(pos.piece_on(prevSq)) != PAWN && ((ss - 1)->currentMove).type_of() != PROMOTION)
             pawnHistory[pawn_history_index(pos)][pos.piece_on(prevSq)][prevSq]
-              << scaledBonus * 1127 / 32768;
+              << -scaledPenalty * 1127 / 32768;
     }
 
     // Bonus for prior capture countermove that caused the fail low
