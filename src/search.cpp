@@ -1199,6 +1199,10 @@ moves_loop:  // When in check, search starts here
         if (move == ttData.move)
             r -= 2043;
 
+        // Decrease reduction for check moves at deeper depths
+        if (givesCheck && depth > 8)
+            r -= 1024 * std::min(depth - 8, 8) / (4 + 2 * capture);
+
         if (capture)
             ss->statScore = 782 * int(PieceValue[pos.captured_piece()]) / 128
                           + captureHistory[movedPiece][move.to_sq()][type_of(pos.captured_piece())];
