@@ -1043,6 +1043,9 @@ moves_loop:  // When in check, search starts here
                     Value futilityValue = ss->staticEval + 225 + 220 * lmrDepth
                                         + 275 * (move.to_sq() == prevSq) + PieceValue[capturedPiece]
                                         + 131 * captHist / 1024;
+                    // Reduce futilityValue when position is improving or opponent's position is worsening
+                    // to make pruning less aggressive in promising positions
+                    futilityValue -= improving * 180 + opponentWorsening * 60;
                     if (futilityValue <= alpha)
                         continue;
                 }
