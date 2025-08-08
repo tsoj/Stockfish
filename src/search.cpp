@@ -1037,18 +1037,22 @@ moves_loop:  // When in check, search starts here
                 Piece capturedPiece = pos.piece_on(move.to_sq());
                 int   captHist = captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
 
+                const int cont0        = (*contHist[0])[movedPiece][move.to_sq()];
+                const int cont1        = (*contHist[1])[movedPiece][move.to_sq()];
+                const int captContHist = captHist + (cont0 + cont1) / 4;
+
                 // Futility pruning for captures
                 if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
                 {
                     Value futilityValue = ss->staticEval + 225 + 220 * lmrDepth
                                         + 275 * (move.to_sq() == prevSq) + PieceValue[capturedPiece]
-                                        + 131 * captHist / 1024;
+                                        + 131 * captContHist / 1024;
                     if (futilityValue <= alpha)
                         continue;
                 }
 
                 // SEE based pruning for captures and checks
-                int margin = std::clamp(158 * depth + captHist / 31, 0, 283 * depth);
+                int margin = std::clamp(158 * depth + captContHist / 31, 0, 283 * depth);
                 if (!pos.see_ge(move, -margin))
                 {
                     bool mayStalemateTrap =
