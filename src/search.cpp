@@ -862,6 +862,15 @@ Value Search::Worker::search(
         // Null move dynamic reduction based on depth
         Depth R = 7 + depth / 3;
 
+        // Increase reduction based on how much eval exceeds beta
+        R += std::min((ss->staticEval - beta) / 173, 3);
+
+        // Adjust reduction based on correction value and position dynamics
+        if (correctionValue > 30000 && improving)
+            R++;
+        else if (correctionValue < -30000 && !opponentWorsening)
+            R--;
+
         ss->currentMove                   = Move::null();
         ss->continuationHistory           = &continuationHistory[0][0][NO_PIECE][0];
         ss->continuationCorrectionHistory = &continuationCorrectionHistory[NO_PIECE][0];
