@@ -899,7 +899,20 @@ Value Search::Worker::search(
     // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
     // (*Scaler) Especially if they make IIR less aggressive.
     if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    {
+        Depth reduction = 1;
+
+        // Extra reduction when we have a TT hit but no move (position was searched but failed low)
+        // This is different from having no TT information at all
+        if (ss->ttHit && depth >= 10)
+            reduction++;
+
+        // Scale reduction with eval distance from alpha in non-improving positions
+        if (!improving && eval < alpha - 300)
+            reduction += (alpha - eval) / 600;
+
+        depth -= std::min(reduction, depth / 2);
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
