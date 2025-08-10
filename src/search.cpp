@@ -1117,8 +1117,20 @@ moves_loop:  // When in check, search starts here
             && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (56 + 79 * (ss->ttPv && !PvNode)) * depth / 58;
-            Depth singularDepth = newDepth / 2;
+            // Calculate TT move's history score for quality assessment
+            int ttMoveHistScore =
+              !ttCapture
+                ? (*contHist[0])[movedPiece][move.to_sq()]
+                    + (*contHist[1])[movedPiece][move.to_sq()]
+                    + pawnHistory[pawn_history_index(pos)][movedPiece][move.to_sq()]
+                : captureHistory[movedPiece][move.to_sq()][type_of(pos.piece_on(move.to_sq()))];
+
+            // Adjust singular margins based on TT move quality
+            int histBonus = std::clamp(ttMoveHistScore / 6000, -2, 3);
+
+            Value singularBeta =
+              ttData.value - (56 + 79 * (ss->ttPv && !PvNode) - 7 * histBonus) * depth / 58;
+            Depth singularDepth = newDepth / 2 + (ttMoveHistScore > 12000 && depth >= 12);
 
             ss->excludedMove = move;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
@@ -1128,9 +1140,11 @@ moves_loop:  // When in check, search starts here
             {
                 int corrValAdj   = std::abs(correctionValue) / 249096;
                 int doubleMargin = 4 + 205 * PvNode - 223 * !ttCapture - corrValAdj
-                                 - 959 * ttMoveHistory / 131072 - (ss->ply > rootDepth) * 45;
+                                 - 959 * ttMoveHistory / 131072 - (ss->ply > rootDepth) * 45
+                                 - (ttMoveHistScore > 8000) * 16;
                 int tripleMargin = 80 + 276 * PvNode - 249 * !ttCapture + 86 * ss->ttPv - corrValAdj
-                                 - (ss->ply * 2 > rootDepth * 3) * 53;
+                                 - (ss->ply * 2 > rootDepth * 3) * 53
+                                 - (ttMoveHistScore > 8000) * 28;
 
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
