@@ -1200,6 +1200,17 @@ moves_loop:  // When in check, search starts here
         if (move == ttData.move)
             r -= 2043;
 
+        // Decrease reduction for defensive moves responding to threats
+        if (prevSq != SQ_NONE && !capture && depth >= 4 && (ss - 1)->moveCount <= 8)
+        {
+            // Check if this move defends against the opponent's threat
+            if (move.from_sq() == prevSq  // Moving the previously attacked piece
+                || (type_of(movedPiece) != PAWN
+                    && (attacks_bb(type_of(movedPiece), move.to_sq(), pos.pieces())
+                        & prevSq)))  // Defending the previous target square
+                r -= 850 + 200 * (depth > 8);
+        }
+
         if (capture)
             ss->statScore = 782 * int(PieceValue[pos.captured_piece()]) / 128
                           + captureHistory[movedPiece][move.to_sq()][type_of(pos.captured_piece())];
