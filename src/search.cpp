@@ -899,7 +899,14 @@ Value Search::Worker::search(
     // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
     // (*Scaler) Especially if they make IIR less aggressive.
     if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    {
+        // Be less aggressive with IIR when TT suggests this is a critical position
+        bool ttCritical = ttHit && is_valid(ttData.value) && ttData.depth >= depth - 4
+                       && std::abs(ttData.value - (PvNode ? alpha : beta)) < 83 + 15 * depth;
+
+        if (!ttCritical || depth >= 9)
+            depth--;
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
