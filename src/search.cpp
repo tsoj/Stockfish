@@ -1192,7 +1192,7 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction if next ply has a lot of fail high
         if ((ss + 1)->cutoffCnt > 2)
-            r += 935 + allNode * 763;
+            r += 935 + allNode * 763 + std::min((ss + 1)->cutoffCnt - 3, depth / 2) * 128;
 
         r += (ss + 1)->quietMoveStreak * 51;
 
