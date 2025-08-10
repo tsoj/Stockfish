@@ -1070,8 +1070,17 @@ moves_loop:  // When in check, search starts here
                             + (*contHist[1])[movedPiece][move.to_sq()]
                             + pawnHistory[pawn_history_index(pos)][movedPiece][move.to_sq()];
 
+                // Add deeper continuation histories with decreasing weight
+                history += (*contHist[2])[movedPiece][move.to_sq()] / 2
+                         + (*contHist[3])[movedPiece][move.to_sq()] / 4;
+
+                // Include lowPlyHistory for shallow depths
+                if (ss->ply < LOW_PLY_HISTORY_SIZE)
+                    history += lowPlyHistory[ss->ply][move.from_to()] / 2;
+
                 // Continuation history based pruning
-                if (history < -4361 * depth)
+                // Make threshold more aggressive when we already have a good move
+                if (history < -4361 * depth - (bestMove ? 2000 : 0))
                     continue;
 
                 history += 71 * mainHistory[us][move.from_to()] / 32;
