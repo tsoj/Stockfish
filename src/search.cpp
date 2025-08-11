@@ -1397,14 +1397,9 @@ moves_loop:  // When in check, search starts here
         bestValue = excludedMove ? alpha : ss->inCheck ? mated_in(ss->ply) : VALUE_DRAW;
 
     // If there is a move that produces search value greater than alpha,
-    // we update the stats of searched moves.
-    else if (bestMove)
-    {
-        update_all_stats(pos, ss, *this, bestMove, prevSq, quietsSearched, capturesSearched, depth,
-                         ttData.move);
-        if (!PvNode)
-            ttMoveHistory << (bestMove == ttData.move ? 811 : -848);
-    }
+    // we update the stats of // Adjust best value for fail high cases
+    if (bestValue >= beta && !is_decisive(bestValue) && !is_decisive(alpha))
+        bestValue = (bestValue * depth + beta * (1 + 2 * PvNode)) / (depth + 1 + 2 * PvNode);
 
     // Bonus for prior quiet countermove that caused the fail low
     else if (!priorCapture && prevSq != SQ_NONE)
