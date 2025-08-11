@@ -897,9 +897,16 @@ Value Search::Worker::search(
 
     // Step 10. Internal iterative reductions
     // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Especially if they make IIR less aggressive.
+    // (*Scaler) Dynamically adjust reduction based on position complexity and node type
     if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    {
+        int complexity   = std::abs(correction_value(*this, pos, ss)) / 131072;
+        int pvThreshold  = 25 + depth * 2;  // PV nodes: reduce less in complex positions
+        int cutThreshold = 15 + depth / 2;  // Cut nodes: reduce more in simple positions
+
+        depth -= PvNode ? (complexity > pvThreshold ? 0 : 1) : (complexity < cutThreshold ? 2 : 1);
+        depth = std::max(depth, 1);  // Ensure we don't drop below quiescence search depth
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
