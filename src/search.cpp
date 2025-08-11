@@ -1071,7 +1071,14 @@ moves_loop:  // When in check, search starts here
                             + pawnHistory[pawn_history_index(pos)][movedPiece][move.to_sq()];
 
                 // Continuation history based pruning
-                if (history < -4361 * depth)
+                int threshold = -4361 * depth;
+                // If TT move is a quiet move from the same square as current move and same piece type,
+                // make the threshold less aggressive (higher)
+                if (ttData.move && !ttCapture && move.from_sq() == ttData.move.from_sq()
+                    && type_of(pos.piece_on(move.from_sq()))
+                         == type_of(pos.piece_on(ttData.move.from_sq())))
+                    threshold += 2000 * depth;
+                if (history < threshold)
                     continue;
 
                 history += 71 * mainHistory[us][move.from_to()] / 32;
