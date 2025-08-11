@@ -896,10 +896,26 @@ Value Search::Worker::search(
     improving |= ss->staticEval >= beta;
 
     // Step 10. Internal iterative reductions
-    // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Especially if they make IIR less aggressive.
-    if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    // At sufficient depth, reduce depth for PV/Cut nodes.
+    // (*Scaler) Make IIR more adaptive based on TT depth and bound reliability.
+    if (!allNode && depth >= 6 && priorReduction <= 3)
+    {
+        if (!ttData.move)
+            depth--;
+        else
+        {
+            int depthDiff = depth - ttData.depth;
+            // Base reduction on how much shallower the TT depth was
+            int baseReduction = std::clamp(depthDiff / 4, 0, 3);
+
+            // Adjust reduction based on TT bound reliability
+            // If bound is exact, we can reduce less (more confident in TT score)
+            // If bound is only an upper or lower bound, reduce more (less confident)
+            int boundAdjustment = (ttData.bound == BOUND_EXACT) ? -1 : 1;
+
+            depth -= std::clamp(baseReduction + boundAdjustment, 0, 3);
+        }
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
