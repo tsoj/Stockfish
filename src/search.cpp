@@ -1113,7 +1113,7 @@ moves_loop:  // When in check, search starts here
         // and lower extension margins scale well.
 
         if (!rootNode && move == ttData.move && !excludedMove
-            && depth >= 6 - (completedDepth > 26) + ss->ttPv && is_valid(ttData.value)
+            && depth >= 6 - (completedDepth > 26) + PvNode && is_valid(ttData.value)
             && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
@@ -1129,7 +1129,7 @@ moves_loop:  // When in check, search starts here
                 int corrValAdj   = std::abs(correctionValue) / 249096;
                 int doubleMargin = 4 + 205 * PvNode - 223 * !ttCapture - corrValAdj
                                  - 959 * ttMoveHistory / 131072 - (ss->ply > rootDepth) * 45;
-                int tripleMargin = 80 + 276 * PvNode - 249 * !ttCapture + 86 * ss->ttPv - corrValAdj
+                int tripleMargin = 80 + 276 * PvNode - 249 * !ttCapture + 86 * PvNode - corrValAdj
                                  - (ss->ply * 2 > rootDepth * 3) * 53;
 
                 extension =
