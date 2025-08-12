@@ -859,8 +859,9 @@ Value Search::Worker::search(
     {
         assert((ss - 1)->currentMove != Move::null());
 
-        // Null move dynamic reduction based on depth
-        Depth R = 7 + depth / 3;
+        // Null move dynamic reduction based on depth and evaluation
+        int   diff = std::max(0, ss->staticEval - beta);
+        Depth R    = 7 + depth / 3 + std::min(3, diff / 128);
 
         ss->currentMove                   = Move::null();
         ss->continuationHistory           = &continuationHistory[0][0][NO_PIECE][0];
@@ -875,7 +876,7 @@ Value Search::Worker::search(
         // Do not return unproven mate or TB scores
         if (nullValue >= beta && !is_win(nullValue))
         {
-            if (nmpMinPly || depth < 16)
+            if (nmpMinPly || depth < (12 - (ss->ttPv ? 0 : 2)))
                 return nullValue;
 
             assert(!nmpMinPly);  // Recursive verification is not allowed
