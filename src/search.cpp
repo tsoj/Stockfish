@@ -904,9 +904,11 @@ Value Search::Worker::search(
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
     // returns a value much above beta, we can (almost) safely prune the previous move.
-    probCutBeta = beta + 215 - 60 * improving;
+    probCutBeta = beta + 215 + depth * 3 - 60 * improving;
     if (depth >= 3
         && !is_decisive(beta)
+        // Skip ProbCut in overly complex positions where it's less reliable
+        && pos.non_pawn_material(us) > PawnValue
         // If value from transposition table is lower than probCutBeta, don't attempt
         // probCut there
         && !(is_valid(ttData.value) && ttData.value < probCutBeta))
@@ -914,8 +916,8 @@ Value Search::Worker::search(
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
         MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &captureHistory);
-        Depth      dynamicReduction = (ss->staticEval - beta) / 300;
-        Depth      probCutDepth     = std::max(depth - 5 - dynamicReduction, 0);
+        Depth      dynamicReduction = (ss->staticEval - beta) * depth / 1200;
+        Depth      probCutDepth = std::max(depth - std::min(6, depth / 2) - dynamicReduction, 0);
 
         while ((move = mp.next_move()) != Move::none())
         {
