@@ -1200,6 +1200,25 @@ moves_loop:  // When in check, search starts here
         if (move == ttData.move)
             r -= 2043;
 
+        // Enhanced depth-based reduction for shallow nodes (LTC scaling)
+        if (depth < 12)
+        {
+            // Base adjustment based on current reduction magnitude
+            int extraReduction = (r > 8) + (r > 11) + (r > 13) + (r > 15);
+
+            // Be significantly more aggressive with reductions in cut nodes
+            if (cutNode)
+                extraReduction += 3 + (r > 17);
+            // For PV nodes, only slightly increase reduction for very large reductions
+            else if (PvNode && r > 15)
+                extraReduction += 1;
+
+            // Scale adjustment based on position complexity (higher complexity = less adjustment)
+            extraReduction = std::max(0, extraReduction - std::abs(correctionValue) / 17500);
+
+            r += extraReduction;
+        }
+
         if (capture)
             ss->statScore = 782 * int(PieceValue[pos.captured_piece()]) / 128
                           + captureHistory[movedPiece][move.to_sq()][type_of(pos.captured_piece())];
