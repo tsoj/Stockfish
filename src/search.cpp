@@ -1184,7 +1184,7 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for cut nodes
         if (cutNode)
-            r += 3000 + 1024 * !ttData.move;
+            r += 3000 + 1024 * !ttData.move + 512 * PvNode;
 
         // Increase reduction if ttMove is a capture
         if (ttCapture)
@@ -1192,13 +1192,13 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction if next ply has a lot of fail high
         if ((ss + 1)->cutoffCnt > 2)
-            r += 935 + allNode * 763;
+            r += 935 + allNode * 763 - 256 * PvNode;
 
         r += (ss + 1)->quietMoveStreak * 51;
 
         // For first picked move (ttMove) reduce reduction
         if (move == ttData.move)
-            r -= 2043;
+            r -= 2043 + 512 * PvNode;
 
         if (capture)
             ss->statScore = 782 * int(PieceValue[pos.captured_piece()]) / 128
