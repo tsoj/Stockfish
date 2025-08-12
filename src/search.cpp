@@ -1356,8 +1356,11 @@ moves_loop:  // When in check, search starts here
 
                 if (value >= beta)
                 {
-                    // (* Scaler) Especially if they make cutoffCnt increment more often.
-                    ss->cutoffCnt += (extension < 2) || PvNode;
+                    // (* Scaler) Give extra weight to quiet moves causing cutoffs as they indicate
+                    // strong positional advantages that scale better with longer time controls.
+                    // Quiet moves causing cutoffs get +1 extra increment to better reflect their
+                    // strategic significance compared to tactical captures.
+                    ss->cutoffCnt += (extension < 2) || PvNode + !capture;
                     assert(value >= beta);  // Fail high
                     break;
                 }
