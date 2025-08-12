@@ -1449,12 +1449,20 @@ moves_loop:  // When in check, search starts here
     // Write gathered information in transposition table. Note that the
     // static evaluation is saved as it was before correction history.
     if (!excludedMove && !(rootNode && pvIdx))
-        ttWriter.write(posKey, value_to_tt(bestValue, ss->ply), ss->ttPv,
-                       bestValue >= beta    ? BOUND_LOWER
-                       : PvNode && bestMove ? BOUND_EXACT
-                                            : BOUND_UPPER,
+    {
+        Bound bound = bestValue >= beta  ? BOUND_LOWER
+                    : PvNode && bestMove ? BOUND_EXACT
+                                         : BOUND_UPPER;
+
+        // For mate scores, be more conservative about the bound type to avoid GHI issues
+        // Downgrade mate scores to upper bounds as they may be affected by the 50-move rule
+        if (is_win(bestValue) || is_loss(bestValue))
+            bound = BOUND_UPPER;
+
+        ttWriter.write(posKey, value_to_tt(bestValue, ss->ply), ss->ttPv, bound,
                        moveCount != 0 ? depth : std::min(MAX_PLY - 1, depth + 6), bestMove,
                        unadjustedStaticEval, tt.generation());
+    }
 
     // Adjust correction history
     if (!ss->inCheck && !(bestMove && pos.capture(bestMove))
