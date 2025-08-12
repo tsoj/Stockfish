@@ -1120,6 +1120,11 @@ moves_loop:  // When in check, search starts here
             Value singularBeta  = ttData.value - (56 + 79 * (ss->ttPv && !PvNode)) * depth / 58;
             Depth singularDepth = newDepth / 2;
 
+            // Adjust singular extension margins based on 50-move rule context
+            int r50c           = pos.rule50_count();
+            int r50cAdjustment = (r50c > 80) ? (r50c - 80) / 4 : 0;
+            int r50cBonus      = (r50c > 80 && (capture || givesCheck)) ? -(r50c - 80) / 2 : 0;
+
             ss->excludedMove = move;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
             ss->excludedMove = Move::none();
@@ -1128,9 +1133,10 @@ moves_loop:  // When in check, search starts here
             {
                 int corrValAdj   = std::abs(correctionValue) / 249096;
                 int doubleMargin = 4 + 205 * PvNode - 223 * !ttCapture - corrValAdj
-                                 - 959 * ttMoveHistory / 131072 - (ss->ply > rootDepth) * 45;
+                                 - 959 * ttMoveHistory / 131072 - (ss->ply > rootDepth) * 45
+                                 + r50cAdjustment + r50cBonus;
                 int tripleMargin = 80 + 276 * PvNode - 249 * !ttCapture + 86 * ss->ttPv - corrValAdj
-                                 - (ss->ply * 2 > rootDepth * 3) * 53;
+                                 - (ss->ply * 2 > rootDepth * 3) * 53 + r50cAdjustment + r50cBonus;
 
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
