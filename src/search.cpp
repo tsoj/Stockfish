@@ -1449,12 +1449,21 @@ moves_loop:  // When in check, search starts here
     // Write gathered information in transposition table. Note that the
     // static evaluation is saved as it was before correction history.
     if (!excludedMove && !(rootNode && pvIdx))
+    {
+        // In fail-high situations, if we had a TT hit with a move that caused a fail-high at greater depth,
+        // prefer the TT move over bestMove as it's likely more reliable
+        Move storedMove = bestMove;
+        if (bestValue >= beta && ss->ttHit && ttData.move && pos.legal(ttData.move)
+            && (ttData.bound & BOUND_LOWER) && ttData.depth > depth + 2)
+            storedMove = ttData.move;
+
         ttWriter.write(posKey, value_to_tt(bestValue, ss->ply), ss->ttPv,
                        bestValue >= beta    ? BOUND_LOWER
                        : PvNode && bestMove ? BOUND_EXACT
                                             : BOUND_UPPER,
-                       moveCount != 0 ? depth : std::min(MAX_PLY - 1, depth + 6), bestMove,
+                       moveCount != 0 ? depth : std::min(MAX_PLY - 1, depth + 6), storedMove,
                        unadjustedStaticEval, tt.generation());
+    }
 
     // Adjust correction history
     if (!ss->inCheck && !(bestMove && pos.capture(bestMove))
