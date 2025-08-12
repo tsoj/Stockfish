@@ -1585,7 +1585,15 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         if (bestValue > alpha)
             alpha = bestValue;
 
-        futilityBase = ss->staticEval + 352;
+        // Adaptive futility margin based on search context:
+        // 1. Reduce margin when bestValue significantly exceeds staticEval (more aggressive pruning)
+        // 2. Increase margin when bestValue is below staticEval (less aggressive pruning)
+        // 3. Adjust for position complexity (more shuffling = less aggressive pruning)
+        int marginAdjustment = (bestValue - ss->staticEval) / 2;
+        int complexityFactor = std::min(100, pos.rule50_count() * 12);
+
+        futilityBase =
+          ss->staticEval + 352 - std::clamp(marginAdjustment, -100, 100) + complexityFactor;
     }
 
     const PieceToHistory* contHist[] = {(ss - 1)->continuationHistory,
