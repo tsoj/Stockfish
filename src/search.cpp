@@ -1722,7 +1722,11 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
 }
 
 Depth Search::Worker::reduction(bool i, Depth d, int mn, int delta) const {
-    int reductionScale = reductions[d] * reductions[mn];
+    // Depth-adaptive move number scaling for better LTC performance
+    // Quadratic function that peaks at medium depths (d=16) where move ordering is most reliable
+    int depthFactor    = (d < 8) ? d * 32 / 8 : (d > 24) ? (48 - d) * 32 / 24 : 32;
+    int scaledMn       = std::max(1, mn * depthFactor / 32);
+    int reductionScale = reductions[d] * reductions[scaledMn];
     return reductionScale - delta * 731 / rootDelta + !i * reductionScale * 216 / 512 + 1089;
 }
 
