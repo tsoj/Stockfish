@@ -1184,7 +1184,16 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for cut nodes
         if (cutNode)
-            r += 3000 + 1024 * !ttData.move;
+        {
+            int cutNodeBonus = 3000 + 1024 * !ttData.move;
+            // Reduce the bonus for moves with strong continuation history
+            if (!capture && ss->statScore > 3500)
+            {
+                int historyReduction = std::min(cutNodeBonus / 2, ss->statScore / 128);
+                cutNodeBonus -= historyReduction;
+            }
+            r += cutNodeBonus;
+        }
 
         // Increase reduction if ttMove is a capture
         if (ttCapture)
