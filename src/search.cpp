@@ -1135,7 +1135,9 @@ moves_loop:  // When in check, search starts here
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
-                depth++;
+                // At high depths, limit extension to 1 to avoid explosion
+                if (depth >= 10)
+                    extension = 1;
             }
 
             // Multi-cut pruning
@@ -1147,21 +1149,9 @@ moves_loop:  // When in check, search starts here
             else if (value >= beta && !is_decisive(value))
                 return value;
 
-            // Negative extensions
-            // If other moves failed high over (ttValue - margin) without the
-            // ttMove on a reduced search, but we cannot do multi-cut because
-            // (ttValue - margin) is lower than the original beta, we do not know
-            // if the ttMove is singular or can do a multi-cut, so we reduce the
-            // ttMove in favor of other moves based on some conditions:
-
-            // If the ttMove is assumed to fail high over current beta
-            else if (ttData.value >= beta)
-                extension = -3;
-
-            // If we are on a cutNode but the ttMove is not assumed to fail high
-            // over current beta
+            // If the singular search didn't fail low and we are in a cut node, reduce the move by 1 ply
             else if (cutNode)
-                extension = -2;
+                extension = -1;
         }
 
         // Step 16. Make the move
