@@ -698,8 +698,12 @@ Value Search::Worker::search(
         // For high rule50 counts don't produce transposition table cutoffs.
         if (pos.rule50_count() < 91)
         {
-            if (depth >= 8 && ttData.move && pos.pseudo_legal(ttData.move) && pos.legal(ttData.move)
-                && !is_decisive(ttData.value))
+            // Calculate position complexity to dynamically adjust verification depth
+            int complexity                 = std::abs(correction_value(*this, pos, ss)) / 12000;
+            int verificationDepthThreshold = std::max(6, 8 - complexity);
+
+            if (depth >= verificationDepthThreshold && ttData.move && pos.pseudo_legal(ttData.move)
+                && pos.legal(ttData.move) && !is_decisive(ttData.value))
             {
                 pos.do_move(ttData.move, st);
                 Key nextPosKey                             = pos.key();
