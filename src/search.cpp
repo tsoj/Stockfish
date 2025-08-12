@@ -884,7 +884,10 @@ Value Search::Worker::search(
             // until ply exceeds nmpMinPly.
             nmpMinPly = ss->ply + 3 * (depth - R) / 4;
 
-            Value v = search<NonPV>(pos, ss, beta - 1, beta, depth - R, false);
+            // Increase verification depth by a fraction of the reduction
+            Depth D = depth - R + (R + 2) / 3;  // ~1/3 of reduction added back
+            D       = std::min(D, depth);
+            Value v = search<NonPV>(pos, ss, beta - 1, beta, D, false);
 
             nmpMinPly = 0;
 
