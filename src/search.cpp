@@ -896,10 +896,26 @@ Value Search::Worker::search(
     improving |= ss->staticEval >= beta;
 
     // Step 10. Internal iterative reductions
-    // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Especially if they make IIR less aggressive.
+    // If we don't have a TT move, do a shallow search to get one for better move ordering
+    // (*Scaler) This technique scales well with longer time controls as better move ordering
+    // becomes increasingly valuable at deeper search depths
     if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    {
+        Value value = search<NonPV>(pos, ss, alpha, alpha + 1, std::max(1, depth - 3), cutNode);
+        if (value > alpha)
+        {
+            posKey                                  = pos.key();
+            auto [ttHitNew, ttDataNew, ttWriterNew] = tt.probe(posKey);
+            if (ttHitNew)
+            {
+                ss->ttHit    = true;
+                ttData.move  = ttDataNew.move;
+                ttData.value = ttDataNew.value;
+                ttCapture    = ttData.move && pos.capture_stage(ttData.move);
+                ss->ttPv     = PvNode || (ttHitNew && ttDataNew.is_pv);
+            }
+        }
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
