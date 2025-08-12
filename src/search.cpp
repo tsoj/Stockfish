@@ -1132,6 +1132,11 @@ moves_loop:  // When in check, search starts here
                 int tripleMargin = 80 + 276 * PvNode - 249 * !ttCapture + 86 * ss->ttPv - corrValAdj
                                  - (ss->ply * 2 > rootDepth * 3) * 53;
 
+                // Logarithmic adjustment to triple margin for better LTC scaling
+                // Makes triple extensions more likely when completedDepth is high
+                // This scales well with longer time controls while avoiding excessive extensions
+                tripleMargin -= std::min(20, int(10 * std::log(completedDepth + 1)));
+
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
