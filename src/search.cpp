@@ -1156,8 +1156,14 @@ moves_loop:  // When in check, search starts here
 
             // If the ttMove is assumed to fail high over current beta
             else if (ttData.value >= beta)
-                extension = -3;
-
+            {
+                Value margin = ttData.value - beta;
+                // Scale negative extension proportionally to the margin (1 ply per 65 centipawns)
+                extension = -1 - std::min(4, int(margin) / 65);
+                // Make it more severe in cutNodes
+                if (cutNode)
+                    extension -= 1 + (margin > 150);
+            }
             // If we are on a cutNode but the ttMove is not assumed to fail high
             // over current beta
             else if (cutNode)
