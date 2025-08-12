@@ -1109,15 +1109,14 @@ moves_loop:  // When in check, search starts here
         // and if the result is lower than ttValue minus a margin, then we will
         // extend the ttMove. Recursive singular search is avoided.
 
-        // (*Scaler) Generally, higher singularBeta (i.e closer to ttValue)
-        // and lower extension margins scale well.
-
+        // Use a depth-dependent margin for singularBeta: smaller margin at higher depths
         if (!rootNode && move == ttData.move && !excludedMove
             && depth >= 6 - (completedDepth > 26) + ss->ttPv && is_valid(ttData.value)
             && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (56 + 79 * (ss->ttPv && !PvNode)) * depth / 58;
+            Value margin = (depth >= 10 ? 20 : (depth >= 6 ? 30 : 40)) + (ss->ttPv && !PvNode) * 20;
+            Value singularBeta  = ttData.value - margin * depth / 40;
             Depth singularDepth = newDepth / 2;
 
             ss->excludedMove = move;
@@ -1126,16 +1125,12 @@ moves_loop:  // When in check, search starts here
 
             if (value < singularBeta)
             {
-                int corrValAdj   = std::abs(correctionValue) / 249096;
-                int doubleMargin = 4 + 205 * PvNode - 223 * !ttCapture - corrValAdj
-                                 - 959 * ttMoveHistory / 131072 - (ss->ply > rootDepth) * 45;
-                int tripleMargin = 80 + 276 * PvNode - 249 * !ttCapture + 86 * ss->ttPv - corrValAdj
-                                 - (ss->ply * 2 > rootDepth * 3) * 53;
-
-                extension =
-                  1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
-
-                depth++;
+                int baseMargin = 50 + 10 * depth;
+                extension      = 1;
+                if (value < singularBeta - baseMargin)
+                    extension = 2;
+                if (value < singularBeta - 2 * baseMargin)
+                    extension = 3;
             }
 
             // Multi-cut pruning
