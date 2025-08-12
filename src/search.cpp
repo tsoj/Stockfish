@@ -1109,8 +1109,7 @@ moves_loop:  // When in check, search starts here
         // and if the result is lower than ttValue minus a margin, then we will
         // extend the ttMove. Recursive singular search is avoided.
 
-        // (*Scaler) Generally, higher singularBeta (i.e closer to ttValue)
-        // and lower extension margins scale well.
+        // We adjust the extension margins to be simpler and scale better in LTC.
 
         if (!rootNode && move == ttData.move && !excludedMove
             && depth >= 6 - (completedDepth > 26) + ss->ttPv && is_valid(ttData.value)
@@ -1126,15 +1125,10 @@ moves_loop:  // When in check, search starts here
 
             if (value < singularBeta)
             {
-                int corrValAdj   = std::abs(correctionValue) / 249096;
-                int doubleMargin = 4 + 205 * PvNode - 223 * !ttCapture - corrValAdj
-                                 - 959 * ttMoveHistory / 131072 - (ss->ply > rootDepth) * 45;
-                int tripleMargin = 80 + 276 * PvNode - 249 * !ttCapture + 86 * ss->ttPv - corrValAdj
-                                 - (ss->ply * 2 > rootDepth * 3) * 53;
-
-                extension =
-                  1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
-
+                // Simplified margin calculation for extensions
+                // (*Scaler) Scales well in LTC by using a depth-dependent margin
+                int margin = 85 * depth + 45 * (PvNode && !ttCapture);
+                extension  = 1 + (value < singularBeta - margin);
                 depth++;
             }
 
@@ -1148,20 +1142,10 @@ moves_loop:  // When in check, search starts here
                 return value;
 
             // Negative extensions
-            // If other moves failed high over (ttValue - margin) without the
-            // ttMove on a reduced search, but we cannot do multi-cut because
-            // (ttValue - margin) is lower than the original beta, we do not know
-            // if the ttMove is singular or can do a multi-cut, so we reduce the
-            // ttMove in favor of other moves based on some conditions:
-
-            // If the ttMove is assumed to fail high over current beta
-            else if (ttData.value >= beta)
-                extension = -3;
-
-            // If we are on a cutNode but the ttMove is not assumed to fail high
-            // over current beta
-            else if (cutNode)
-                extension = -2;
+            // If we are on a cutNode and the singular search failed high, then we reduce the ttMove by 1 ply.
+            // Less aggressive than before to scale better in LTC.
+            else if (cutNode && value >= beta)
+                extension = -1;
         }
 
         // Step 16. Make the move
