@@ -1126,11 +1126,24 @@ moves_loop:  // When in check, search starts here
 
             if (value < singularBeta)
             {
+                // Adjust margins based on SEE for LTC scaling
+                // Higher SEE means we can be more confident in the move, so use smaller margins
+                int seeValue =
+                  pos.see_ge(move, Value(0)) ? 2 : (pos.see_ge(move, Value(-100)) ? 1 : 0);
+                int seeAdj = seeValue;
+
+                // Adjust margins based on position stability for LTC scaling
+                // More stable positions (alpha >= static eval) allow for smaller margins
+                bool stablePosition = (alpha >= ss->staticEval);
+                int  stabilityAdj   = stablePosition ? 3 : 0;
+
                 int corrValAdj   = std::abs(correctionValue) / 249096;
                 int doubleMargin = 4 + 205 * PvNode - 223 * !ttCapture - corrValAdj
-                                 - 959 * ttMoveHistory / 131072 - (ss->ply > rootDepth) * 45;
+                                 - 959 * ttMoveHistory / 131072 - (ss->ply > rootDepth) * 45
+                                 - seeAdj - stabilityAdj;
                 int tripleMargin = 80 + 276 * PvNode - 249 * !ttCapture + 86 * ss->ttPv - corrValAdj
-                                 - (ss->ply * 2 > rootDepth * 3) * 53;
+                                 - (ss->ply * 2 > rootDepth * 3) * 53 - 2 * seeAdj
+                                 - 2 * stabilityAdj;
 
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
