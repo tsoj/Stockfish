@@ -809,7 +809,21 @@ Value Search::Worker::search(
     // Use static evaluation difference to improve quiet move ordering
     if (((ss - 1)->currentMove).is_ok() && !(ss - 1)->inCheck && !priorCapture)
     {
-        int bonus = std::clamp(-10 * int((ss - 1)->staticEval + ss->staticEval), -1979, 1561) + 630;
+        // Use TT value if it's a more reliable bound than static evaluation
+        Value evalForBonus = ss->staticEval;
+        if (ss->ttHit && is_valid(ttData.value))
+        {
+            if ((ttData.bound & BOUND_LOWER) && ttData.value > ss->staticEval)
+            {
+                evalForBonus = ttData.value;
+            }
+            else if ((ttData.bound & BOUND_UPPER) && ttData.value < ss->staticEval)
+            {
+                evalForBonus = ttData.value;
+            }
+        }
+
+        int bonus = std::clamp(-10 * int((ss - 1)->staticEval + evalForBonus), -1979, 1561) + 630;
         mainHistory[~us][((ss - 1)->currentMove).from_to()] << bonus * 935 / 1024;
         if (!ttHit && type_of(pos.piece_on(prevSq)) != PAWN
             && ((ss - 1)->currentMove).type_of() != PROMOTION)
