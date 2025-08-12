@@ -859,8 +859,9 @@ Value Search::Worker::search(
     {
         assert((ss - 1)->currentMove != Move::null());
 
-        // Null move dynamic reduction based on depth
-        Depth R = 7 + depth / 3;
+        int   evalAbove = std::max(ss->staticEval - beta, 0);
+        Depth R         = 7 + depth / 3 + evalAbove / 200;
+        R               = std::min(R, depth - 1);
 
         ss->currentMove                   = Move::null();
         ss->continuationHistory           = &continuationHistory[0][0][NO_PIECE][0];
