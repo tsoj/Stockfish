@@ -1293,8 +1293,14 @@ moves_loop:  // When in check, search starts here
 
             rm.effort += nodes - nodeCount;
 
-            rm.averageScore =
-              rm.averageScore != -VALUE_INFINITE ? (value + rm.averageScore) / 2 : value;
+            // Adaptive averaging: gradually increase historical weight as depth increases
+            // Depth 0-7: (value + avg)/2 (same as current)
+            // Depth 8-15: (value + 2*avg)/3
+            // Depth 16+: (value + 3*avg)/4
+            int divisor     = 2 + depth / 8;
+            rm.averageScore = rm.averageScore != -VALUE_INFINITE
+                              ? (value + (divisor - 1) * rm.averageScore) / divisor
+                              : value;
 
             rm.meanSquaredScore = rm.meanSquaredScore != -VALUE_INFINITE * VALUE_INFINITE
                                   ? (value * std::abs(value) + rm.meanSquaredScore) / 2
