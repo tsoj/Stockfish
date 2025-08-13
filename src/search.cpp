@@ -859,8 +859,9 @@ Value Search::Worker::search(
     {
         assert((ss - 1)->currentMove != Move::null());
 
-        // Null move dynamic reduction based on depth
-        Depth R = 7 + depth / 3;
+        // Null move dynamic reduction based on depth and evaluation margin
+        const int evalMargin = ss->staticEval - beta;
+        Depth     R          = 7 + depth / 3 + std::min(evalMargin / 250, 3);
 
         ss->currentMove                   = Move::null();
         ss->continuationHistory           = &continuationHistory[0][0][NO_PIECE][0];
@@ -868,7 +869,12 @@ Value Search::Worker::search(
 
         do_null_move(pos, st);
 
-        Value nullValue = -search<NonPV>(pos, ss + 1, -beta, -beta + 1, depth - R, false);
+        Value nullValue;
+        // Use qsearch when static eval is significantly above beta and depth is shallow
+        if (evalMargin > 300 && depth <= 8)
+            nullValue = -qsearch<NonPV>(pos, ss + 1, -beta, -beta + 1);
+        else
+            nullValue = -search<NonPV>(pos, ss + 1, -beta, -beta + 1, depth - R, false);
 
         undo_null_move(pos);
 
@@ -881,10 +887,11 @@ Value Search::Worker::search(
             assert(!nmpMinPly);  // Recursive verification is not allowed
 
             // Do verification search at high depths, with null move pruning disabled
-            // until ply exceeds nmpMinPly.
-            nmpMinPly = ss->ply + 3 * (depth - R) / 4;
+            // until ply exceeds nmpMinPly. Adjust verification depth based on fail-high margin.
+            nmpMinPly               = ss->ply + 3 * (depth - R) / 4;
+            Depth verificationDepth = depth - R - std::min((nullValue - beta) / 300, 2);
 
-            Value v = search<NonPV>(pos, ss, beta - 1, beta, depth - R, false);
+            Value v = search<NonPV>(pos, ss, beta - 1, beta, verificationDepth, false);
 
             nmpMinPly = 0;
 
