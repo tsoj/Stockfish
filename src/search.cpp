@@ -1241,7 +1241,17 @@ moves_loop:  // When in check, search starts here
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
 
                 // Post LMR continuation history updates
-                update_continuation_histories(ss, movedPiece, move.to_sq(), 1412);
+                // Make bonus dynamic based on depth, move type, and reduction amount
+                int bonus = std::max(1, 22 * depth * depth + 151 * depth - 140);
+                if (!capture)
+                    bonus += bonus / 2;  // 50% larger bonus for quiet moves
+                if (r > 2048)            // > 2 ply reduction
+                    bonus += bonus / 2;  // Additional 50% for significantly reduced moves
+                if (r > 4096)            // > 4 ply reduction
+                    bonus += bonus / 2;  // Additional 50% for very significantly reduced moves
+                if (PvNode)
+                    bonus += bonus / 4;  // Additional 25% for PV nodes
+                update_continuation_histories(ss, movedPiece, move.to_sq(), std::min(bonus, 2000));
             }
         }
 
