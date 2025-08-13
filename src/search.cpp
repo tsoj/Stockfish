@@ -1836,6 +1836,10 @@ void update_all_stats(const Position& pos,
         // Increase stats for the best move in case it was a capture move
         capturedPiece = type_of(pos.piece_on(bestMove.to_sq()));
         captureHistory[movedPiece][bestMove.to_sq()][capturedPiece] << captureBonus * 1288 / 1024;
+
+        // Also update other history tables for capture moves to improve contextual understanding
+        // Use slightly reduced bonus (900 instead of 978) since capture moves already get captureHistory bonus
+        update_quiet_histories(pos, ss, workerThread, bestMove, captureBonus * 900 / 1024);
     }
 
     // Extra penalty for a quiet early move that was not a TT move in
@@ -1850,6 +1854,9 @@ void update_all_stats(const Position& pos,
         movedPiece    = pos.moved_piece(move);
         capturedPiece = type_of(pos.piece_on(move.to_sq()));
         captureHistory[movedPiece][move.to_sq()][capturedPiece] << -captureMalus * 1431 / 1024;
+
+        // Update other history tables for non-best capture moves as well
+        update_quiet_histories(pos, ss, workerThread, move, -captureMalus * 950 / 1024);
     }
 }
 
