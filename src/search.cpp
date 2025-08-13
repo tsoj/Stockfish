@@ -1721,9 +1721,17 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     return bestValue;
 }
 
-Depth Search::Worker::reduction(bool i, Depth d, int mn, int delta) const {
+Depth Search::Worker::reduction(bool i, Depth d, Depth mn, int delta) const {
     int reductionScale = reductions[d] * reductions[mn];
-    return reductionScale - delta * 731 / rootDelta + !i * reductionScale * 216 / 512 + 1089;
+
+    // Depth-dependent improving factor that scales well for LTC:
+    // - At shallow depths: More aggressive reductions for non-improving positions (better pruning)
+    // - At deeper depths: More conservative reductions (better tactical awareness)
+    // The formula uses diminishing returns to prevent excessive reduction at deep depths
+    int depthFactor     = std::min(350, 216 + d * 13 - d * d / 5);
+    int improvingFactor = !i * reductionScale * depthFactor / 512;
+
+    return reductionScale - delta * 731 / rootDelta + improvingFactor + 1089;
 }
 
 // elapsed() returns the time elapsed since the search started. If the
