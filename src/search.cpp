@@ -1186,6 +1186,12 @@ moves_loop:  // When in check, search starts here
         if (cutNode)
             r += 3000 + 1024 * !ttData.move;
 
+        // Reduce reduction for ttMove in cut nodes when TT value is significantly below alpha
+        // This handles situations where the TT move is unexpectedly bad in a cut node,
+        // suggesting the position might be better than expected and needs deeper verification
+        if (cutNode && move == ttData.move && ttData.value < alpha - 25)
+            r -= 500;
+
         // Increase reduction if ttMove is a capture
         if (ttCapture)
             r += 1350;
