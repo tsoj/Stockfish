@@ -1117,7 +1117,9 @@ moves_loop:  // When in check, search starts here
             && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (56 + 79 * (ss->ttPv && !PvNode)) * depth / 58;
+            // Adjust divisor based on completedDepth for better LTC scaling
+            int   divisor      = 58 + completedDepth / 10;
+            Value singularBeta = ttData.value - (56 + 79 * (ss->ttPv && !PvNode)) * depth / divisor;
             Depth singularDepth = newDepth / 2;
 
             ss->excludedMove = move;
