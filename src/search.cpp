@@ -1208,6 +1208,11 @@ moves_loop:  // When in check, search starts here
                           + (*contHist[0])[movedPiece][move.to_sq()]
                           + (*contHist[1])[movedPiece][move.to_sq()];
 
+        // Add longer-term continuation history for quiet moves
+        // For quiet moves, longer-term positional patterns might be more relevant
+        if (!capture)
+            ss->statScore += (*contHist[3])[movedPiece][move.to_sq()] / 2;
+
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 789 / 8192;
 
