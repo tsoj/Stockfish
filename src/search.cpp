@@ -1209,7 +1209,10 @@ moves_loop:  // When in check, search starts here
                           + (*contHist[1])[movedPiece][move.to_sq()];
 
         // Decrease/increase reduction for moves with a good/bad history
-        r -= ss->statScore * 789 / 8192;
+        // Scale history impact with search depth for better LTC scaling
+        // As search depth increases, history scores become more reliable
+        int historyScale = 789 + std::min(completedDepth / 2, 100);
+        r -= ss->statScore * historyScale / 8192;
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
