@@ -1230,6 +1230,17 @@ moves_loop:  // When in check, search starts here
             // doesn't scale well to longer TCs
             if (value > alpha)
             {
+                // Add an intermediate search between LMR depth and full depth
+                // if the LMR search result is significantly better than alpha
+                const int dynamicThreshold = 32 + 16 * (newDepth - d);
+                if (value > alpha + dynamicThreshold && d + 4 < newDepth && depth < 10)
+                {
+                    Depth intermediateDepth = d + (newDepth - d) * (value - alpha) / 512;
+                    intermediateDepth       = std::clamp(intermediateDepth, d + 1, newDepth - 1);
+                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, intermediateDepth,
+                                           !cutNode);
+                }
+
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
                 const bool doDeeperSearch = d < newDepth && value > (bestValue + 43 + 2 * newDepth);
