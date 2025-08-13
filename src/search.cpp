@@ -1048,8 +1048,10 @@ moves_loop:  // When in check, search starts here
                         continue;
                 }
 
-                // SEE based pruning for captures and checks
-                int margin = std::clamp(158 * depth + captHist / 31, 0, 283 * depth);
+                // SEE based pruning for captures and checks: depth-adaptive history weight for LTC scaling
+                int historyWeight = 31 - depth / 2;
+                historyWeight     = std::max(16, historyWeight);  // Cap at 16 for deep searches
+                int margin = std::clamp(158 * depth + captHist / historyWeight, 0, 283 * depth);
                 if (!pos.see_ge(move, -margin))
                 {
                     bool mayStalemateTrap =
