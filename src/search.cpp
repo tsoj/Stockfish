@@ -1088,8 +1088,12 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth = std::max(lmrDepth, 0);
 
-                // Prune moves with negative SEE
-                if (!pos.see_ge(move, -27 * lmrDepth * lmrDepth))
+                // Prune moves with negative SEE, but be less aggressive in PV nodes or when opponent is worsening
+                int seeMargin = 27 * lmrDepth * lmrDepth;
+                if (PvNode || opponentWorsening)
+                    seeMargin /= 2;
+
+                if (!pos.see_ge(move, -seeMargin))
                     continue;
             }
         }
