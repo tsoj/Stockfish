@@ -1623,21 +1623,38 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                 if (moveCount > 2)
                     continue;
 
-                Value futilityValue = futilityBase + PieceValue[pos.piece_on(move.to_sq())];
+                // Base futility value: static + captured piece value
+                Piece capturedPiece = pos.piece_on(move.to_sq());
+                Piece movedPiece    = pos.moved_piece(move);
+                Value futilityValue = futilityBase + PieceValue[capturedPiece];
 
-                // If static eval + value of piece we are going to capture is
-                // much lower than alpha, we can prune this move.
+                // History-guided futility boost: lift borderline captures with strong stats
+                // Scales well with LTC because histories become more reliable/deviate from 0.
+                int cont0     = (*contHist[0])[movedPiece][move.to_sq()];
+                int cont1     = (*contHist[1])[movedPiece][move.to_sq()];
+                int captH     = captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
+                int histBoost = std::max(0, cont0 / 64 + cont1 / 64 + captH / 128);
+                futilityValue += Value(histBoost);
+
+                // If static eval + adjusted margin is still <= alpha, prune and softly
+                // move bestValue toward the futility bound to reduce oscillations
                 if (futilityValue <= alpha)
                 {
-                    bestValue = std::max(bestValue, futilityValue);
+                    if (futilityValue > bestValue)
+                    {
+                        // Small, discrete weight favoring earlier moves and heavy captures
+                        int w     = 1 + (moveCount <= 2) + (type_of(capturedPiece) >= ROOK);
+                        w         = std::min(3, std::max(1, w));
+                        bestValue = (bestValue * (8 - w) + futilityValue * w) / 8;
+                    }
                     continue;
                 }
 
-                // If static exchange evaluation is low enough
-                // we can prune this move.
+                // If static exchange evaluation is low enough we can prune this move.
                 if (!pos.see_ge(move, alpha - futilityBase))
                 {
-                    bestValue = std::min(alpha, futilityBase);
+                    // Keep a soft upper bound; don't lower bestValue if already higher
+                    bestValue = std::min(alpha, std::max(bestValue, futilityBase));
                     continue;
                 }
             }
