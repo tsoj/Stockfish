@@ -1215,6 +1215,10 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 794 / 8192;
 
+        // Propagate volatility from deeper plies: if grandchildren frequently cut off,
+        // be more selective here. Scale by cutoffCnt/16, and dampen at PV nodes.
+        r += ((ss + 2)->cutoffCnt >> 4) * (896 - 256 * PvNode);
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
@@ -1224,6 +1228,14 @@ moves_loop:  // When in check, search starts here
             // To prevent problems when the max value is less than the min value,
             // std::clamp has been replaced by a more robust implementation.
             Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 2)) + PvNode;
+
+            // Safety: avoid negative-reduction extensions for cut nodes without a TT move
+            // and soften negative extensions for late quiets.
+            if (cutNode && !ttData.move)
+                d = std::min(d, newDepth);
+
+            if (r < 0 && !capture && !givesCheck && moveCount > 3)
+                d = std::min(d, newDepth + 1);
 
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
