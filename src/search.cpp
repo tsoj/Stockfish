@@ -1076,13 +1076,28 @@ moves_loop:  // When in check, search starts here
                             + (*contHist[1])[movedPiece][move.to_sq()]
                             + pawnHistory[pawn_history_index(pos)][movedPiece][move.to_sq()];
 
-                // Continuation history based pruning
+                // Continuation history based pruning (strong early gate on cont/pawn only)
                 if (history < -4312 * depth)
                     continue;
 
+                // Blend in main history and shallow-ply history to refine both LMR and futility
                 history += 76 * mainHistory[us][move.from_to()] / 32;
 
+                // Incorporate low-ply history for this ply (already used by MovePicker),
+                // but here we also let it influence pruning via history/lmrDepth.
+                int lph =
+                  (ss->ply < LOW_PLY_HISTORY_SIZE) ? lowPlyHistory[ss->ply][move.from_to()] : 0;
+
+                // Signed contribution: good shallow-ply moves get a small boost,
+                // poor ones get a small penalty (scales with TC as lph becomes reliable).
+                history += 44 * lph / 32;
+
                 lmrDepth += history / 3220;
+
+                // Nudge lmrDepth directly with a tiny signed term from low-ply history:
+                // negative lph slightly lowers lmrDepth (tightening futility and SEE),
+                // positive lph slightly raises it, protecting promising quiets.
+                lmrDepth += lph / 4096;
 
                 Value futilityValue = ss->staticEval + 47 + 171 * !bestMove + 134 * lmrDepth
                                     + 90 * (ss->staticEval > alpha);
