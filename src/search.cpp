@@ -1124,6 +1124,23 @@ moves_loop:  // When in check, search starts here
             Value singularBeta  = ttData.value - (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
             Depth singularDepth = newDepth / 2;
 
+            // Zugzwang-aware refinement and recapture-aware boost.
+            // We target quiet TT moves in low-NPM endgames with long quiet streaks,
+            // where NMP is less reliable and quiet moves are often critical.
+            const bool quietTT     = !ttCapture;
+            const bool recaptureTT = priorCapture && prevSq != SQ_NONE && move.to_sq() == prevSq;
+            const bool zugRisk =
+              quietTT && ss->quietMoveStreak >= 3
+              && pos.non_pawn_material(us) <= PieceValue[ROOK] + PieceValue[BISHOP]
+              && pos.non_pawn_material(~us) <= PieceValue[ROOK] + PieceValue[BISHOP];
+
+            // Slightly deepen singular verification if TT depth is relatively shallow,
+            // and deepen further in zugzwang-prone contexts (quiet TT, low material, long quiet streak).
+            if (ttData.depth < depth - 1)
+                singularDepth = std::min(newDepth, singularDepth + 1);
+            if (zugRisk)
+                singularDepth = std::max(singularDepth, newDepth - 2);
+
             ss->excludedMove = move;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
             ss->excludedMove = Move::none();
@@ -1139,32 +1156,30 @@ moves_loop:  // When in check, search starts here
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
+                // Recapture and zugzwang-aware extension adjustments:
+                // - Recaptures are often forced; if already singular, boost by +1.
+                // - In zug-prone endgames, also boost by +1 to better resolve quiet singular moves.
+                if (recaptureTT && extension >= 1)
+                    ++extension;
+                if (zugRisk && extension >= 1)
+                    ++extension;
+
+                // Keep multi-extensions bounded and stable.
+                extension = std::min<Depth>(extension, Depth(3));
+
                 depth++;
             }
 
             // Multi-cut pruning
-            // Our ttMove is assumed to fail high based on the bound of the TT entry,
-            // and if after excluding the ttMove with a reduced search we fail high
-            // over the original beta, we assume this expected cut-node is not
-            // singular (multiple moves fail high), and we can prune the whole
-            // subtree by returning a softbound.
             else if (value >= beta && !is_decisive(value))
                 return value;
 
             // Negative extensions
-            // If other moves failed high over (ttValue - margin) without the
-            // ttMove on a reduced search, but we cannot do multi-cut because
-            // (ttValue - margin) is lower than the original beta, we do not know
-            // if the ttMove is singular or can do a multi-cut, so we reduce the
-            // ttMove in favor of other moves based on some conditions:
-
-            // If the ttMove is assumed to fail high over current beta
-            else if (ttData.value >= beta)
+            // In zug-prone contexts, avoid reducing the TT quiet move: we prefer to keep it neutral
+            // to not suppress a possibly critical quiet move in a zugzwang-like situation.
+            else if (ttData.value >= beta && !zugRisk)
                 extension = -3;
-
-            // If we are on a cutNode but the ttMove is not assumed to fail high
-            // over current beta
-            else if (cutNode)
+            else if (cutNode && !zugRisk)
                 extension = -2;
         }
 
