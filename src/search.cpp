@@ -944,15 +944,55 @@ Value Search::Worker::search(
 
             assert(pos.capture_stage(move));
 
+            // Pre-classify the move's forcing nature before making it
+            const bool      givesCheck   = pos.gives_check(move);
+            const PieceType capturedType = type_of(pos.piece_on(move.to_sq()));
+            const bool bigForce = givesCheck || move.type_of() == PROMOTION || capturedType >= ROOK;
+
             do_move(pos, move, st, ss);
+
+            // Fast hash-based acceptance: if the child already proves >= probCutBeta
+            // at adequate depth, accept immediately without qsearch.
+            if (probCutDepth > 0)
+            {
+                auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(pos.key());
+                // Convert TT score to "plies-from-root" semantics for the child node
+                Value childTT = ttHitNext
+                                ? value_from_tt(ttDataNext.value, ss->ply + 1, pos.rule50_count())
+                                : VALUE_NONE;
+
+                if (ttHitNext && is_valid(childTT) && !is_decisive(childTT)
+                    && (ttDataNext.bound & BOUND_LOWER) && ttDataNext.depth >= probCutDepth
+                    && childTT >= probCutBeta)
+                {
+                    value = childTT;
+                    undo_move(pos, move);
+
+                    // Save ProbCut data into transposition table
+                    ttWriter.write(posKey, value_to_tt(value, ss->ply), ss->ttPv, BOUND_LOWER,
+                                   probCutDepth + 1, move, unadjustedStaticEval, tt.generation());
+
+                    if (!is_decisive(value))
+                        return value - (probCutBeta - beta);
+                    // If decisive, continue trying other moves (rare)
+                    continue;
+                }
+            }
 
             // Perform a preliminary qsearch to verify that the move holds
             value = -qsearch<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1);
 
-            // If the qsearch held, perform the regular search
-            if (value >= probCutBeta && probCutDepth > 0)
-                value = -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, probCutDepth,
-                                       !cutNode);
+            // If the qsearch holds strongly or the move is inherently forcing,
+            // accept without a verification search; otherwise verify at reduced depth.
+            if (value >= probCutBeta)
+            {
+                // Margin grows mildly with verification depth; avoids re-search churn
+                const Value strongHoldSlack = Value(96 + 16 * (probCutDepth > 2));
+
+                if (!(bigForce || value >= probCutBeta + strongHoldSlack) && probCutDepth > 0)
+                    value = -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1,
+                                           probCutDepth, !cutNode);
+            }
 
             undo_move(pos, move);
 
