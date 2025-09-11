@@ -1409,6 +1409,7 @@ moves_loop:  // When in check, search starts here
     // Bonus for prior quiet countermove that caused the fail low
     else if (!priorCapture && prevSq != SQ_NONE)
     {
+        // Start from the existing tuned scaffold
         int bonusScale = -228;
         bonusScale -= (ss - 1)->statScore / 104;
         bonusScale += std::min(63 * depth, 508);
@@ -1416,7 +1417,26 @@ moves_loop:  // When in check, search starts here
         bonusScale += 143 * (!ss->inCheck && bestValue <= ss->staticEval - 92);
         bonusScale += 149 * (!(ss - 1)->inCheck && bestValue <= -(ss - 1)->staticEval - 70);
 
-        bonusScale = std::max(bonusScale, 0);
+        // New: Scale by fail-low severity. In non-PV nodes use alpha - bestValue (if valid),
+        // otherwise fall back to (ss->staticEval - bestValue). Clamp to keep integers small.
+        int failMargin = 0;
+        if (!PvNode && alpha != -VALUE_INFINITE)
+            failMargin = int(alpha) - int(bestValue);
+        else
+            failMargin = int(ss->staticEval) - int(bestValue);
+        failMargin = std::clamp(failMargin, 0, 1024);
+
+        // New: Penalize long quiet streaks that still fail low (sterile sequences)
+        int quietStreakPenalty = std::max(0, ss->quietMoveStreak - 2);
+
+        // New: Be a bit more conservative at cut nodes and near 50-move draw territory
+        bonusScale += failMargin / 6;
+        bonusScale -= 73 * cutNode;
+        bonusScale -= 65 * quietStreakPenalty;
+        bonusScale -= 51 * (pos.rule50_count() > 96);
+
+        // Keep non-negative and bounded to avoid overflow in subsequent multiplications
+        bonusScale = std::clamp(bonusScale, 0, 2048);
 
         const int scaledBonus = std::min(144 * depth - 92, 1365) * bonusScale;
 
@@ -1435,7 +1455,23 @@ moves_loop:  // When in check, search starts here
     {
         Piece capturedPiece = pos.captured_piece();
         assert(capturedPiece != NO_PIECE);
-        captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)] << 964;
+
+        // New: Replace fixed bonus with a depth- and severity-aware scaled bonus.
+        int capFailMargin = 0;
+        if (!PvNode && alpha != -VALUE_INFINITE)
+            capFailMargin = int(alpha) - int(bestValue);
+        else
+            capFailMargin = int(ss->staticEval) - int(bestValue);
+        capFailMargin = std::clamp(capFailMargin, 0, 1024);
+
+        int capBonus = 480 + std::min(64 * depth, 720) + capFailMargin / 3;
+
+        // Be conservative at cut nodes and after many cutoffs in this node
+        capBonus -= 96 * cutNode;
+        capBonus -= 64 * (ss->cutoffCnt > 3);
+        capBonus = std::max(capBonus, 0);
+
+        captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)] << capBonus;
     }
 
     if (PvNode)
