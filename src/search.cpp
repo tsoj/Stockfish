@@ -1186,17 +1186,25 @@ moves_loop:  // When in check, search starts here
         r -= moveCount * 66;
         r -= std::abs(correctionValue) / 30450;
 
-        // Increase reduction for cut nodes
+        // Increase reduction for cut nodes with depth awareness
         if (cutNode)
+        {
             r += 3094 + 1056 * !ttData.move;
+            // Additional reduction for deeper searches in cut nodes
+            if (depth > 8)
+                r += 256 * (depth - 8) / 8;
+        }
 
-        // Increase reduction if ttMove is a capture
-        if (ttCapture)
-            r += 1415;
+        // Increase reduction if ttMove is a capture, less aggressive in PV nodes
+        if (ttCapture && (!PvNode || depth < 6))
+            r += 1415 - PvNode * 354;
 
-        // Increase reduction if next ply has a lot of fail high
-        if ((ss + 1)->cutoffCnt > 2)
-            r += 1051 + allNode * 814;
+        // Increase reduction if next ply has a lot of fail high with better scaling
+        if ((ss + 1)->cutoffCnt > 1)
+        {
+            int cutoffBonus = 814 + allNode * 237;
+            r += cutoffBonus + (ss + 1)->cutoffCnt * 119;
+        }
 
         r += (ss + 1)->quietMoveStreak * 50;
 
