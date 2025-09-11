@@ -1722,8 +1722,34 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
 }
 
 Depth Search::Worker::reduction(bool i, Depth d, int mn, int delta) const {
+    // Base reduction from depth and move index
     int reductionScale = reductions[d] * reductions[mn];
-    return reductionScale - delta * 757 / rootDelta + !i * reductionScale * 218 / 512 + 1200;
+
+    // SMP-aware scaling (Lazy SMP widens the tree; compensate by slightly increasing reductions).
+    // Use a cheap piecewise step function to avoid expensive math in this hot path.
+    // scale1024 = 1024 + smpAdj, where smpAdj grows with thread count (2/4/8+).
+    int t      = int(threads.size());
+    int smpAdj = 0;
+    smpAdj += (t >= 2) * 96;
+    smpAdj += (t >= 4) * 64;
+    smpAdj += (t >= 8) * 32;
+
+    reductionScale = (reductionScale * (1024 + smpAdj)) / 1024;
+
+    // PV-anchoring bias: damp reductions for the first couple of moves to keep PV stable.
+    // This is intentionally gentle and scales with the current base reduction.
+    if (mn <= 2)
+        reductionScale -= reductionScale / 16;  // ~6% less reduction on the first moves
+
+    // Shallow-depth dampening: avoid over-reductions at very low depths.
+    if (d <= 2)
+        reductionScale -= reductionScale / 8;  // ~12.5% less when very shallow
+
+    // Guard against pathological denominators (rootDelta should be > 0, but be safe)
+    int denom = rootDelta > 0 ? rootDelta : 1;
+
+    // Original modulation and "not improving" penalty retained
+    return reductionScale - delta * 757 / denom + (!i) * reductionScale * 218 / 512 + 1200;
 }
 
 // elapsed() returns the time elapsed since the search started. If the
