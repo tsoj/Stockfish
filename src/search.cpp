@@ -842,6 +842,20 @@ Value Search::Worker::search(
     improving         = ss->staticEval > (ss - 2)->staticEval;
     opponentWorsening = ss->staticEval > -(ss - 1)->staticEval;
 
+    // Blend robust TT evidence into the trend signals. A recent fail-high (lower-bound)
+    // suggests the side to move is improving; a recent fail-low (upper-bound) suggests
+    // the opponent's position worsened. We only trust sufficiently deep TT info.
+    if (!ss->inCheck && !excludedMove && is_valid(ttData.value) && ttData.depth >= depth - 3)
+    {
+        // A lower bound above the current alpha is a strong indicator to treat this node as improving
+        if ((ttData.bound & BOUND_LOWER) && ttData.value > alpha)
+            improving = true;
+
+        // A tight upper bound at or below alpha is evidence that the opponent's previous move worsened the position
+        if ((ttData.bound & BOUND_UPPER) && ttData.value <= alpha)
+            opponentWorsening = true;
+    }
+
     if (priorReduction >= 3 && !opponentWorsening)
         depth++;
     if (priorReduction >= 2 && depth >= 2 && ss->staticEval + (ss - 1)->staticEval > 173)
