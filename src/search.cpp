@@ -708,9 +708,14 @@ Value Search::Worker::search(
                 update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, -2142);
         }
 
-        // Partial workaround for the graph history interaction problem
-        // For high rule50 counts don't produce transposition table cutoffs.
-        if (pos.rule50_count() < 96)
+        // Check if TT value could be affected by Graph History Interaction (GHI)
+        bool ghiRisk =
+          is_decisive(ttData.value)
+          && (is_win(ttData.value) ? (VALUE_MATE - ttData.value > 100 - pos.rule50_count())
+                                   : (VALUE_MATE + ttData.value > 100 - pos.rule50_count()));
+
+        // Only produce transposition table cutoffs if there's no GHI risk
+        if (!ghiRisk)
         {
             if (depth >= 8 && ttData.move && pos.pseudo_legal(ttData.move) && pos.legal(ttData.move)
                 && !is_decisive(ttData.value))
