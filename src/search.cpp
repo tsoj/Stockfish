@@ -1230,6 +1230,11 @@ moves_loop:  // When in check, search starts here
 
                 newDepth += doDeeperSearch - doShallowerSearch;
 
+                // Scale newDepth further in volatile positions (opponentWorsening)
+                // for LTC: Less aggressive reduction at higher depths if tactics likely
+                if (opponentWorsening && !PvNode && newDepth > d && depth > 6)
+                    newDepth += (depth / 5 + doDeeperSearch) / (1 + cutNode);
+
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
 
