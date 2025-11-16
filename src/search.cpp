@@ -690,10 +690,12 @@ Value Search::Worker::search(
     // to save indentation, we list the condition in all code between here and there.
 
     // At non-PV nodes we check for an early TT cutoff
-    if (!PvNode && !excludedMove && ttData.depth > depth - (ttData.value <= beta)
+    // Relax depth requirement for TT entries far from search window (*Scaler)
+    bool ttFarFromBounds = ttData.value >= beta + 50 || ttData.value <= alpha - 50;
+    if (!PvNode && !excludedMove && ttData.depth > depth - (ttFarFromBounds ? 1 : 0)
         && is_valid(ttData.value)  // Can happen when !ttHit or when access race in probe()
         && (ttData.bound & (ttData.value >= beta ? BOUND_LOWER : BOUND_UPPER))
-        && (cutNode == (ttData.value >= beta) || depth > 5))
+        && (depth > 5 || cutNode == (ttData.value >= beta)))
     {
         // If ttMove is quiet, update move sorting heuristics on TT hit
         if (ttData.move && ttData.value >= beta)
