@@ -1354,9 +1354,27 @@ moves_loop:  // When in check, search starts here
                     break;
                 }
 
-                // Reduce other moves if we have found at least one score improvement
+                // Dynamic sibling-depth reduction after an improving move.
+                // Reduce more when:
+                // - we are in the LMR-sensitive depth band,
+                // - the improvement over the previous alpha is meaningful,
+                // - we are close to a beta cutoff,
+                // - or we are at cut/non-PV nodes and/or late in move ordering.
+                // Reduce less at PV nodes or for tiny improvements.
+                Value prevAlpha = alpha;
+
+                int reductionOther = 1;
+                reductionOther += (depth > 3 && depth < 12);           // base band
+                reductionOther += (!PvNode) + (cutNode ? 1 : 0);       // node type
+                reductionOther += (moveCount > 8) + (moveCount > 12);  // later moves
+                int improvement = int(value) - int(prevAlpha);
+                reductionOther += (improvement > 48) ? 1 : 0;   // meaningful gain
+                reductionOther += (beta - value < 64) ? 1 : 0;  // near cutoff
+
+                reductionOther = std::clamp(reductionOther, 1, 4);
+
                 if (depth > 2 && depth < 14 && !is_decisive(value))
-                    depth -= 2;
+                    depth -= std::min<Depth>(reductionOther, depth - 1);
 
                 assert(depth > 0);
                 alpha = value;  // Update alpha! Always alpha < beta
