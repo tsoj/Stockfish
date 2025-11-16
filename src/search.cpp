@@ -800,7 +800,11 @@ Value Search::Worker::search(
     {
         // Never assume anything about values stored in TT
         unadjustedStaticEval = ttData.eval;
-        if (!is_valid(unadjustedStaticEval))
+        if (!is_valid(unadjustedStaticEval)
+            // Re-evaluate if the TT entry is from a much shallower search.
+            // This is more aggressive in non-PV nodes to prevent incorrect
+            // prunes based on a stale static evaluation.
+            || ttData.depth < depth - (4 + 2 * PvNode))
             unadjustedStaticEval = evaluate(pos);
 
         ss->staticEval = eval = to_corrected_static_eval(unadjustedStaticEval, correctionValue);
