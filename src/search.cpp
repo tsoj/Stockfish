@@ -1110,8 +1110,15 @@ moves_loop:  // When in check, search starts here
             && is_valid(ttData.value) && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
-            Depth singularDepth = newDepth / 2;
+            // Adaptive singular window and verification depth:
+            // - Tighten the singular window when TT entry is deep or we're on (or near) the PV.
+            // - Increase verification depth when we'd otherwise do a large reduction later,
+            //   to avoid under-estimating singularity on hard nodes. Scales well at LTC.
+            int   tighten = (ttData.depth >= depth) + (ss->ttPv && PvNode);
+            Value singularBeta =
+              ttData.value - (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60 + 6 * tighten;
+
+            Depth singularDepth = std::clamp(newDepth / 2 + tighten - (r > 2048), 0, newDepth - 1);
 
             ss->excludedMove = move;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
@@ -1127,6 +1134,11 @@ moves_loop:  // When in check, search starts here
 
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
+
+                // When ttMove is proven singular, bias LMR to search it deeper.
+                // This reduces late move reductions for the ttMove dynamically.
+                r -= 1024 + 256 * PvNode;
+                ttMoveHistory << 777;
 
                 depth++;
             }
@@ -1149,15 +1161,19 @@ moves_loop:  // When in check, search starts here
             // (ttValue - margin) is lower than the original beta, we do not know
             // if the ttMove is singular or can do a multi-cut, so we reduce the
             // ttMove in favor of other moves based on some conditions:
+            else
+            {
+                // If the ttMove is assumed to fail high over current beta
+                if (ttData.value >= beta)
+                    extension = -3;
+                // If we are on a cutNode but the ttMove is not assumed to fail high
+                // over current beta
+                else if (cutNode)
+                    extension = -2;
 
-            // If the ttMove is assumed to fail high over current beta
-            else if (ttData.value >= beta)
-                extension = -3;
-
-            // If we are on a cutNode but the ttMove is not assumed to fail high
-            // over current beta
-            else if (cutNode)
-                extension = -2;
+                // Not singular: bias LMR to spend relatively fewer nodes on this ttMove.
+                r += 512 + 256 * cutNode + 256 * !PvNode;
+            }
         }
 
         // Step 16. Make the move
