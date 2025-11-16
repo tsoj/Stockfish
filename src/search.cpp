@@ -690,44 +690,88 @@ Value Search::Worker::search(
     // to save indentation, we list the condition in all code between here and there.
 
     // At non-PV nodes we check for an early TT cutoff
-    if (!PvNode && !excludedMove && ttData.depth > depth - (ttData.value <= beta)
-        && is_valid(ttData.value)  // Can happen when !ttHit or when access race in probe()
-        && (ttData.bound & (ttData.value >= beta ? BOUND_LOWER : BOUND_UPPER))
-        && (cutNode == (ttData.value >= beta) || depth > 5))
+    // Make this adaptive: relax or tighten the required TT depth and the
+    // verification threshold based on move/position features.
+    if (!PvNode && !excludedMove && is_valid(ttData.value)
+        && (ttData.bound & (ttData.value >= beta ? BOUND_LOWER : BOUND_UPPER)))
     {
-        // If ttMove is quiet, update move sorting heuristics on TT hit
-        if (ttData.move && ttData.value >= beta)
-        {
-            // Bonus for a quiet ttMove that fails high
-            if (!ttCapture)
-                update_quiet_histories(pos, ss, *this, ttData.move,
-                                       std::min(130 * depth - 71, 1043));
+        const bool isFailHigh   = (ttData.value >= beta);
+        const bool ttGivesCheck = ttData.move && pos.gives_check(ttData.move);
 
-            // Extra penalty for early quiet moves of the previous ply
-            if (prevSq != SQ_NONE && (ss - 1)->moveCount < 4 && !priorCapture)
-                update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, -2142);
+        // Adaptive depth slack:
+        // - For fail-high (lower bound), relax more if TT move is a capture/check
+        //   or if staticEval is already clearly above beta.
+        // - For fail-low (upper bound), relax when staticEval is clearly below alpha.
+        int depthSlack = isFailHigh ? 0 : 1;  // mirrors the old baseline
+        if (isFailHigh)
+        {
+            if (ttCapture || ttGivesCheck)
+                depthSlack += 1;
+            if (ss->staticEval >= beta + 32)  // static agrees with cutoff direction
+                depthSlack += 1;
         }
-
-        // Partial workaround for the graph history interaction problem
-        // For high rule50 counts don't produce transposition table cutoffs.
-        if (pos.rule50_count() < 96)
+        else
         {
-            if (depth >= 8 && ttData.move && pos.pseudo_legal(ttData.move) && pos.legal(ttData.move)
-                && !is_decisive(ttData.value))
-            {
-                pos.do_move(ttData.move, st);
-                Key nextPosKey                             = pos.key();
-                auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(nextPosKey);
-                pos.undo_move(ttData.move);
+            if (alpha - ss->staticEval >= 64)  // static agrees with fail-low
+                depthSlack += 1;
+        }
+        depthSlack = std::min(depthSlack, 3);
 
-                // Check that the ttValue after the tt move would also trigger a cutoff
-                if (!is_valid(ttDataNext.value))
-                    return ttData.value;
-                if ((ttData.value >= beta) == (-ttDataNext.value >= beta))
+        if (ttData.depth > depth - depthSlack && (cutNode == isFailHigh || depth > 5))
+        {
+            // If ttMove is quiet, update move sorting heuristics on TT hit
+            if (ttData.move && isFailHigh)
+            {
+                // Bonus for a quiet ttMove that fails high
+                if (!ttCapture)
+                    update_quiet_histories(pos, ss, *this, ttData.move,
+                                           std::min(130 * depth - 71, 1043));
+
+                // Extra penalty for early quiet moves of the previous ply
+                if (prevSq != SQ_NONE && (ss - 1)->moveCount < 4 && !priorCapture)
+                    update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, -2142);
+            }
+
+            // Partial workaround for the graph history interaction problem
+            // For high rule50 counts don't produce transposition table cutoffs.
+            if (pos.rule50_count() < 96)
+            {
+                // Adaptive verification depth:
+                // Reduce verification depth if TT move is capture/check or staticEval supports
+                // the cutoff direction; otherwise keep it conservative.
+                int verifyAtDepth = 8;
+                int verifyAdj     = 0;
+                if (isFailHigh)
+                {
+                    if (ttCapture || ttGivesCheck)
+                        verifyAdj++;
+                    if (ss->staticEval >= beta + 32)
+                        verifyAdj++;
+                }
+                else
+                {
+                    if (alpha - ss->staticEval >= 96)
+                        verifyAdj++;
+                }
+                verifyAtDepth = std::max(6, verifyAtDepth - verifyAdj);
+
+                if (depth >= verifyAtDepth && ttData.move && pos.pseudo_legal(ttData.move)
+                    && pos.legal(ttData.move) && !is_decisive(ttData.value))
+                {
+                    pos.do_move(ttData.move, st);
+                    Key nextPosKey                             = pos.key();
+                    auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(nextPosKey);
+                    pos.undo_move(ttData.move);
+
+                    // Check that the ttValue after the tt move would also trigger a cutoff
+                    if (!is_valid(ttDataNext.value))
+                        return ttData.value;
+                    if (isFailHigh == (-ttDataNext.value >= beta))
+                        return ttData.value;
+                }
+                else
                     return ttData.value;
             }
-            else
-                return ttData.value;
         }
     }
 
