@@ -1136,11 +1136,19 @@ moves_loop:  // When in check, search starts here
             // and if after excluding the ttMove with a reduced search we fail high
             // over the original beta, we assume this expected cut-node is not
             // singular (multiple moves fail high), and we can prune the whole
-            // subtree by returning a softbound.
+            // subtree by returning a softbound. However, at deeper depths we require
+            // a stronger fail-high margin to compensate for compounding search errors.
             else if (value >= beta && !is_decisive(value))
             {
-                ttMoveHistory << std::max(-400 - 100 * depth, -4000);
-                return value;
+                // Require increasingly larger fail-high margins at deeper depths using
+                // a quadratic function that reflects how search errors compound
+                const Value requiredMargin = depth < 10 ? 0 : 32 + depth * depth / 5;
+
+                if (value >= beta + requiredMargin)
+                {
+                    ttMoveHistory << std::max(-400 - 100 * depth, -4000);
+                    return value;
+                }
             }
 
             // Negative extensions
