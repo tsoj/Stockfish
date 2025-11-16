@@ -977,6 +977,14 @@ moves_loop:  // When in check, search starts here
 
     value = bestValue;
 
+    // TT-guided PV fail-low tilt:
+    // If a PV-node was stored as an upper bound at depth >= current depth, it is likely to fail low again.
+    // We will (a) slightly increase LMR reduction for non-TT quiet moves at sufficient depth and
+    // (b) suppress post-LMR deepening for those moves. This preserves tactical lines (captures/checks)
+    // and keeps strong focus on TT move while avoiding wasteful re-searches on non-promising quiets.
+    bool likelyFailLow = PvNode && ttData.move && is_valid(ttData.value)
+                      && ttData.bound == BOUND_UPPER && ttData.depth >= depth;
+
     int moveCount = 0;
 
     // Step 13. Loop through all pseudo-legal moves until no moves remain
@@ -1205,6 +1213,16 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 794 / 8192;
 
+        // (*Scaler) TT-guided extra reduction at PV nodes likely to fail low.
+        // Apply only at sufficient depth, for non-TT quiet moves that are neither captures nor checks.
+        // Scale by how bad the stats are (negative statScore), but cap for stability.
+        if (likelyFailLow && depth >= 6 && move != ttData.move && !capture && !givesCheck)
+        {
+            int negStat = std::max(0, -ss->statScore);  // larger if history dislikes this move
+            int scaled  = std::min(negStat, 4096) / 4;  // cap and compress to keep LMR scale stable
+            r += 1259 + scaled;  // ~1.2 ply base, slightly more if stats are bad
+        }
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
@@ -1225,7 +1243,11 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch = d < newDepth && value > (bestValue + 43 + 2 * newDepth);
+                // Suppress deepening for likely-fail-low PV-nodes on quiet non-TT moves,
+                // but allow captures/checks to still deepen (preserve tactics).
+                const bool doDeeperSearch = d < newDepth && value > (bestValue + 43 + 2 * newDepth)
+                                         && !(likelyFailLow && !capture && !givesCheck);
+
                 const bool doShallowerSearch = value < bestValue + 9;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
