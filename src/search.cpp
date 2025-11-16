@@ -1145,19 +1145,19 @@ moves_loop:  // When in check, search starts here
 
             // Negative extensions
             // If other moves failed high over (ttValue - margin) without the
-            // ttMove on a reduced search, but we cannot do multi-cut because
-            // (ttValue - margin) is lower than the original beta, we do not know
-            // if the ttMove is singular or can do a multi-cut, so we reduce the
-            // ttMove in favor of other moves based on some conditions:
+            // ttMove on a reduced search, but we cannot do a multi-cut, we reduce the
+            // ttMove in favor of other moves. The reduction is made larger if the
+            // verification search score 'value' was higher, indicating stronger
+            // alternatives.
 
             // If the ttMove is assumed to fail high over current beta
             else if (ttData.value >= beta)
-                extension = -3;
+                extension = -3 - (value - singularBeta) / 64;
 
             // If we are on a cutNode but the ttMove is not assumed to fail high
             // over current beta
             else if (cutNode)
-                extension = -2;
+                extension = -2 - (value - singularBeta) / 64;
         }
 
         // Step 16. Make the move
