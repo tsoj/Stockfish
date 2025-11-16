@@ -1791,7 +1791,7 @@ void update_pv(Move* pv, Move move, const Move* childPv) {
 }
 
 
-// Updates stats at the end of search() when a bestMove is found
+// updates stats at the end of search() when a bestMove is found
 void update_all_stats(const Position& pos,
                       Stack*          ss,
                       Search::Worker& workerThread,
@@ -1812,11 +1812,19 @@ void update_all_stats(const Position& pos,
 
     if (!pos.capture_stage(bestMove))
     {
-        update_quiet_histories(pos, ss, workerThread, bestMove, bonus * 881 / 1024);
+        // If the best quiet move gives check, reward it more
+        const bool bestGivesCheck = pos.gives_check(bestMove);
+        update_quiet_histories(pos, ss, workerThread, bestMove,
+                               bonus * (bestGivesCheck ? 978 : 881) / 1024);
 
         // Decrease stats for all non-best quiet moves
         for (Move move : quietsSearched)
-            update_quiet_histories(pos, ss, workerThread, move, -malus * 1083 / 1024);
+        {
+            // If a failed quiet move gives check, penalize it more
+            const bool givesCheck = pos.gives_check(move);
+            update_quiet_histories(pos, ss, workerThread, move,
+                                   -malus * (givesCheck ? 1191 : 1083) / 1024);
+        }
     }
     else
     {
