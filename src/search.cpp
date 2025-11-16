@@ -860,7 +860,8 @@ Value Search::Worker::search(
             return futilityMult * d                               //
                  - 2094 * improving * futilityMult / 1024         //
                  - 331 * opponentWorsening * futilityMult / 1024  //
-                 + std::abs(correctionValue) / 158105;
+                 + correctionValue * futilityMult
+                     / 158105;  // Use signed correctionValue and scale consistently
         };
 
         if (!ss->ttPv && depth < 14 && eval - futility_margin(depth) >= beta && eval >= beta
