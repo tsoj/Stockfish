@@ -1633,12 +1633,17 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                 }
             }
 
-            // Skip non-captures
-            if (!capture)
+            // In q-search, only search captures and promotions.
+            if (!capture && move.type_of() != PROMOTION)
                 continue;
 
-            // Do not search moves with bad enough SEE values
-            if (!pos.see_ge(move, -78))
+            // Do not search moves with bad enough SEE values. For promotions,
+            // use a stricter margin if the stand-pat evaluation is poor.
+            Value see_margin = -78;
+            if (move.type_of() == PROMOTION && futilityBase < alpha)
+                see_margin = alpha - futilityBase;
+
+            if (!pos.see_ge(move, see_margin))
                 continue;
         }
 
