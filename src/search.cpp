@@ -1178,9 +1178,9 @@ moves_loop:  // When in check, search starts here
         r -= moveCount * 66;
         r -= std::abs(correctionValue) / 30450;
 
-        // Increase reduction for cut nodes
+        // Increase reduction for cut nodes, but less so if we are improving
         if (cutNode)
-            r += 3094 + 1056 * !ttData.move;
+            r += 3094 + 1056 * !ttData.move - improving * 1152;
 
         // Increase reduction if ttMove is a capture
         if (ttCapture)
