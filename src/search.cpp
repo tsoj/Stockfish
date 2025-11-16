@@ -1155,9 +1155,8 @@ moves_loop:  // When in check, search starts here
                 extension = -3;
 
             // If we are on a cutNode but the ttMove is not assumed to fail high
-            // over current beta
-            else if (cutNode)
-                extension = -2;
+            // over current beta. This logic is removed to simplify negative
+            // extensions and remove dependency on the fragile cutNode flag.
         }
 
         // Step 16. Make the move
