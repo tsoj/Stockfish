@@ -1132,11 +1132,6 @@ moves_loop:  // When in check, search starts here
             }
 
             // Multi-cut pruning
-            // Our ttMove is assumed to fail high based on the bound of the TT entry,
-            // and if after excluding the ttMove with a reduced search we fail high
-            // over the original beta, we assume this expected cut-node is not
-            // singular (multiple moves fail high), and we can prune the whole
-            // subtree by returning a softbound.
             else if (value >= beta && !is_decisive(value))
             {
                 ttMoveHistory << std::max(-400 - 100 * depth, -4000);
@@ -1144,20 +1139,20 @@ moves_loop:  // When in check, search starts here
             }
 
             // Negative extensions
-            // If other moves failed high over (ttValue - margin) without the
-            // ttMove on a reduced search, but we cannot do multi-cut because
-            // (ttValue - margin) is lower than the original beta, we do not know
-            // if the ttMove is singular or can do a multi-cut, so we reduce the
-            // ttMove in favor of other moves based on some conditions:
-
-            // If the ttMove is assumed to fail high over current beta
             else if (ttData.value >= beta)
                 extension = -3;
-
-            // If we are on a cutNode but the ttMove is not assumed to fail high
-            // over current beta
             else if (cutNode)
                 extension = -2;
+        }
+
+        // Lightweight recapture extension:
+        // Extend one ply if we immediately recapture on the previous move's destination square.
+        // This improves tactical stability for forced exchanges.
+        // (*Scaler) Keep this narrow (SEE-based, not in check, not at root) for good LTC scaling.
+        if (!rootNode && extension >= 0 && !ss->inCheck && priorCapture && capture
+            && move.to_sq() == prevSq && pos.see_ge(move, 0))
+        {
+            extension = std::max(extension, Depth(1));
         }
 
         // Step 16. Make the move
@@ -1214,6 +1209,12 @@ moves_loop:  // When in check, search starts here
             // To prevent problems when the max value is less than the min value,
             // std::clamp has been replaced by a more robust implementation.
             Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 2)) + PvNode;
+
+            // Bias LMR slightly against reducing immediate recaptures
+            // (rare but tactically critical). This harmonizes with the
+            // recapture extension above and helps stability at LTC.
+            if (!rootNode && priorCapture && capture && move.to_sq() == prevSq && !ss->inCheck)
+                d = std::min<Depth>(d + 1, newDepth + 2);
 
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
