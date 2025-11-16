@@ -1186,9 +1186,9 @@ moves_loop:  // When in check, search starts here
         if (ttCapture)
             r += 1415;
 
-        // Increase reduction if next ply has a lot of fail high
-        if ((ss + 1)->cutoffCnt > 2)
-            r += 1051 + allNode * 814;
+        // Increase reduction if the previous sibling's search had many cutoffs.
+        // The bonus is scaled linearly based on the number of cutoffs.
+        r += std::max(0, (int) (ss + 1)->cutoffCnt - 2) * (526 + allNode * 407);
 
         // For first picked move (ttMove) reduce reduction
         if (move == ttData.move)
