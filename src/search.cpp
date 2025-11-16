@@ -1106,9 +1106,15 @@ moves_loop:  // When in check, search starts here
         // (*Scaler) Generally, higher singularBeta (i.e closer to ttValue)
         // and lower extension margins scale well.
 
-        if (!rootNode && move == ttData.move && !excludedMove && depth >= 6 + ss->ttPv
-            && is_valid(ttData.value) && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
-            && ttData.depth >= depth - 3)
+        // Heuristic gate: avoid singular search in volatile positions or for quiet ttMoves
+        // with very poor history support. This reduces overhead where singularity is unlikely.
+        int ttQuietScore =
+          ttCapture ? 0 : (mainHistory[us][move.raw()] + (*contHist[0])[movedPiece][move.to_sq()]);
+        bool allowSingular = !ss->inCheck && (ttCapture || ttQuietScore > -1024 - 64 * (depth > 8));
+
+        if (!rootNode && move == ttData.move && !excludedMove && allowSingular
+            && depth >= 6 + ss->ttPv && is_valid(ttData.value) && !is_decisive(ttData.value)
+            && (ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 3)
         {
             Value singularBeta  = ttData.value - (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
             Depth singularDepth = newDepth / 2;
@@ -1129,6 +1135,13 @@ moves_loop:  // When in check, search starts here
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
                 depth++;
+
+                // If singularity was confirmed for a quiet move with decent history,
+                // ease later LMR slightly by decreasing its reduction. This preserves
+                // depth on the proven singular line and scales well at LTC.
+                if (!ttCapture
+                    && (mainHistory[us][move.raw()] + (*contHist[0])[movedPiece][move.to_sq()]) > 0)
+                    r -= 512;
             }
 
             // Multi-cut pruning
