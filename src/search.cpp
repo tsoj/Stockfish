@@ -1110,7 +1110,32 @@ moves_loop:  // When in check, search starts here
             && is_valid(ttData.value) && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
+            // Agreement-aware singular margin:
+            // - Start from the tuned base margin.
+            // - Increase margin if ttData.value disagrees with current static eval.
+            // - Increase margin if static eval needed large correction history.
+            // - Decrease margin if the TT entry is relatively deep at or beyond current depth.
+            int baseMargin = (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
+
+            int evalGap = 0;
+            if (is_valid(ss->staticEval))
+                evalGap = std::abs(int(ttData.value) - int(ss->staticEval));
+
+            // Add a small penalty for disagreement beyond a small tolerance.
+            // Scale gently to avoid short-TC overfitting; larger gap => larger margin.
+            int agreementAdj = std::max(0, (evalGap - 64) / 8);  // in cp
+
+            // Penalize when correction history had to adjust eval a lot (less trust in eval/tt).
+            int corrAdj = std::abs(correctionValue) / 131072;  // ~1cp per 131k of correction
+
+            // Reward deep TT info: deeper TT relative to current depth reduces the margin.
+            int depthRelAdj = int(ttData.depth >= depth) + int(ttData.depth >= depth + 2);
+
+            int singularMargin = baseMargin + agreementAdj + corrAdj - depthRelAdj;
+            if (singularMargin < 0)
+                singularMargin = 0;
+
+            Value singularBeta  = ttData.value - Value(singularMargin);
             Depth singularDepth = newDepth / 2;
 
             ss->excludedMove = move;
@@ -1144,12 +1169,6 @@ moves_loop:  // When in check, search starts here
             }
 
             // Negative extensions
-            // If other moves failed high over (ttValue - margin) without the
-            // ttMove on a reduced search, but we cannot do multi-cut because
-            // (ttValue - margin) is lower than the original beta, we do not know
-            // if the ttMove is singular or can do a multi-cut, so we reduce the
-            // ttMove in favor of other moves based on some conditions:
-
             // If the ttMove is assumed to fail high over current beta
             else if (ttData.value >= beta)
                 extension = -3;
