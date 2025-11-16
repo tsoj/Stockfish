@@ -909,7 +909,13 @@ Value Search::Worker::search(
     // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
     // (*Scaler) Making IIR more aggressive scales poorly.
     if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    {
+        // Don't apply IIR if the static evaluation is improving, as this might be a
+        // critical moment where deeper search helps to convert the advantage correctly.
+        // This follows the same principle used to make LMR less aggressive.
+        if (!(ss->staticEval > (ss - 2)->staticEval))
+            depth--;
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
