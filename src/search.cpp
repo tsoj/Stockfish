@@ -1187,8 +1187,7 @@ moves_loop:  // When in check, search starts here
             r += 1415;
 
         // Increase reduction if next ply has a lot of fail high
-        if ((ss + 1)->cutoffCnt > 2)
-            r += 1051 + allNode * 814;
+        r += std::min(4, (ss + 1)->cutoffCnt) * (350 + allNode * 270);
 
         // For first picked move (ttMove) reduce reduction
         if (move == ttData.move)
