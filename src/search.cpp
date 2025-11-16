@@ -1160,6 +1160,16 @@ moves_loop:  // When in check, search starts here
                 extension = -2;
         }
 
+        // Simple tactical extensions (rare, scale well): recapture on previous square and promotions.
+        // Do not override negative extensions chosen by the singular/multicut logic.
+        if (!rootNode && extension >= 0)
+        {
+            const bool isRecapture =
+              capture && priorCapture && prevSq != SQ_NONE && move.to_sq() == prevSq;
+            if (isRecapture || move.type_of() == PROMOTION)
+                extension = std::max(extension, Depth(1));
+        }
+
         // Step 16. Make the move
         do_move(pos, move, st, givesCheck, ss);
 
