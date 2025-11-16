@@ -905,6 +905,27 @@ Value Search::Worker::search(
 
     improving |= ss->staticEval >= beta;
 
+    // Step 10a. Internal iterative deepening (IID) to obtain a TT move when missing
+    // at PV or cut nodes (but not at root). This helps move ordering and scales well
+    // at LTC because it is triggered rarely and searched shallowly.
+    if (!rootNode && (PvNode || cutNode) && depth >= 8 && !ttData.move && !excludedMove
+        && !ss->inCheck)
+    {
+        // Keep it cheap: shallow depth, non-PV, and reuse current bounds.
+        Depth iidDepth = std::clamp(depth / 2 - 1, 1, depth - 3);
+
+        // Reuse the current stack frame as with singular search; no position change.
+        (void) search<NonPV>(pos, ss, alpha, beta, iidDepth, cutNode);
+
+        // Re-probe to pick up any TT move discovered by IID
+        auto [ttHit2, ttData2, ttWriterDummy] = tt.probe(posKey);
+        ss->ttHit                             = ttHit2;
+        ttData                                = ttData2;
+        ttData.value =
+          ttHit2 ? value_from_tt(ttData2.value, ss->ply, pos.rule50_count()) : VALUE_NONE;
+        ttCapture = ttData.move && pos.capture_stage(ttData.move);
+    }
+
     // Step 10. Internal iterative reductions
     // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
     // (*Scaler) Making IIR more aggressive scales poorly.
