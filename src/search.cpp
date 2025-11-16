@@ -1208,6 +1208,20 @@ moves_loop:  // When in check, search starts here
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
+            // Be more conservative with LMR right after a null move (zugzwang safety).
+            // In a verification context (parent played MOVE_NULL), refutations are often
+            // checks or safe quiets (SEE >= 0). Over-reducing those can cause brittle NMP.
+            // (*Scaler) Depth-scaled relief of reductions; bounded by the existing
+            //          newDepth + 2 cap below to avoid explosions.
+            if ((ss - 1)->currentMove == Move::null())
+            {
+                // Strong relief for refutation-pattern moves; mild relief otherwise.
+                if (givesCheck || (!capture && pos.see_ge(move, 0)))
+                    r = std::max(0, r - (1200 + 80 * depth));
+                else
+                    r -= 256;
+            }
+
             // In general we want to cap the LMR depth search at newDepth, but when
             // reduction is negative, we allow this move a limited search extension
             // beyond the first move depth.
