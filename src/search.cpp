@@ -1205,6 +1205,34 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 794 / 8192;
 
+        // Context-aware LMR adjustments (scales naturally with depth via LMR):
+        //  - Recaptures: reduce reduction for captures to the opponent's last to-square.
+        //  - Quiet checks: reduce reduction slightly for non-capture checking moves.
+        //  - Escape-threat: reduce reduction if the moving piece's origin square is attacked.
+        // These are lightweight, high-signal heuristics that improve tactical robustness.
+        {
+            const Square fromSq     = move.from_sq();
+            const Square toSq       = move.to_sq();
+            const bool   recapture  = capture && toSq == prevSq;
+            const bool   quietCheck = !capture && givesCheck;
+
+            // Favor recaptures (avoid overdoing in evasion where all moves are forcing anyway)
+            if (recapture && !ss->inCheck)
+                r -= 1536;
+
+            // Favor quiet checks (slightly less reduction than generic quiets)
+            if (quietCheck)
+                r -= 896;
+
+            // Favor moves that escape from an attacked origin square (cheap threat proxy)
+            if (!capture && !ss->inCheck)
+            {
+                Bitboard atk = pos.attackers_to(fromSq) & pos.pieces(~us);
+                if (atk)
+                    r -= 640;
+            }
+        }
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
