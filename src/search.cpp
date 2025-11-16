@@ -1110,8 +1110,30 @@ moves_loop:  // When in check, search starts here
             && is_valid(ttData.value) && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
+            // Adaptive singular margin and verification depth:
+            // - Use a more conservative margin (closer to ttValue) when the TT entry is shallow,
+            //   when the move is a capture, when the position is not improving, or when the
+            //   correction history magnitude is large.
+            // - Use deeper verification in those cases as well. This scales well at LTC,
+            //   as deeper searches produce higher-quality TT entries and more reliable signals.
+            int baseMargin = (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
+
+            int marginAdjustDown = 0;
+            marginAdjustDown +=
+              9 * (ttData.depth <= depth - 2);     // Shallow TT entry -> be conservative
+            marginAdjustDown += 7 * ttCapture;     // Captures are volatile -> be conservative
+            marginAdjustDown += 5 * (!improving);  // Not improving -> be conservative
+            marginAdjustDown += std::min(24, std::abs(correctionValue)
+                                               / 200000);  // Large correction -> be conservative
+
+            int   singularMargin = std::max(0, baseMargin - marginAdjustDown);
+            Value singularBeta   = ttData.value - singularMargin;
+
             Depth singularDepth = newDepth / 2;
+            singularDepth += (ttData.depth <= depth - 2);  // Shallow TT needs deeper verify
+            singularDepth += ttCapture;                    // Captures verify deeper
+            singularDepth += !improving;                   // Not improving -> verify deeper
+            singularDepth = std::max<Depth>(1, std::min(singularDepth, newDepth - 1));
 
             ss->excludedMove = move;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
@@ -1132,30 +1154,16 @@ moves_loop:  // When in check, search starts here
             }
 
             // Multi-cut pruning
-            // Our ttMove is assumed to fail high based on the bound of the TT entry,
-            // and if after excluding the ttMove with a reduced search we fail high
-            // over the original beta, we assume this expected cut-node is not
-            // singular (multiple moves fail high), and we can prune the whole
-            // subtree by returning a softbound.
-            else if (value >= beta && !is_decisive(value))
+            // Require TT entry to be sufficiently deep to avoid spurious cutoffs from shallow bounds.
+            else if (value >= beta && !is_decisive(value) && ttData.depth >= depth - 1)
             {
                 ttMoveHistory << std::max(-400 - 100 * depth, -4000);
                 return value;
             }
 
             // Negative extensions
-            // If other moves failed high over (ttValue - margin) without the
-            // ttMove on a reduced search, but we cannot do multi-cut because
-            // (ttValue - margin) is lower than the original beta, we do not know
-            // if the ttMove is singular or can do a multi-cut, so we reduce the
-            // ttMove in favor of other moves based on some conditions:
-
-            // If the ttMove is assumed to fail high over current beta
             else if (ttData.value >= beta)
                 extension = -3;
-
-            // If we are on a cutNode but the ttMove is not assumed to fail high
-            // over current beta
             else if (cutNode)
                 extension = -2;
         }
