@@ -906,10 +906,26 @@ Value Search::Worker::search(
     improving |= ss->staticEval >= beta;
 
     // Step 10. Internal iterative reductions
-    // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Making IIR more aggressive scales poorly.
-    if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    // At sufficient depth, reduce depth for PV/Cut nodes based on TT value quality and node type.
+    // (*Scaler) Making IIR more aggressive scales poorly, but selective aggression based on TT information scales well.
+    if (!allNode && depth >= 6 && priorReduction <= 3)
+    {
+        int reduction = 1;
+
+        // More aggressive for Cut nodes where we only need a fail-high
+        if (cutNode)
+            reduction = 2;
+
+        // Even more aggressive when TT suggests a strong fail-high
+        if (is_valid(ttData.value) && (ttData.bound & BOUND_LOWER) && ttData.value >= beta + 150)
+            reduction = std::min(reduction + 1, 2);
+
+        // Less aggressive for PV nodes when close to a fail-high to maintain PV accuracy
+        if (PvNode && is_valid(ttData.value) && beta - ttData.value < 200)
+            reduction = 1;
+
+        depth -= reduction;
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
