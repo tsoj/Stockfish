@@ -1158,6 +1158,11 @@ moves_loop:  // When in check, search starts here
             // over current beta
             else if (cutNode)
                 extension = -2;
+
+            // In other cases (e.g. PV-nodes), the move is also proven to be
+            // non-singular, so we apply a smaller reduction.
+            else
+                extension = -1;
         }
 
         // Step 16. Make the move
