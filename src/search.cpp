@@ -1086,6 +1086,13 @@ moves_loop:  // When in check, search starts here
                         bestValue = futilityValue;
                     continue;
                 }
+                else if (!ss->inCheck && lmrDepth < 9 && futilityValue <= alpha + 25 * lmrDepth
+                         && !pos.see_ge(move, futilityValue - alpha))
+                {
+                    if (bestValue <= alpha && !is_decisive(bestValue))
+                        bestValue = alpha;
+                    continue;
+                }
 
                 lmrDepth = std::max(lmrDepth, 0);
 
