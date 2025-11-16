@@ -1128,7 +1128,14 @@ moves_loop:  // When in check, search starts here
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
-                depth++;
+                // Avoid explosive multi-extensions on trivial recaptures:
+                // recaptures are often already forced; limiting them keeps the tree stable.
+                const bool recaptureSingular = (prevSq != SQ_NONE) && (move.to_sq() == prevSq);
+                if (recaptureSingular)
+                    extension = std::min(extension, Depth(1));
+
+                // Only escalate depth for siblings if this was not a trivial recapture
+                depth += !recaptureSingular;
             }
 
             // Multi-cut pruning
