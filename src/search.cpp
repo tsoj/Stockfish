@@ -1194,6 +1194,11 @@ moves_loop:  // When in check, search starts here
         if (move == ttData.move)
             r -= 2018;
 
+        // Decrease reduction for recaptures proportional to depth
+        bool isRecapture = priorCapture && capture && move.to_sq() == prevSq;
+        if (isRecapture)
+            r -= depth / 3;
+
         if (capture)
             ss->statScore = 803 * int(PieceValue[pos.captured_piece()]) / 128
                           + captureHistory[movedPiece][move.to_sq()][type_of(pos.captured_piece())];
