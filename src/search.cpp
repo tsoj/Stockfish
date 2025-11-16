@@ -907,9 +907,15 @@ Value Search::Worker::search(
 
     // Step 10. Internal iterative reductions
     // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Making IIR more aggressive scales poorly.
+    // Scale the reduction using TT PV information: when we have a PV TT hit
+    // with sufficient stored depth, this node is likely stable and we can
+    // safely reduce a bit more. This is a non-linear scaler intended to
+    // help at long time controls.
     if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    {
+        int extra = PvNode && ttHit && ttData.is_pv && ttData.depth >= depth + 1;
+        depth -= 1 + extra;
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
