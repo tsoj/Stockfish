@@ -1800,23 +1800,45 @@ void update_all_stats(const Position& pos,
                       SearchedList&   quietsSearched,
                       SearchedList&   capturesSearched,
                       Depth           depth,
-                      Move            ttMove,
+                      Move            TTMove,
                       int             moveCount) {
 
     CapturePieceToHistory& captureHistory = workerThread.captureHistory;
     Piece                  movedPiece     = pos.moved_piece(bestMove);
     PieceType              capturedPiece;
 
-    int bonus = std::min(121 * depth - 77, 1633) + 375 * (bestMove == ttMove);
+    int bonus = std::min(121 * depth - 77, 1633) + 375 * (bestMove == TTMove);
     int malus = std::min(825 * depth - 196, 2159) - 16 * moveCount;
+
+    // Detect if bestMove is a retreat to previous square (often a defensive move)
+    bool bestIsRetreat = false;
+    if (((ss - 1)->currentMove).is_ok())
+    {
+        Square prevFromSq = ((ss - 1)->currentMove).from_sq();
+        bestIsRetreat     = bestMove.to_sq() == prevFromSq;
+    }
 
     if (!pos.capture_stage(bestMove))
     {
-        update_quiet_histories(pos, ss, workerThread, bestMove, bonus * 881 / 1024);
+        // Reduce bonus for retreat moves even if they're best
+        int scaledBonus = bestIsRetreat ? bonus * 7 / 8 : bonus;
+        update_quiet_histories(pos, ss, workerThread, bestMove, scaledBonus * 881 / 1024);
 
         // Decrease stats for all non-best quiet moves
         for (Move move : quietsSearched)
-            update_quiet_histories(pos, ss, workerThread, move, -malus * 1083 / 1024);
+        {
+            // Detect retreat moves in searched list
+            bool moveIsRetreat = false;
+            if (((ss - 1)->currentMove).is_ok())
+            {
+                Square prevFromSq = ((ss - 1)->currentMove).from_sq();
+                moveIsRetreat     = move.to_sq() == prevFromSq;
+            }
+
+            // Increase malus for retreat moves that failed
+            int moveMalus = moveIsRetreat ? malus * 5 / 4 : malus;
+            update_quiet_histories(pos, ss, workerThread, move, -moveMalus * 1083 / 1024);
+        }
     }
     else
     {
@@ -1828,7 +1850,19 @@ void update_all_stats(const Position& pos,
     // Extra penalty for a quiet early move that was not a TT move in
     // previous ply when it gets refuted.
     if (prevSq != SQ_NONE && ((ss - 1)->moveCount == 1 + (ss - 1)->ttHit) && !pos.captured_piece())
-        update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, -malus * 614 / 1024);
+    {
+        // Detect if the refuted move was a retreat
+        bool refutedIsRetreat = false;
+        if (((ss - 2)->currentMove).is_ok())
+        {
+            Square prevPrevFromSq = ((ss - 2)->currentMove).from_sq();
+            refutedIsRetreat      = prevSq == prevPrevFromSq;
+        }
+
+        int refutedMalus = refutedIsRetreat ? malus * 3 / 2 : malus;
+        update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
+                                      -refutedMalus * 614 / 1024);
+    }
 
     // Decrease stats for all non-best capture moves
     for (Move move : capturesSearched)
