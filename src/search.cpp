@@ -1624,13 +1624,14 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                     continue;
                 }
 
-                // If static exchange evaluation is low enough
-                // we can prune this move.
-                if (!pos.see_ge(move, alpha - futilityBase))
-                {
-                    bestValue = std::min(alpha, futilityBase);
+                // If static exchange evaluation is low enough, we can prune this move.
+                // The margin is made more aggressive if stand-pat eval is good.
+                Value see_margin = alpha - futilityBase;
+                if (see_margin < 0)
+                    see_margin += see_margin / 2;
+
+                if (!pos.see_ge(move, see_margin))
                     continue;
-                }
             }
 
             // Skip non-captures
