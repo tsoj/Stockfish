@@ -1215,6 +1215,16 @@ moves_loop:  // When in check, search starts here
             // std::clamp has been replaced by a more robust implementation.
             Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 2)) + PvNode;
 
+            // Do not reduce critical low-frequency tactical replies:
+            // - Recaptures on the previous square
+            // - Counter-checks (evasion that immediately gives check)
+            const bool isRecapture =
+              capture && priorCapture && prevSq != SQ_NONE && move.to_sq() == prevSq;
+            const bool isCounterCheck = (ss - 1)->inCheck && givesCheck;
+
+            if (isRecapture || isCounterCheck)
+                d = std::max(d, newDepth);  // No LMR reduction for these moves
+
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
