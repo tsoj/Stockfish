@@ -1111,7 +1111,7 @@ moves_loop:  // When in check, search starts here
             && ttData.depth >= depth - 3)
         {
             Value singularBeta  = ttData.value - (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
-            Depth singularDepth = newDepth / 2;
+            Depth singularDepth = (3 * newDepth + improving) / 4;
 
             ss->excludedMove = move;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
@@ -1128,7 +1128,7 @@ moves_loop:  // When in check, search starts here
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
-                depth++;
+                depth += (depth > 15 && !cutNode);
             }
 
             // Multi-cut pruning
