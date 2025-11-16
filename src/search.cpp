@@ -1105,6 +1105,11 @@ moves_loop:  // When in check, search starts here
 
         // (*Scaler) Generally, higher singularBeta (i.e closer to ttValue)
         // and lower extension margins scale well.
+        // Improvement: Gate singular verification on tacticality or a sufficiently
+        // large TT-vs-static gap (adjusted by correction history), and add a cheap
+        // early exclusion probe to avoid costly full singular verification when
+        // non-singularity is obvious. The early probe is searched as an all-node
+        // (cutNode = false) for robustness.
 
         if (!rootNode && move == ttData.move && !excludedMove && depth >= 6 + ss->ttPv
             && is_valid(ttData.value) && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
@@ -1113,51 +1118,66 @@ moves_loop:  // When in check, search starts here
             Value singularBeta  = ttData.value - (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
             Depth singularDepth = newDepth / 2;
 
-            ss->excludedMove = move;
-            value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
-            ss->excludedMove = Move::none();
+            // Gate: only attempt singular verification if we have a strong signal.
+            // Either the tt-move is tactical (capture or check), or its TT score
+            // is clearly above current staticEval. The threshold is adjusted by
+            // correction history to avoid triggering on volatile evals.
+            Value evalGap = ttData.value - ss->staticEval;
+            int   cvAdj   = std::abs(correctionValue) / 229958;
+            bool  doSingularCheck =
+              ttCapture || givesCheck || evalGap > Value(88 + 12 * ss->ttPv + cvAdj);
 
-            if (value < singularBeta)
+            if (doSingularCheck)
             {
-                int corrValAdj   = std::abs(correctionValue) / 229958;
-                int doubleMargin = -4 + 198 * PvNode - 212 * !ttCapture - corrValAdj
-                                 - 921 * ttMoveHistory / 127649 - (ss->ply > rootDepth) * 45;
-                int tripleMargin = 76 + 308 * PvNode - 250 * !ttCapture + 92 * ss->ttPv - corrValAdj
-                                 - (ss->ply * 2 > rootDepth * 3) * 52;
+                Value verify = VALUE_NONE;
 
-                extension =
-                  1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
+                // Cheap early-out: a shallow exclusion probe often refutes singularity.
+                Depth quickDepth = std::max(0, singularDepth / 2 - (ttCapture ? 0 : 1));
+                if (quickDepth > 0)
+                {
+                    ss->excludedMove = move;
+                    verify = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, quickDepth,
+                                           false /* all-node for robustness */);
+                    ss->excludedMove = Move::none();
+                }
 
-                depth++;
+                // Run the standard verification only if the quick probe did not already
+                // show non-singularity (i.e., fail-high over singularBeta).
+                if (!(verify >= singularBeta))
+                {
+                    ss->excludedMove = move;
+                    verify = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth,
+                                           cutNode);
+                    ss->excludedMove = Move::none();
+                }
+
+                if (verify < singularBeta)
+                {
+                    int corrValAdj   = std::abs(correctionValue) / 229958;
+                    int doubleMargin = -4 + 198 * PvNode - 212 * !ttCapture - corrValAdj
+                                     - 921 * ttMoveHistory / 127649 - (ss->ply > rootDepth) * 45;
+                    int tripleMargin = 76 + 308 * PvNode - 250 * !ttCapture + 92 * ss->ttPv
+                                     - corrValAdj - (ss->ply * 2 > rootDepth * 3) * 52;
+
+                    extension = 1 + (verify < singularBeta - doubleMargin)
+                              + (verify < singularBeta - tripleMargin);
+
+                    depth++;
+                }
+
+                // Multi-cut pruning
+                else if (verify >= beta && !is_decisive(verify))
+                {
+                    ttMoveHistory << std::max(-400 - 100 * depth, -4000);
+                    return verify;
+                }
+
+                // Negative extensions (same logic as before)
+                else if (ttData.value >= beta)
+                    extension = -3;
+                else if (cutNode)
+                    extension = -2;
             }
-
-            // Multi-cut pruning
-            // Our ttMove is assumed to fail high based on the bound of the TT entry,
-            // and if after excluding the ttMove with a reduced search we fail high
-            // over the original beta, we assume this expected cut-node is not
-            // singular (multiple moves fail high), and we can prune the whole
-            // subtree by returning a softbound.
-            else if (value >= beta && !is_decisive(value))
-            {
-                ttMoveHistory << std::max(-400 - 100 * depth, -4000);
-                return value;
-            }
-
-            // Negative extensions
-            // If other moves failed high over (ttValue - margin) without the
-            // ttMove on a reduced search, but we cannot do multi-cut because
-            // (ttValue - margin) is lower than the original beta, we do not know
-            // if the ttMove is singular or can do a multi-cut, so we reduce the
-            // ttMove in favor of other moves based on some conditions:
-
-            // If the ttMove is assumed to fail high over current beta
-            else if (ttData.value >= beta)
-                extension = -3;
-
-            // If we are on a cutNode but the ttMove is not assumed to fail high
-            // over current beta
-            else if (cutNode)
-                extension = -2;
         }
 
         // Step 16. Make the move
