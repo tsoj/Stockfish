@@ -800,7 +800,20 @@ Value Search::Worker::search(
     {
         // Never assume anything about values stored in TT
         unadjustedStaticEval = ttData.eval;
-        if (!is_valid(unadjustedStaticEval))
+
+        // (*Scaler) Recompute static eval on TT hits when the entry is too shallow
+        // relative to the current node's depth, or when no eval was stored.
+        // Exact bounds are slightly more trustworthy.
+        bool needFreshEval = !is_valid(unadjustedStaticEval);
+
+        int requiredDepth = (4 * depth) / 5 - int(ttData.bound == BOUND_EXACT);
+        if (requiredDepth < 0)
+            requiredDepth = 0;
+
+        if (!needFreshEval && ttData.depth < requiredDepth)
+            needFreshEval = true;
+
+        if (needFreshEval)
             unadjustedStaticEval = evaluate(pos);
 
         ss->staticEval = eval = to_corrected_static_eval(unadjustedStaticEval, correctionValue);
