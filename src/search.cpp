@@ -689,8 +689,17 @@ Value Search::Worker::search(
     // At this point, if excluded, skip straight to step 6, static eval. However,
     // to save indentation, we list the condition in all code between here and there.
 
+    // Window-aware dynamic depth relief for TT cutoffs (NonPV, null-window).
+    // For fail-lows, only relax when the ttValue is close to alpha (beta - 1).
+    // For fail-highs, allow a slightly larger relief when the entry was PV and quiet.
+    int depthRelief = 0;
+    if (ttData.value >= beta)
+        depthRelief = 1 + int(ttData.is_pv && !ttCapture);
+    else
+        depthRelief = (ttData.value >= beta - 64);
+
     // At non-PV nodes we check for an early TT cutoff
-    if (!PvNode && !excludedMove && ttData.depth > depth - (ttData.value <= beta)
+    if (!PvNode && !excludedMove && ttData.depth > depth - depthRelief
         && is_valid(ttData.value)  // Can happen when !ttHit or when access race in probe()
         && (ttData.bound & (ttData.value >= beta ? BOUND_LOWER : BOUND_UPPER))
         && (cutNode == (ttData.value >= beta) || depth > 5))
