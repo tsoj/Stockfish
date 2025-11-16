@@ -876,6 +876,14 @@ Value Search::Worker::search(
 
         // Null move dynamic reduction based on depth
         Depth R = 7 + depth / 3;
+
+        // Be more conservative with NMP if a recent TT lower bound indicates that this node
+        // is likely to fail high (zugzwang risk). Use near-depth TT info to avoid stale data.
+        // Scales at LTC via depth and ttData.depth guards.
+        if (ss->ttHit && (ttData.bound & BOUND_LOWER) && is_valid(ttData.value)
+            && ttData.value >= beta && ttData.depth >= depth - 2)
+            R = std::max(Depth(5), R - (2 + (depth >= 14)));
+
         do_null_move(pos, st, ss);
 
         Value nullValue = -search<NonPV>(pos, ss + 1, -beta, -beta + 1, depth - R, false);
