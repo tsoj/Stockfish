@@ -1202,6 +1202,23 @@ moves_loop:  // When in check, search starts here
                           + (*contHist[0])[movedPiece][move.to_sq()]
                           + (*contHist[1])[movedPiece][move.to_sq()];
 
+        // Tactical relief for reductions:
+        // - Immediate recaptures (capture on the previous move's destination square)
+        // - Quiet checks (non-capturing moves that give check)
+        {
+            const bool isRecapture = capture && move.to_sq() == prevSq;
+
+            // Immediate recaptures are highly forcing; reduce LMR more.
+            // Scale slightly with depth (>= 8) and give an extra PV bonus.
+            if (isRecapture)
+                r -= 835 + 281 * int(PvNode) + 192 * int(depth >= 8);
+
+            // Quiet checks are strong refutation candidates; reduce LMR modestly,
+            // especially in PV and when the position is improving.
+            else if (!capture && givesCheck)
+                r -= 511 + 170 * int(PvNode && improving);
+        }
+
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 794 / 8192;
 
