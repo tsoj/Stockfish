@@ -1215,6 +1215,18 @@ moves_loop:  // When in check, search starts here
             // std::clamp has been replaced by a more robust implementation.
             Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 2)) + PvNode;
 
+            // Damp LMR immediately after a null move: refutations are often tactical.
+            // - Cap reduction to at most 1 ply after a null move
+            // - For quiet checking moves right after a null move, do not reduce at all
+            const bool afterNull = ((ss - 1)->currentMove == Move::null());
+            if (afterNull)
+            {
+                if (givesCheck && !capture)
+                    d = std::max(d, newDepth);  // no reduction for quiet checks after null
+                else
+                    d = std::max(d, newDepth - 1);  // cap reduction to at most 1 ply
+            }
+
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
