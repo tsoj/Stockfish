@@ -1812,11 +1812,34 @@ void update_all_stats(const Position& pos,
 
     if (!pos.capture_stage(bestMove))
     {
+        // Reward the chosen quiet best move
         update_quiet_histories(pos, ss, workerThread, bestMove, bonus * 881 / 1024);
 
-        // Decrease stats for all non-best quiet moves
+        // Slightly soften the malus for plausible quiet countermoves:
+        // ones that are close to the opponent's last destination or that return to its origin.
+        Square prevTo = ((ss - 1)->currentMove).is_ok() ? ((ss - 1)->currentMove).to_sq() : SQ_NONE;
+        Square prevFrom =
+          ((ss - 1)->currentMove).is_ok() ? ((ss - 1)->currentMove).from_sq() : SQ_NONE;
+
         for (Move move : quietsSearched)
-            update_quiet_histories(pos, ss, workerThread, move, -malus * 1083 / 1024);
+        {
+            int scaledMalus = malus * 1083 / 1024;  // Base malus
+
+            if (prevTo != SQ_NONE)
+            {
+                Square to             = move.to_sq();
+                int    df             = std::abs(int(file_of(to)) - int(file_of(prevTo)));
+                int    dr             = std::abs(int(rank_of(to)) - int(rank_of(prevTo)));
+                int    prox           = std::max(df, dr);
+                bool   backToPrevFrom = (prevFrom != SQ_NONE) && (to == prevFrom);
+
+                // Soften for close replies or back-to-origin replies
+                if (prox <= 1 || backToPrevFrom)
+                    scaledMalus = scaledMalus * (backToPrevFrom ? 640 : 768) / 1024;
+            }
+
+            update_quiet_histories(pos, ss, workerThread, move, -scaledMalus);
+        }
     }
     else
     {
@@ -1867,7 +1890,41 @@ void update_quiet_histories(
     if (ss->ply < LOW_PLY_HISTORY_SIZE)
         workerThread.lowPlyHistory[ss->ply][move.raw()] << bonus * 761 / 1024;
 
+    // Base continuation history update over multiple depths
     update_continuation_histories(ss, pos.moved_piece(move), move.to_sq(), bonus * 955 / 1024);
+
+    // Countermove-friendly refinement:
+    // If the quiet best move is a plausible direct reply to the opponent's last move,
+    // slightly reinforce the immediate (i=1) continuation entry to favor this reply.
+    if (((ss - 1)->currentMove).is_ok())
+    {
+        const Square prevTo   = ((ss - 1)->currentMove).to_sq();
+        const Square prevFrom = ((ss - 1)->currentMove).from_sq();
+        const Square to       = move.to_sq();
+
+        // Chebyshev proximity to opponent's last destination square (prevTo)
+        int df   = std::abs(int(file_of(to)) - int(file_of(prevTo)));
+        int dr   = std::abs(int(rank_of(to)) - int(rank_of(prevTo)));
+        int prox = std::max(df, dr);
+
+        const bool nearPrevTo     = (prevTo != SQ_NONE) && (prox <= 1);
+        const bool backToPrevFrom = (prevFrom != SQ_NONE) && (to == prevFrom);
+        const bool reinforcePair  = nearPrevTo || backToPrevFrom;
+
+        if (reinforcePair)
+        {
+            // A small, bounded extra for the immediate pair (i=1), symmetric for +/- bonus.
+            // This scales gently at LTC and avoids overweighting.
+            const int extra = ((std::abs(bonus) >> 3) + 96) * (bonus > 0 ? 1 : -1);
+
+            // Update immediate continuation history for (ss - 1) -> current move pair
+            (*(ss - 1)->continuationHistory)[pos.moved_piece(move)][to] << extra;
+
+            // For positive reinforcement only, nudge the correction continuation as well.
+            if (bonus > 0)
+                (*(ss - 1)->continuationCorrectionHistory)[pos.moved_piece(move)][to] << 8;
+        }
+    }
 
     int pIndex = pawn_history_index(pos);
     workerThread.pawnHistory[pIndex][pos.moved_piece(move)][move.to_sq()]
