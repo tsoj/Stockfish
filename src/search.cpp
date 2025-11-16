@@ -690,44 +690,66 @@ Value Search::Worker::search(
     // to save indentation, we list the condition in all code between here and there.
 
     // At non-PV nodes we check for an early TT cutoff
-    if (!PvNode && !excludedMove && ttData.depth > depth - (ttData.value <= beta)
-        && is_valid(ttData.value)  // Can happen when !ttHit or when access race in probe()
-        && (ttData.bound & (ttData.value >= beta ? BOUND_LOWER : BOUND_UPPER))
-        && (cutNode == (ttData.value >= beta) || depth > 5))
+    // Make the required TT depth dynamic based on proximity to the current window,
+    // and be slightly stricter for nodes that are or have been on the PV.
+    if (!PvNode && !excludedMove
+        && is_valid(ttData.value))  // Can happen when !ttHit or access race
     {
-        // If ttMove is quiet, update move sorting heuristics on TT hit
-        if (ttData.move && ttData.value >= beta)
-        {
-            // Bonus for a quiet ttMove that fails high
-            if (!ttCapture)
-                update_quiet_histories(pos, ss, *this, ttData.move,
-                                       std::min(130 * depth - 71, 1043));
+        // Proximity of the stored TT value to the current null-window.
+        // For NonPV nodes, alpha == beta - 1, so being close to either bound is informative.
+        int windowCloseness =
+          int(ttData.value >= beta ? ttData.value - beta : alpha - ttData.value);
+        if (windowCloseness < 0)
+            windowCloseness = 0;
+        const bool nearWindow = windowCloseness <= 64;
 
-            // Extra penalty for early quiet moves of the previous ply
-            if (prevSq != SQ_NONE && (ss - 1)->moveCount < 4 && !priorCapture)
-                update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, -2142);
-        }
+        // Base slack: UPPER bounds already get 1 ply slack in the original code.
+        // We add 1 extra slack ply when the value is near the window. If the node has PV ancestry,
+        // be slightly more conservative and require 1 extra ply of TT depth at medium depths.
+        int nearSlack     = (ttData.value < beta) + int(nearWindow);
+        int pvPenalty     = (ss->ttPv && depth >= 6) ? 1 : 0;
+        int requiredDepth = depth - nearSlack + pvPenalty;
 
-        // Partial workaround for the graph history interaction problem
-        // For high rule50 counts don't produce transposition table cutoffs.
-        if (pos.rule50_count() < 96)
+        if (ttData.depth > requiredDepth
+            && (ttData.bound & (ttData.value >= beta ? BOUND_LOWER : BOUND_UPPER))
+            // If the cutNode direction does not match the bound direction, require a bit more depth
+            // when the stored value is very close to the window.
+            && (cutNode == (ttData.value >= beta) || depth > 5 + int(nearWindow)))
         {
-            if (depth >= 8 && ttData.move && pos.pseudo_legal(ttData.move) && pos.legal(ttData.move)
-                && !is_decisive(ttData.value))
+            // If ttMove is quiet, update move sorting heuristics on TT hit
+            if (ttData.move && ttData.value >= beta)
             {
-                pos.do_move(ttData.move, st);
-                Key nextPosKey                             = pos.key();
-                auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(nextPosKey);
-                pos.undo_move(ttData.move);
+                // Bonus for a quiet ttMove that fails high
+                if (!ttCapture)
+                    update_quiet_histories(pos, ss, *this, ttData.move,
+                                           std::min(130 * depth - 71, 1043));
 
-                // Check that the ttValue after the tt move would also trigger a cutoff
-                if (!is_valid(ttDataNext.value))
-                    return ttData.value;
-                if ((ttData.value >= beta) == (-ttDataNext.value >= beta))
+                // Extra penalty for early quiet moves of the previous ply
+                if (prevSq != SQ_NONE && (ss - 1)->moveCount < 4 && !priorCapture)
+                    update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, -2142);
+            }
+
+            // Partial workaround for the graph history interaction problem
+            // For high rule50 counts don't produce transposition table cutoffs.
+            if (pos.rule50_count() < 96)
+            {
+                if (depth >= 8 && ttData.move && pos.pseudo_legal(ttData.move)
+                    && pos.legal(ttData.move) && !is_decisive(ttData.value))
+                {
+                    pos.do_move(ttData.move, st);
+                    Key nextPosKey                             = pos.key();
+                    auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(nextPosKey);
+                    pos.undo_move(ttData.move);
+
+                    // Check that the ttValue after the tt move would also trigger a cutoff
+                    if (!is_valid(ttDataNext.value))
+                        return ttData.value;
+                    if ((ttData.value >= beta) == (-ttDataNext.value >= beta))
+                        return ttData.value;
+                }
+                else
                     return ttData.value;
             }
-            else
-                return ttData.value;
         }
     }
 
