@@ -905,11 +905,35 @@ Value Search::Worker::search(
 
     improving |= ss->staticEval >= beta;
 
-    // Step 10. Internal iterative reductions
-    // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Making IIR more aggressive scales poorly.
-    if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    // Step 10. Internal iterative reductions (context-aware)
+    // Reduce depth for PV/Cut nodes when TT has no helpful move, but avoid
+    // starving a "cold" PV and be harsher on clear cut-nodes with a poor TT bound.
+    // (*Scaler) We avoid blanket aggressiveness; instead adjust based on TT/bounds.
+    if (!allNode && depth >= 6 && priorReduction <= 3 && !ss->inCheck)
+    {
+        int iir = 0;
+
+        // Base reduction when no ttMove is available
+        if (!ttData.move)
+            iir = 1;
+
+        // If we have a TT entry that is an upper bound at similar depth (likely shallow fail-low),
+        // treat it like "no good TT guidance" and increase reduction for cut-nodes only.
+        if (cutNode && ss->ttHit && (ttData.bound & BOUND_UPPER) && ttData.depth >= depth - 2)
+            iir += 1;
+
+        // PV cold-start guard: if no ttMove and static eval is already close to alpha,
+        // skip one unit of IIR to help establish the PV early rather than starving it.
+        if (PvNode && !ttData.move)
+        {
+            Value margin = Value(64 + 24 * improving);
+            if (ss->staticEval >= alpha - margin)
+                iir = std::max(0, iir - 1);
+        }
+
+        if (iir > 0)
+            depth -= Depth(std::min(iir, int(depth - 1)));
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
