@@ -915,7 +915,7 @@ Value Search::Worker::search(
     // If we have a good enough capture (or queen promotion) and a reduced search
     // returns a value much above beta, we can (almost) safely prune the previous move.
     probCutBeta = beta + 224 - 64 * improving;
-    if (depth >= 3
+    if (!PvNode && depth >= 3
         && !is_decisive(beta)
         // If value from transposition table is lower than probCutBeta, don't attempt
         // probCut there
@@ -961,15 +961,16 @@ Value Search::Worker::search(
 
 moves_loop:  // When in check, search starts here
 
-    // Step 12. A small Probcut idea
-    probCutBeta = beta + 418;
-    if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4 && ttData.value >= probCutBeta
-        && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
-        return probCutBeta;
-
     const PieceToHistory* contHist[] = {
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
       (ss - 4)->continuationHistory, (ss - 5)->continuationHistory, (ss - 6)->continuationHistory};
+
+    // Step 12. A small Probcut idea
+    probCutBeta = beta + 418;
+    if (!PvNode && (ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4
+        && ttData.value >= probCutBeta && !is_decisive(beta) && is_valid(ttData.value)
+        && !is_decisive(ttData.value))
+        return probCutBeta;
 
 
     MovePicker mp(pos, ttData.move, depth, &mainHistory, &lowPlyHistory, &captureHistory, contHist,
