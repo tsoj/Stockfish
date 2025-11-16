@@ -1076,6 +1076,10 @@ moves_loop:  // When in check, search starts here
                 Value futilityValue = ss->staticEval + 47 + 171 * !bestMove + 134 * lmrDepth
                                     + 90 * (ss->staticEval > alpha);
 
+                // In LMR searches, be more aggressive with futility pruning, except in ttPv lines.
+                if (cutNode && !ss->ttPv)
+                    futilityValue -= 88;
+
                 // Futility pruning: parent node
                 // (*Scaler): Generally, more frequent futility pruning
                 // scales well
