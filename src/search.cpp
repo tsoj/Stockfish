@@ -1087,6 +1087,15 @@ moves_loop:  // When in check, search starts here
                     continue;
                 }
 
+                // Additional pruning for moves that almost pass futility but fail SEE
+                else if (!ss->inCheck && lmrDepth < 11 && futilityValue < alpha + PawnValue / 8
+                         && !pos.see_ge(move, (alpha - futilityValue) * 2))
+                {
+                    if (bestValue < alpha)
+                        bestValue = alpha;
+                    continue;
+                }
+
                 lmrDepth = std::max(lmrDepth, 0);
 
                 // Prune moves with negative SEE
