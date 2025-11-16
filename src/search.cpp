@@ -1208,6 +1208,16 @@ moves_loop:  // When in check, search starts here
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
+            // Prefer not to over-reduce quiet checking moves. These often
+            // carry tactical content that is missed by a reduced zero-window search.
+            // (*Scaler): PV nodes benefit a bit more from this, SEE guards bad sacs.
+            if (givesCheck && !capture)
+            {
+                r -= 1178 + 507 * PvNode;
+                if (!pos.see_ge(move, 0))
+                    r += 512;  // Penalize unsafe checking sacs slightly
+            }
+
             // In general we want to cap the LMR depth search at newDepth, but when
             // reduction is negative, we allow this move a limited search extension
             // beyond the first move depth.
@@ -1235,6 +1245,28 @@ moves_loop:  // When in check, search starts here
 
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1365);
+            }
+            else
+            {
+                // Verification re-search for promising quiet checks that failed low
+                // after a stronger reduction. Restrict to PV/ttPv nodes and cap cost.
+                if (givesCheck && !capture && (PvNode || ss->ttPv) && (newDepth > d)
+                    && ss->statScore > 0)
+                {
+                    Depth vd = std::min<Depth>(newDepth, d + 1);
+                    Value v2 = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, vd, true);
+
+                    if (v2 > value)
+                        value = v2;
+
+                    // Apply a symmetric small negative feedback if it still fails low,
+                    // to help future ordering without being too aggressive.
+                    if (v2 <= alpha && r > 2048)
+                        update_continuation_histories(ss, movedPiece, move.to_sq(), -341);
+                }
+                // Small penalty for heavily reduced quiet moves that clearly failed low
+                else if (!capture && (PvNode || ss->ttPv) && r > 2048)
+                    update_continuation_histories(ss, movedPiece, move.to_sq(), -228);
             }
         }
 
