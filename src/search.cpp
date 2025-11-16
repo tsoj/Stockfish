@@ -1225,8 +1225,14 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch = d < newDepth && value > (bestValue + 43 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
+                Value deeperThreshold = bestValue + 43 + 2 * newDepth;
+                if (cutNode)
+                    deeperThreshold -= 48;
+                if (move == ttData.move)
+                    deeperThreshold -= 77;
+
+                const bool doDeeperSearch    = d < newDepth && value > deeperThreshold;
+                const bool doShallowerSearch = !cutNode && value < bestValue + 9;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
 
