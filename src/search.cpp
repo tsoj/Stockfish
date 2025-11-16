@@ -857,10 +857,20 @@ Value Search::Worker::search(
         auto futility_margin = [&](Depth d) {
             Value futilityMult = 91 - 21 * !ss->ttHit;
 
-            return futilityMult * d                               //
-                 - 2094 * improving * futilityMult / 1024         //
-                 - 331 * opponentWorsening * futilityMult / 1024  //
-                 + std::abs(correctionValue) / 158105;
+            Value margin = futilityMult * d                               //
+                         - 2094 * improving * futilityMult / 1024         //
+                         - 331 * opponentWorsening * futilityMult / 1024  //
+                         + std::abs(correctionValue) / 158105;
+
+            // In cut nodes, we expect a cutoff, so be more aggressive (smaller margin).
+            margin -= 128 * cutNode;
+
+            // If the opponent's previous move was statistically good, be more cautious
+            // (larger margin). This score is 0 if not from a standard move loop.
+            if (((ss - 1)->currentMove).is_ok())
+                margin += (ss - 1)->statScore / 320;
+
+            return margin;
         };
 
         if (!ss->ttPv && depth < 14 && eval - futility_margin(depth) >= beta && eval >= beta
