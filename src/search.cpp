@@ -1208,33 +1208,47 @@ moves_loop:  // When in check, search starts here
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
-            // In general we want to cap the LMR depth search at newDepth, but when
-            // reduction is negative, we allow this move a limited search extension
-            // beyond the first move depth.
-            // To prevent problems when the max value is less than the min value,
-            // std::clamp has been replaced by a more robust implementation.
-            Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 2)) + PvNode;
+            // Skip LMR for quiet checks in non-cut nodes after high cutoff count in prior ply,
+            // as these may indicate forcing sequences worth fuller depth exploration (LTC scaler)
+            bool skipLmr = givesCheck && !capture && !cutNode && (ss - 1)->cutoffCnt > 3;
 
-            ss->reduction = newDepth - d;
-            value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
-            ss->reduction = 0;
-
-            // Do a full-depth search when reduced LMR search fails high
-            // (*Scaler) Shallower searches here don't scale well
-            if (value > alpha)
+            if (!skipLmr)
             {
-                // Adjust full-depth search based on LMR results - if the result was
-                // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch = d < newDepth && value > (bestValue + 43 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
+                // In general we want to cap the LMR depth search at newDepth, but when
+                // reduction is negative, we allow this move a limited search extension
+                // beyond the first move depth.
+                // To prevent problems when the max value is less than the min value,
+                // std::clamp has been replaced by a more robust implementation.
+                Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 2)) + PvNode;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                ss->reduction = newDepth - d;
+                value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
+                ss->reduction = 0;
 
-                if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                // Do a full-depth search when reduced LMR search fails high
+                // (*Scaler) Shallower searches here don't scale well
+                if (value > alpha)
+                {
+                    // Adjust full-depth search based on LMR results - if the result was
+                    // good enough search deeper, if it was bad enough search shallower.
+                    const bool doDeeperSearch =
+                      d < newDepth && value > (bestValue + 43 + 2 * newDepth);
+                    const bool doShallowerSearch = value < bestValue + 9;
 
-                // Post LMR continuation history updates
-                update_continuation_histories(ss, movedPiece, move.to_sq(), 1365);
+                    newDepth += doDeeperSearch - doShallowerSearch;
+
+                    if (newDepth > d)
+                        value =
+                          -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+
+                    // Post LMR continuation history updates
+                    update_continuation_histories(ss, movedPiece, move.to_sq(), 1365);
+                }
+            }
+            else
+            {
+                // For skipped LMR, perform full search directly without reduction
+                value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
             }
         }
 
