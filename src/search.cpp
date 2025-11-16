@@ -855,7 +855,11 @@ Value Search::Worker::search(
     // The depth condition is important for mate finding.
     {
         auto futility_margin = [&](Depth d) {
-            Value futilityMult = 91 - 21 * !ss->ttHit;
+            Value futilityMult   = 91 - 21 * !ss->ttHit;
+            int   material       = pos.non_pawn_material(WHITE) + pos.non_pawn_material(BLACK);
+            Value materialFactor = std::min(1536, 1024 + material / 20);
+
+            futilityMult = futilityMult * materialFactor / 1024;
 
             return futilityMult * d                               //
                  - 2094 * improving * futilityMult / 1024         //
