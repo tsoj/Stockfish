@@ -1198,9 +1198,14 @@ moves_loop:  // When in check, search starts here
             ss->statScore = 803 * int(PieceValue[pos.captured_piece()]) / 128
                           + captureHistory[movedPiece][move.to_sq()][type_of(pos.captured_piece())];
         else
-            ss->statScore = 2 * mainHistory[us][move.raw()]
-                          + (*contHist[0])[movedPiece][move.to_sq()]
-                          + (*contHist[1])[movedPiece][move.to_sq()];
+        {
+            int weight = 2 * mainHistory[us][move.raw()];
+            weight += (*contHist[0])[movedPiece][move.to_sq()];
+            weight += (*contHist[1])[movedPiece][move.to_sq()];
+            weight += (*contHist[2])[movedPiece][move.to_sq()] / 2;
+            weight += (*contHist[3])[movedPiece][move.to_sq()] / 4;
+            ss->statScore = weight;
+        }
 
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 794 / 8192;
