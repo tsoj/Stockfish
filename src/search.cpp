@@ -1220,7 +1220,7 @@ moves_loop:  // When in check, search starts here
             ss->reduction = 0;
 
             // Do a full-depth search when reduced LMR search fails high
-            // (*Scaler) Shallower searches here don't scale well
+            // (*Scaler) Revert optimistic history on refutation to avoid pollution.
             if (value > alpha)
             {
                 // Adjust full-depth search based on LMR results - if the result was
@@ -1230,11 +1230,23 @@ moves_loop:  // When in check, search starts here
 
                 newDepth += doDeeperSearch - doShallowerSearch;
 
-                if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                const bool didReseearch = newDepth > d;
+                Value      valueAfter   = value;
 
-                // Post LMR continuation history updates
-                update_continuation_histories(ss, movedPiece, move.to_sq(), 1365);
+                if (didReseearch)
+                    valueAfter =
+                      -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+
+                // Post LMR continuation history updates:
+                // - If deeper re-search confirms valueAfter > alpha, keep the bonus.
+                // - If deeper re-search refutes (valueAfter <= alpha), revert with a penalty.
+                // - If no re-search was done, keep the optimistic bonus (as before).
+                if (!didReseearch || valueAfter > alpha)
+                    update_continuation_histories(ss, movedPiece, move.to_sq(), 1365);
+                else
+                    update_continuation_histories(ss, movedPiece, move.to_sq(), -1365);
+
+                value = valueAfter;
             }
         }
 
