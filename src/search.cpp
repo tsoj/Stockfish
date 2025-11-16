@@ -1363,6 +1363,18 @@ moves_loop:  // When in check, search starts here
             }
         }
 
+        // After the first move (typically the ttMove) fails clearly below alpha at a non-PV node,
+        // prune the remaining quiet moves at this node. We gate this by static eval also being
+        // well below alpha, not being in check, and sufficient depth. Captures/checks remain.
+        // (*Scaler): The margin grows with depth to scale well at LTC.
+        if (!PvNode && !rootNode && !ss->inCheck && moveCount == 1 && move == ttData.move
+            && depth >= 5)
+        {
+            int failLowMargin = 64 * depth + 32 * !improving;
+            if (ss->staticEval + failLowMargin <= alpha && value + failLowMargin <= alpha)
+                mp.skip_quiet_moves();
+        }
+
         // If the move is worse than some previously searched move,
         // remember it, to update its stats later.
         if (move != bestMove && moveCount <= SEARCHEDLIST_CAPACITY)
