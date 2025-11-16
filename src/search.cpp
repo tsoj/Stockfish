@@ -1354,9 +1354,31 @@ moves_loop:  // When in check, search starts here
                     break;
                 }
 
-                // Reduce other moves if we have found at least one score improvement
+                // Adaptive sibling reduction after an alpha improvement:
+                // - Be more conservative in PV nodes (keep alternatives longer).
+                // - Be more aggressive in cut-nodes and when position is improving.
+                // - Soften reduction if we already have a deep-enough TT entry.
                 if (depth > 2 && depth < 14 && !is_decisive(value))
-                    depth -= 2;
+                {
+                    int siblingReduction = 1;
+
+                    siblingReduction += !PvNode;          // Non-PV: more reduction
+                    siblingReduction += cutNode;          // Cut-node: more reduction
+                    siblingReduction += improving;        // Improving: more reduction
+                    siblingReduction += (moveCount > 3);  // Later best: slightly more
+
+                    // If TT entry is already deep enough, be a bit more cautious
+                    siblingReduction -= int(ttData.depth >= depth);
+
+                    // Cap for PV nodes to preserve tactical alternatives
+                    if (PvNode)
+                        siblingReduction = std::min(siblingReduction, 2);
+
+                    siblingReduction = std::clamp(siblingReduction, 1, 3);
+
+                    Depth red = std::min(depth - 1, Depth(siblingReduction));
+                    depth -= red;
+                }
 
                 assert(depth > 0);
                 alpha = value;  // Update alpha! Always alpha < beta
