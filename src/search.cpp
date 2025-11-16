@@ -1215,8 +1215,16 @@ moves_loop:  // When in check, search starts here
             // std::clamp has been replaced by a more robust implementation.
             Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 2)) + PvNode;
 
+            // Treat early PV-candidate moves more carefully at ttPv nodes:
+            // - TT move, or early moves at a PV node, are searched as "all-node"
+            //   during the reduced search and granted a small depth headroom.
+            const bool pvCandidate =
+              ss->ttPv && (move == ttData.move || (PvNode && moveCount <= 2));
+            if (pvCandidate)
+                d = std::min(newDepth, d + 1);
+
             ss->reduction = newDepth - d;
-            value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
+            value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, !pvCandidate);
             ss->reduction = 0;
 
             // Do a full-depth search when reduced LMR search fails high
@@ -1231,7 +1239,9 @@ moves_loop:  // When in check, search starts here
                 newDepth += doDeeperSearch - doShallowerSearch;
 
                 if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                    // Prefer an all-node re-search for PV-candidates to improve stability
+                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth,
+                                           !cutNode && !pvCandidate);
 
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1365);
