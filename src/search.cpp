@@ -1188,7 +1188,19 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction if next ply has a lot of fail high
         if ((ss + 1)->cutoffCnt > 2)
-            r += 1051 + allNode * 814;
+        {
+            int bonus = 1051 + allNode * 814;
+
+            // Be less aggressive with this reduction if we are improving, as the line
+            // may have more potential than the cutoff history suggests.
+            bonus -= bonus * improving / 4;
+
+            // Also be less aggressive at high depths, where cutoff history from previous
+            // shallower iterations becomes less reliable.
+            bonus -= bonus * depth / 48;
+
+            r += std::max(0, bonus);
+        }
 
         // For first picked move (ttMove) reduce reduction
         if (move == ttData.move)
