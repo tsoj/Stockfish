@@ -1631,6 +1631,17 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                     bestValue = std::min(alpha, futilityBase);
                     continue;
                 }
+
+                // New: If stand-pat is already above alpha, discard materially losing captures
+                // that are unlikely to raise alpha. Disabled on PV hits for safety.
+                // (*Scaler): Threshold scales with (futilityBase - alpha), activating more
+                // selectively at LTC depths, and only for captures.
+                if (capture && futilityBase > alpha && !pvHit
+                    && !pos.see_ge(move, (futilityBase - alpha) / 2))
+                {
+                    bestValue = alpha;
+                    continue;
+                }
             }
 
             // Skip non-captures
