@@ -909,7 +909,12 @@ Value Search::Worker::search(
     // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
     // (*Scaler) Making IIR more aggressive scales poorly.
     if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    {
+        // Apply a base reduction of 1. In cut nodes where the evaluation is not
+        // improving, we can afford to be more aggressive and reduce depth further,
+        // as these are less likely to be tactically critical.
+        depth -= 1 + (cutNode && !improving);
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
