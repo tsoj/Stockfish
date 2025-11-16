@@ -1354,9 +1354,11 @@ moves_loop:  // When in check, search starts here
                     break;
                 }
 
-                // Reduce other moves if we have found at least one score improvement
+                // Reduce other moves if we have found at least one score improvement.
+                // If the new best move is the TT move and the improvement is small,
+                // reduce less to give other moves a chance to be explored.
                 if (depth > 2 && depth < 14 && !is_decisive(value))
-                    depth -= 2;
+                    depth -= (bestMove == ttData.move && value - alpha < 41) ? 1 : 2;
 
                 assert(depth > 0);
                 alpha = value;  // Update alpha! Always alpha < beta
