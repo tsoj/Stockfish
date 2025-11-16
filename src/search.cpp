@@ -1219,8 +1219,12 @@ moves_loop:  // When in check, search starts here
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
 
-            // Do a full-depth search when reduced LMR search fails high
-            // (*Scaler) Shallower searches here don't scale well
+            // Do a full-depth search when reduced LMR search fails high.
+            // Introduce a two-phase confirmation for quiet LMR moves:
+            // 1) If reduced search fails high, try an intermediate re-search at d+1 (optionally +1 more for PV ttPv).
+            // 2) Only escalate to full-depth re-search if the intermediate also fails high.
+            // (*Scaler) This avoids frequent full-depth escalations for marginal quiet LMR fail-highs,
+            // improving search stability at LTC.
             if (value > alpha)
             {
                 // Adjust full-depth search based on LMR results - if the result was
@@ -1230,11 +1234,43 @@ moves_loop:  // When in check, search starts here
 
                 newDepth += doDeeperSearch - doShallowerSearch;
 
-                if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                // Two-phase confirmation only for quiet moves; keep tactical lines aggressive
+                const bool isQuietLMR  = !capture && !givesCheck;
+                Depth      targetDepth = newDepth;
 
-                // Post LMR continuation history updates
-                update_continuation_histories(ss, movedPiece, move.to_sq(), 1365);
+                if (isQuietLMR && targetDepth - d >= 2)
+                {
+                    // Intermediate confirmation depth: usually d+1, allow +1 more at PV ttPv
+                    const int   step = 1 + (PvNode && ss->ttPv);
+                    const Depth mid  = std::min(targetDepth, d + step);
+
+                    if (mid > d)
+                    {
+                        Value vMid = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, mid, true);
+
+                        if (vMid > alpha && targetDepth > mid)
+                            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, targetDepth,
+                                                   !cutNode);
+                        else
+                            value =
+                              vMid;  // Intermediate refutation avoided a costly full-depth re-search
+                    }
+                    else if (targetDepth > d)
+                        value =
+                          -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, targetDepth, !cutNode);
+                }
+                else if (targetDepth > d)
+                {
+                    value =
+                      -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, targetDepth, !cutNode);
+                }
+
+                // Post LMR continuation history updates with a depth-scaled bonus:
+                // reward deeper validated quiet LMRs proportionally to gained depth,
+                // keep captures/checks at the original fixed bonus.
+                int depthGain = std::max(0, int(targetDepth - d));
+                int bonus     = isQuietLMR ? (1024 + 171 * depthGain) : 1365;
+                update_continuation_histories(ss, movedPiece, move.to_sq(), bonus);
             }
         }
 
