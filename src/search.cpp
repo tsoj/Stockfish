@@ -1623,22 +1623,19 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                     bestValue = std::max(bestValue, futilityValue);
                     continue;
                 }
-
-                // If static exchange evaluation is low enough
-                // we can prune this move.
-                if (!pos.see_ge(move, alpha - futilityBase))
-                {
-                    bestValue = std::min(alpha, futilityBase);
-                    continue;
-                }
             }
 
             // Skip non-captures
             if (!capture)
                 continue;
 
-            // Do not search moves with bad enough SEE values
-            if (!pos.see_ge(move, -78))
+            // Do not search moves with bad enough SEE values. The margin is
+            // dynamic when not in check, and static when searching evasions.
+            Value see_margin = -78;
+            if (!ss->inCheck)
+                see_margin = alpha - futilityBase;
+
+            if (!pos.see_ge(move, see_margin))
                 continue;
         }
 
