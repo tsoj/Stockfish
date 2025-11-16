@@ -1049,6 +1049,11 @@ moves_loop:  // When in check, search starts here
 
                     if (futilityValue <= alpha)
                         continue;
+
+                    // Additional pruning for captures with terrible SEE when static eval is good
+                    else if (ss->staticEval > alpha
+                             && !pos.see_ge(move, -(ss->staticEval - alpha) * 8))
+                        continue;
                 }
 
                 // SEE based pruning for captures and checks
