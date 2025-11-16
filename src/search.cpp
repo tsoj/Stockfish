@@ -1054,6 +1054,13 @@ moves_loop:  // When in check, search starts here
                 // SEE based pruning for captures and checks
                 // Avoid pruning sacrifices of our last piece for stalemate
                 int margin = std::max(157 * depth + captHist / 29, 0);
+
+                // Prefer direct recaptures: they are often tactically forced and
+                // mis-pruning them is costly. Relax the SEE margin slightly so
+                // that such moves are pruned less aggressively.
+                if (priorCapture && prevSq != SQ_NONE && move.to_sq() == prevSq)
+                    margin = std::max(0, margin - (92 * depth + 128));
+
                 if ((alpha >= VALUE_DRAW || pos.non_pawn_material(us) != PieceValue[movedPiece])
                     && !pos.see_ge(move, -margin))
                     continue;
@@ -1204,6 +1211,12 @@ moves_loop:  // When in check, search starts here
 
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 794 / 8192;
+
+        // Prefer direct, non-losing recaptures: these are typically
+        // tactically forced and should be searched slightly deeper.
+        // We decrease the LMR reduction to stabilize these lines.
+        if (priorCapture && prevSq != SQ_NONE && move.to_sq() == prevSq && pos.see_ge(move, 0))
+            r -= 1024 + 417 * (depth >= 6);
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
