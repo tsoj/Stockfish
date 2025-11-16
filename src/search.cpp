@@ -1180,7 +1180,14 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for cut nodes
         if (cutNode)
+        {
             r += 3094 + 1056 * !ttData.move;
+
+            // If parent move had bad stats, it's more likely a mistake,
+            // so we can be more aggressive in trying to refute it.
+            if (((ss - 1)->currentMove).is_ok())
+                r -= (ss - 1)->statScore / 16;
+        }
 
         // Increase reduction if ttMove is a capture
         if (ttCapture)
