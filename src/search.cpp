@@ -907,8 +907,8 @@ Value Search::Worker::search(
 
     // Step 10. Internal iterative reductions
     // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Making IIR more aggressive scales poorly.
-    if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
+    // (*Scaler) Making IIR more aggressive scales poorly. Reduced near root where errors propagate more.
+    if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3 && ss->ply >= 4)
         depth--;
 
     // Step 11. ProbCut
