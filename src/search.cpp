@@ -800,7 +800,10 @@ Value Search::Worker::search(
     {
         // Never assume anything about values stored in TT
         unadjustedStaticEval = ttData.eval;
-        if (!is_valid(unadjustedStaticEval))
+        // Re-evaluate if TT entry is too shallow relative to current depth
+        if (!is_valid(unadjustedStaticEval)
+            || ttData.depth
+                 < (3 * depth / 4) - (ttData.is_pv ? 1 : 0) - (ttData.bound == BOUND_EXACT ? 1 : 0))
             unadjustedStaticEval = evaluate(pos);
 
         ss->staticEval = eval = to_corrected_static_eval(unadjustedStaticEval, correctionValue);
