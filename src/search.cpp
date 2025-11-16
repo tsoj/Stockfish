@@ -1180,7 +1180,14 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for cut nodes
         if (cutNode)
-            r += 3094 + 1056 * !ttData.move;
+        {
+            int bonus = 3094 + 1056 * !ttData.move;
+            // If static eval strongly suggests a cutoff, increase reduction even more,
+            // as we are just looking for a single move to refute the parent move.
+            if (ss->staticEval >= beta)
+                bonus += std::clamp((ss->staticEval - beta) / 3, 0, 800);
+            r += bonus;
+        }
 
         // Increase reduction if ttMove is a capture
         if (ttCapture)
