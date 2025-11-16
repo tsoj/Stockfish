@@ -1812,11 +1812,24 @@ void update_all_stats(const Position& pos,
 
     if (!pos.capture_stage(bestMove))
     {
-        update_quiet_histories(pos, ss, workerThread, bestMove, bonus * 881 / 1024);
+        bool isSpecialQuiet = prevSq != SQ_NONE && (ss - 1)->currentMove.is_ok()
+                           && bestMove.to_sq() == (ss - 1)->currentMove.from_sq();
+
+        // Slightly reduce bonus for special quiet best moves to prevent overgeneralization
+        int adjustedBonus = isSpecialQuiet ? bonus * 14 / 16 : bonus;
+        update_quiet_histories(pos, ss, workerThread, bestMove, adjustedBonus * 881 / 1024);
 
         // Decrease stats for all non-best quiet moves
         for (Move move : quietsSearched)
-            update_quiet_histories(pos, ss, workerThread, move, -malus * 1083 / 1024);
+        {
+            bool isSpecialQuietNonBest = prevSq != SQ_NONE && (ss - 1)->currentMove.is_ok()
+                                      && move.to_sq() == (ss - 1)->currentMove.from_sq();
+
+            // Apply less severe penalty for special quiet moves that weren't best
+            // Recognizing they might be situationally good tactical retreats
+            int adjustedMalus = isSpecialQuietNonBest ? malus * 12 / 16 : malus;
+            update_quiet_histories(pos, ss, workerThread, move, -adjustedMalus * 1083 / 1024);
+        }
     }
     else
     {
