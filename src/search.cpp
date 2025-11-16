@@ -1354,9 +1354,37 @@ moves_loop:  // When in check, search starts here
                     break;
                 }
 
-                // Reduce other moves if we have found at least one score improvement
-                if (depth > 2 && depth < 14 && !is_decisive(value))
-                    depth -= 2;
+                // Dynamically reduce remaining search for other moves after we found an improvement.
+                // (*Scaler) Make the reduction depend on margin, node type and move stability so it scales better at LTC.
+                if (depth > 1 && depth < 16 && !is_decisive(value))
+                {
+                    // Improvement margin w.r.t. previous alpha, including the tie-breaking 'inc'
+                    int margin = int(value) + inc - int(alpha);
+
+                    // Start with a baseline reduction, then scale with node type and confidence
+                    int reduce = 1;
+
+                    // Non-PV nodes are more reliable fail-low candidates, so reduce a bit more
+                    reduce += !PvNode;
+
+                    // Large improvement relative to current newDepth -> more confidence to trim
+                    reduce += (margin > 43 + 2 * newDepth);
+
+                    // Quiet moves with good statistics are more stable than captures
+                    reduce += (!capture && ss->statScore > 0);
+
+                    // If the (strongly) reduced LMR search already improved, we can trim more
+                    reduce += (extension <= 0 && r > 2048);
+
+                    // Captures can be volatile, avoid over-trimming; PV nodes deserve extra care
+                    if (PvNode)
+                        reduce -= 1;
+                    if (capture)
+                        reduce -= 1;
+
+                    reduce = std::clamp(reduce, 1, 3);
+                    depth  = std::max<Depth>(1, depth - reduce);
+                }
 
                 assert(depth > 0);
                 alpha = value;  // Update alpha! Always alpha < beta
