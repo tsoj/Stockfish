@@ -1225,10 +1225,18 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch = d < newDepth && value > (bestValue + 43 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
+                int depthAdjustment = 0;
+                if (d < newDepth && value > bestValue + 43 + 2 * newDepth)
+                {
+                    // Graduated depth adjustment based on how much better the move is
+                    // (up to 2 extra plies for moves significantly better)
+                    int bonus       = (value - (bestValue + 43 + 2 * newDepth)) / 100;
+                    depthAdjustment = std::min(2, bonus);
+                }
+                if (value < bestValue + 9)
+                    depthAdjustment--;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                newDepth += depthAdjustment;
 
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
