@@ -1220,17 +1220,48 @@ moves_loop:  // When in check, search starts here
             ss->reduction = 0;
 
             // Do a full-depth search when reduced LMR search fails high
-            // (*Scaler) Shallower searches here don't scale well
+            // (*Scaler) Progressive ramp-up: try a cheap intermediate re-search
+            // before going all the way to full depth, when the fail-high is narrow.
             if (value > alpha)
             {
+                Depth d2 = d;
+
+                // Only attempt an intermediate re-search if:
+                // - we have room between d and newDepth,
+                // - depth is sufficient (scales better at LTC),
+                // - and the current improvement over alpha is narrow.
+                if (d + 1 < newDepth && depth >= 6 && !is_decisive(value))
+                {
+                    int gain         = int(value - alpha);
+                    int narrowMargin = 36 + 4 * (newDepth - d);  // small margin scales with gap
+
+                    if (gain <= narrowMargin)
+                    {
+                        Depth stepInc = std::max(1, std::min((newDepth - d) / 2, 2));
+                        Depth mid     = std::min(newDepth, d + stepInc);
+
+                        ss->reduction = newDepth - mid;
+                        Value stepVal =
+                          -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, mid, true);
+                        ss->reduction = 0;
+
+                        if (stepVal > alpha)
+                        {
+                            value = stepVal;
+                            d2 = mid;  // we may skip going all the way to newDepth if mid suffices
+                        }
+                    }
+                }
+
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch = d < newDepth && value > (bestValue + 43 + 2 * newDepth);
+                const bool doDeeperSearch =
+                  d2 < newDepth && value > (bestValue + 43 + 2 * newDepth);
                 const bool doShallowerSearch = value < bestValue + 9;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
 
-                if (newDepth > d)
+                if (newDepth > d2)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
 
                 // Post LMR continuation history updates
