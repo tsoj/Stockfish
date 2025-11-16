@@ -1208,6 +1208,13 @@ moves_loop:  // When in check, search starts here
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
+            // Reduce less on tactically forcing evasions that immediately fight back:
+            // counter-checks and non-losing captures of the checking piece are
+            // disproportionately strong; keeping reductions high here hurts mate-finding.
+            // (*Scaler) Works best at longer TCs where deeper verification matters.
+            if (ss->inCheck && (givesCheck || (capture && pos.see_ge(move, 0))))
+                r -= 1118 + 429 * PvNode;
+
             // In general we want to cap the LMR depth search at newDepth, but when
             // reduction is negative, we allow this move a limited search extension
             // beyond the first move depth.
@@ -1233,8 +1240,12 @@ moves_loop:  // When in check, search starts here
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
 
-                // Post LMR continuation history updates
-                update_continuation_histories(ss, movedPiece, move.to_sq(), 1365);
+                // Post LMR continuation history updates. Slightly larger bonus when the
+                // evasion also hits back (counter-check or non-losing recapture)
+                const bool counterEvasion =
+                  ss->inCheck && (givesCheck || (capture && pos.see_ge(move, 0)));
+                update_continuation_histories(ss, movedPiece, move.to_sq(),
+                                              1365 + 512 * counterEvasion);
             }
         }
 
