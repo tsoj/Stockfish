@@ -1125,6 +1125,11 @@ moves_loop:  // When in check, search starts here
                 int tripleMargin = 76 + 308 * PvNode - 250 * !ttCapture + 92 * ss->ttPv - corrValAdj
                                  - (ss->ply * 2 > rootDepth * 3) * 52;
 
+                // Increase triple extension likelihood in tactical positions (~7 Elo)
+                // High cutoff count at parent node indicates a tactical position that needs deeper search
+                if ((ss - 1)->cutoffCnt > 3)
+                    tripleMargin -= 14 + 10 * PvNode;
+
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
