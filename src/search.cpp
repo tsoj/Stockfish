@@ -1205,6 +1205,37 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 794 / 8192;
 
+        // (*Scaler) Prefer less reduction for clearly forcing/tactical moves.
+        // This scales well at long time controls and reduces horizon effects on:
+        //  - promotions
+        //  - recaptures (capture back on previous to-square)
+        //  - advanced quiet pawn pushes to 6th/7th rank (relative)
+        {
+            const Square to = move.to_sq();
+
+            // Promotions are highly forcing, reduce LMR
+            if (move.type_of() == PROMOTION)
+                r -= 1785;
+            else
+            {
+                // Recapture: capture back on the previous move's destination square
+                if (prevSq != SQ_NONE && capture && to == prevSq)
+                    r -= 1024;
+
+                // Advanced quiet pawn pushes (relative 6th/7th rank)
+                if (type_of(movedPiece) == PAWN && !capture)
+                {
+                    Rank rr = relative_rank(us, to);
+                    if (rr >= RANK_6)
+                    {
+                        r -= 612;
+                        if (rr == RANK_7)
+                            r -= 432;
+                    }
+                }
+            }
+        }
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
