@@ -1356,7 +1356,11 @@ moves_loop:  // When in check, search starts here
 
                 // Reduce other moves if we have found at least one score improvement
                 if (depth > 2 && depth < 14 && !is_decisive(value))
-                    depth -= 2;
+                {
+                    // Reduce more aggressively if the improving move is quiet (surprise),
+                    // and less aggressively if the position is already improving for us.
+                    depth -= 1 + !capture + !improving;
+                }
 
                 assert(depth > 0);
                 alpha = value;  // Update alpha! Always alpha < beta
