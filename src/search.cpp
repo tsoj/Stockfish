@@ -1245,9 +1245,10 @@ moves_loop:  // When in check, search starts here
             if (!ttData.move)
                 r += 1118;
 
-            // Note that if expected reduction is high, we reduce search depth here
-            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha,
-                                   newDepth - (r > 3212) - (r > 4784 && newDepth > 2), !cutNode);
+            // Note that if expected reduction is high, we reduce search depth here.
+            // We use a proportional reduction, similar to LMR but less aggressive.
+            Depth d = newDepth - std::max(0, r) / 2048;
+            value   = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, !cutNode);
         }
 
         // For PV nodes only, do a full PV search on the first move or after a fail high,
