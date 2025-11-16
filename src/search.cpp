@@ -1108,10 +1108,22 @@ moves_loop:  // When in check, search starts here
 
         if (!rootNode && move == ttData.move && !excludedMove && depth >= 6 + ss->ttPv
             && is_valid(ttData.value) && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
-            && ttData.depth >= depth - 3)
+            && ttData.depth >= depth - 3 && !nmpMinPly)
         {
-            Value singularBeta  = ttData.value - (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
+            // Make singular proof harder for tactically weak tt-captures and
+            // adapt verification depth to TT reliability. A second-stage
+            // verification is used when the initial proof is marginal.
+            bool weakTTCapture = ttCapture && !pos.see_ge(move, 0);
+
+            int baseMargin = (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
+            baseMargin += weakTTCapture * 18;  // Harder proof for SEE-negative tt-captures
+            baseMargin -= int(PvNode) * 6;     // Slightly easier on PV-nodes
+
             Depth singularDepth = newDepth / 2;
+            singularDepth += (ttData.depth >= depth) && ss->ttPv;  // Reliable TT entry
+            singularDepth += PvNode && improving;                  // Shallow PV stability
+
+            Value singularBeta = ttData.value - baseMargin;
 
             ss->excludedMove = move;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
@@ -1125,9 +1137,22 @@ moves_loop:  // When in check, search starts here
                 int tripleMargin = 76 + 308 * PvNode - 250 * !ttCapture + 92 * ss->ttPv - corrValAdj
                                  - (ss->ply * 2 > rootDepth * 3) * 52;
 
-                extension =
+                int ext =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
+                // If the initial proof is marginal, re-verify a bit deeper to
+                // avoid spurious extensions. LTC-friendly: only triggers rarely.
+                if (ext == 1 && !cutNode && singularDepth + 1 < newDepth)
+                {
+                    Depth singularDepth2 = (singularDepth + newDepth) / 2;
+                    ss->excludedMove     = move;
+                    Value v2             = search<NonPV>(pos, ss, singularBeta - 1, singularBeta,
+                                                         singularDepth2, cutNode);
+                    ss->excludedMove     = Move::none();
+                    ext += (v2 < singularBeta);
+                }
+
+                extension = ext;
                 depth++;
             }
 
@@ -1149,15 +1174,22 @@ moves_loop:  // When in check, search starts here
             // (ttValue - margin) is lower than the original beta, we do not know
             // if the ttMove is singular or can do a multi-cut, so we reduce the
             // ttMove in favor of other moves based on some conditions:
+            else
+            {
+                int neg = 0;
 
-            // If the ttMove is assumed to fail high over current beta
-            else if (ttData.value >= beta)
-                extension = -3;
+                // If the ttMove is assumed to fail high over current beta
+                if (ttData.value >= beta)
+                    neg = -3;
+                // If we are on a cutNode but the ttMove is not assumed to fail high
+                else if (cutNode)
+                    neg = -2;
 
-            // If we are on a cutNode but the ttMove is not assumed to fail high
-            // over current beta
-            else if (cutNode)
-                extension = -2;
+                // Prefer to reduce questionable tt-captures a bit more
+                neg -= weakTTCapture;
+
+                extension = neg;
+            }
         }
 
         // Step 16. Make the move
