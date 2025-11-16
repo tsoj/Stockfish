@@ -907,9 +907,26 @@ Value Search::Worker::search(
 
     // Step 10. Internal iterative reductions
     // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Making IIR more aggressive scales poorly.
+    // (*Scaler) Dynamic IIR:
+    // - Escalate reduction at deep cut-nodes without TT help, or PV nodes where eval is well below alpha.
+    // - Relax when TT indicates proximity to PV (ttPv) or a solid lower bound at this depth.
     if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    {
+        int iir = 1;
+
+        // Escalate on likely cuts with no TT help at depth, or when PV eval is far below alpha
+        if ((cutNode && depth >= 9 && !ss->ttHit)
+            || (PvNode && depth >= 8 && ss->staticEval + 64 < alpha))
+            ++iir;
+
+        // Relax if TT suggests we're near PV or has a good lower bound at comparable depth
+        if (ss->ttPv || ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 2))
+            --iir;
+
+        // Keep IIR conservative to scale well: clamp to [0, 2]
+        iir = std::clamp(iir, 0, 2);
+        depth -= std::min(iir, int(depth - 1));
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
