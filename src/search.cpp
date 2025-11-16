@@ -907,9 +907,25 @@ Value Search::Worker::search(
 
     // Step 10. Internal iterative reductions
     // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Making IIR more aggressive scales poorly.
-    if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    // Additionally, when TT suggests a likely fail-low (upper bound with shallow depth),
+    // apply a small extra reduction. Conversely, avoid IIR when TT provides strong lower-bound
+    // evidence at sufficient depth. (*Scaler): extra reduction applies only at higher depths.
+    if (!allNode && depth >= 6 && priorReduction <= 3)
+    {
+        int reduce = 0;
+
+        // No ttMove: reduce, slightly more at non-PV high depths
+        if (!ttData.move)
+            reduce = 1 + (!PvNode && depth >= 10);
+
+        // TT suggests fail-low: shallow upper bound implies weak guidance
+        else if ((ttData.bound & BOUND_UPPER) && ttData.depth < depth - 2)
+            reduce = 1;
+
+        // TT strong lower bound near our depth -> avoid extra IIR
+        if (!((ttData.bound & BOUND_LOWER) && ttData.depth >= depth))
+            depth -= reduce;
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
@@ -924,7 +940,12 @@ Value Search::Worker::search(
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
         MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &captureHistory);
-        Depth      probCutDepth = std::clamp(depth - 5 - (ss->staticEval - beta) / 306, 0, depth);
+
+        Depth probCutDepth = std::clamp(depth - 5 - (ss->staticEval - beta) / 306, 0, depth);
+
+        // If TT has a strong lower bound at almost our depth, allow slightly shallower verification
+        if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 2)
+            probCutDepth = std::max(0, probCutDepth - 1);
 
         while ((move = mp.next_move()) != Move::none())
         {
@@ -949,6 +970,28 @@ Value Search::Worker::search(
 
             if (value >= probCutBeta)
             {
+                // Lightweight TT consistency check on the child to mitigate graph-history issues.
+                // Similar to the early TT cutoff safeguard, but applied to ProbCut triggers.
+                bool safeProbCut = true;
+
+                if (pos.rule50_count() < 96)  // avoid TT reliance at very high rule50 counts
+                {
+                    StateInfo st2;
+                    pos.do_move(move, st2);
+                    auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(pos.key());
+                    Value nextV                                = ttHitNext
+                                                                 ? value_from_tt(ttDataNext.value, ss->ply + 1, pos.rule50_count())
+                                                                 : VALUE_NONE;
+                    pos.undo_move(move);
+
+                    // Ensure TT at child also indicates fail-high for the parent threshold
+                    if (is_valid(nextV) && !is_decisive(nextV) && (-nextV < probCutBeta))
+                        safeProbCut = false;
+                }
+
+                if (!safeProbCut)
+                    continue;
+
                 // Save ProbCut data into transposition table
                 ttWriter.write(posKey, value_to_tt(value, ss->ply), ss->ttPv, BOUND_LOWER,
                                probCutDepth + 1, move, unadjustedStaticEval, tt.generation());
