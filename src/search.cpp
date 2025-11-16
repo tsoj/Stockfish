@@ -1110,8 +1110,14 @@ moves_loop:  // When in check, search starts here
             && is_valid(ttData.value) && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
-            Depth singularDepth = newDepth / 2;
+            // Use correction-history magnitude as a volatility signal:
+            // Larger |correctionValue| -> require a slightly stronger singular signal
+            // and perform a slightly cheaper verification (by 1 ply).
+            // (*Scaler) This scales well at LTC by avoiding over-extensions in volatile positions.
+            int   corrBetaAdj = std::min(24, std::abs(correctionValue) / 131072);
+            Value singularBeta =
+              ttData.value - (56 + 81 * (ss->ttPv && !PvNode) + 9 * corrBetaAdj) * depth / 60;
+            Depth singularDepth = std::max<Depth>(0, newDepth / 2 - Depth(corrBetaAdj > 0));
 
             ss->excludedMove = move;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
@@ -1144,7 +1150,7 @@ moves_loop:  // When in check, search starts here
             }
 
             // Negative extensions
-            // If other moves failed high over (ttValue - margin) without the
+            // ... other moves failed high over (ttValue - margin) without the
             // ttMove on a reduced search, but we cannot do multi-cut because
             // (ttValue - margin) is lower than the original beta, we do not know
             // if the ttMove is singular or can do a multi-cut, so we reduce the
