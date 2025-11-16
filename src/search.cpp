@@ -907,9 +907,20 @@ Value Search::Worker::search(
 
     // Step 10. Internal iterative reductions
     // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Making IIR more aggressive scales poorly.
+    // Be conservative in PV-nodes when static eval is improving, and avoid
+    // reducing if we have a near-depth trusted TT entry (EXACT or LOWER).
+    // (*Scaler) We do not make IIR more aggressive; we only gate it off in
+    // high-value cases that scale with search depth/LTC.
     if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    {
+        bool trustedTT = ss->ttHit && is_valid(ttData.value) && ttData.depth >= depth - 2
+                      && (ttData.bound == BOUND_EXACT || (ttData.bound & BOUND_LOWER));
+
+        bool guardPV = PvNode && improving;
+
+        if (!(trustedTT || guardPV))
+            depth--;
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
