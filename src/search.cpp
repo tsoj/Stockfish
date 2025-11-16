@@ -1208,12 +1208,19 @@ moves_loop:  // When in check, search starts here
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
-            // In general we want to cap the LMR depth search at newDepth, but when
-            // reduction is negative, we allow this move a limited search extension
-            // beyond the first move depth.
-            // To prevent problems when the max value is less than the min value,
-            // std::clamp has been replaced by a more robust implementation.
-            Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 2)) + PvNode;
+            // Context-aware cap for negative LMR extensions:
+            // - Default cap is newDepth + 1
+            // - +1 if we are on a ttPv line (or the move matches ttMove)
+            // - +1 for early PV siblings (keeps PV tighter without over-extending late moves)
+            //
+            // This focuses extra selective deepening on PV/TT-indicated lines and
+            // reduces runaway deepening on non-critical nodes, improving LTC scaling.
+            Depth extCap =
+              newDepth + 1 + int(ss->ttPv || move == ttData.move) + int(PvNode && moveCount <= 2);
+
+            // Allow limited search extension only up to the cap, otherwise reduce.
+            // Note we no longer add '+ PvNode' after clamping; PV influence is folded into extCap.
+            Depth d = std::max(1, std::min(newDepth - r / 1024, extCap));
 
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
