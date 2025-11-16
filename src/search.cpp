@@ -899,7 +899,16 @@ Value Search::Worker::search(
             nmpMinPly = 0;
 
             if (v >= beta)
+            {
+                if (ss->staticEval < v && !is_decisive(v))
+                {
+                    auto bonus =
+                      std::clamp(int(v - ss->staticEval) * (depth - R) / 32,
+                                 -CORRECTION_HISTORY_LIMIT / 8, CORRECTION_HISTORY_LIMIT / 8);
+                    update_correction_history(pos, ss, *this, bonus);
+                }
                 return nullValue;
+            }
         }
     }
 
