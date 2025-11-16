@@ -1867,7 +1867,12 @@ void update_quiet_histories(
     if (ss->ply < LOW_PLY_HISTORY_SIZE)
         workerThread.lowPlyHistory[ss->ply][move.raw()] << bonus * 761 / 1024;
 
-    update_continuation_histories(ss, pos.moved_piece(move), move.to_sq(), bonus * 955 / 1024);
+    const Move prevMove = (ss - 1)->currentMove;
+    const bool isDirectReply =
+      prevMove.is_ok() && prevMove != Move::null() && move.to_sq() == prevMove.from_sq();
+
+    if (!isDirectReply)
+        update_continuation_histories(ss, pos.moved_piece(move), move.to_sq(), bonus * 955 / 1024);
 
     int pIndex = pawn_history_index(pos);
     workerThread.pawnHistory[pIndex][pos.moved_piece(move)][move.to_sq()]
