@@ -1126,9 +1126,7 @@ moves_loop:  // When in check, search starts here
                                  - (ss->ply * 2 > rootDepth * 3) * 52;
 
                 extension =
-                  1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
-
-                depth++;
+                  2 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
             }
 
             // Multi-cut pruning
