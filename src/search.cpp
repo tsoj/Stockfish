@@ -1208,12 +1208,31 @@ moves_loop:  // When in check, search starts here
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
+            // Recapture-friendly LMR:
+            // Immediate recaptures (capture back on the opponent's last moved-to square)
+            // are forcing and crucial for tactical correctness. If SEE is non-losing,
+            // relieve LMR by up to ~1.5 plies (scaled in r-units) and, if still reduced,
+            // grant back up to half a ply to stabilize exchanges and the PV.
+            bool isRecapture = capture && prevSq != SQ_NONE && move.to_sq() == prevSq;
+
+            if (isRecapture && pos.see_ge(move, 0))
+            {
+                // r is measured in 1/1024 plies; subtract 1024 (~1 ply), plus extra relief
+                // in PV nodes to maintain principal line continuity.
+                r -= 1024 + PvNode * 512;
+            }
+
             // In general we want to cap the LMR depth search at newDepth, but when
             // reduction is negative, we allow this move a limited search extension
             // beyond the first move depth.
             // To prevent problems when the max value is less than the min value,
             // std::clamp has been replaced by a more robust implementation.
             Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 2)) + PvNode;
+
+            // If a forcing recapture still ends up reduced, give back up to half a ply
+            // (bounded by newDepth) to avoid over-reduction in sharp exchange lines.
+            if (isRecapture && pos.see_ge(move, 0) && d < newDepth)
+                d = std::min(newDepth, d + 1);
 
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
