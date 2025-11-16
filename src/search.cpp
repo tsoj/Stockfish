@@ -1356,7 +1356,17 @@ moves_loop:  // When in check, search starts here
 
                 // Reduce other moves if we have found at least one score improvement
                 if (depth > 2 && depth < 14 && !is_decisive(value))
-                    depth -= 2;
+                {
+                    // More aggressive reduction when value significantly improves alpha
+                    int threshold = 40 + 15 * (depth - 3);  // Scales with depth
+                    int reduction = (value > alpha + threshold) ? 2 : 1;
+
+                    // Less aggressive in PV nodes for better accuracy
+                    if (PvNode && reduction > 1)
+                        reduction = 1;
+
+                    depth -= reduction;
+                }
 
                 assert(depth > 0);
                 alpha = value;  // Update alpha! Always alpha < beta
