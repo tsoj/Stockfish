@@ -857,15 +857,47 @@ Value Search::Worker::search(
         auto futility_margin = [&](Depth d) {
             Value futilityMult = 91 - 21 * !ss->ttHit;
 
-            return futilityMult * d                               //
-                 - 2094 * improving * futilityMult / 1024         //
-                 - 331 * opponentWorsening * futilityMult / 1024  //
-                 + std::abs(correctionValue) / 158105;
+            // Base margin
+            Value m = futilityMult * d                               //
+                    - 2094 * improving * futilityMult / 1024         //
+                    - 331 * opponentWorsening * futilityMult / 1024  //
+                    + std::abs(correctionValue) / 158105;
+
+            // Be more conservative when the parent ply was highly reduced.
+            // This scales well at long time controls where deeper reductions are common.
+            return m + std::max(0, priorReduction - 1024) / 8;
         };
 
-        if (!ss->ttPv && depth < 14 && eval - futility_margin(depth) >= beta && eval >= beta
-            && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
-            return (2 * beta + eval) / 3;
+        if (!ss->ttPv && depth < 14 && eval >= beta && (!ttData.move || ttCapture) && !is_loss(beta)
+            && !is_win(eval))
+        {
+            // If TT already indicates a likely fail-high at sufficient depth,
+            // avoid static futility to keep consistency with TT guidance.
+            bool ttLikelyCut = ss->ttHit && (ttData.bound & BOUND_LOWER) && is_valid(ttData.value)
+                            && ttData.value >= beta && ttData.depth >= depth - 2;
+
+            if (!ttLikelyCut)
+            {
+                Value margin   = futility_margin(depth);
+                Value overshot = eval - beta;
+
+                if (overshot >= margin)
+                {
+                    // Near-threshold cases are verified by a lightweight qsearch to
+                    // reduce horizon errors. Restrict to shallow depths and small overshoots,
+                    // and avoid at cut-nodes to prevent excessive re-searching.
+                    bool verify = overshot < margin + 128 + depth * 8 && depth <= 6 && !cutNode;
+
+                    if (!verify)
+                        return (2 * beta + eval) / 3;
+
+                    Value qv = qsearch<NonPV>(pos, ss, beta - 1, beta);
+                    if (qv >= beta)
+                        return (2 * beta + std::min(eval, qv)) / 3;
+                    // If verification fails, continue the normal search without pruning.
+                }
+            }
+        }
     }
 
     // Step 9. Null move search with verification search
