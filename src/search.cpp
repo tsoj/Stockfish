@@ -1190,6 +1190,10 @@ moves_loop:  // When in check, search starts here
         if ((ss + 1)->cutoffCnt > 2)
             r += 1051 + allNode * 814;
 
+        // Increase reduction for moves after a cutoff has occurred at this node
+        if (ss->cutoffCnt > 0)
+            r += 256 * ss->cutoffCnt;
+
         // For first picked move (ttMove) reduce reduction
         if (move == ttData.move)
             r -= 2018;
