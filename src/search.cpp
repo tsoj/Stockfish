@@ -1219,6 +1219,9 @@ moves_loop:  // When in check, search starts here
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
 
+            // If LMR search fails high but value is significantly below beta, reduce newDepth
+            newDepth -= (value > alpha && value < beta - (50 / (1 + depth / 10)));
+
             // Do a full-depth search when reduced LMR search fails high
             // (*Scaler) Shallower searches here don't scale well
             if (value > alpha)
