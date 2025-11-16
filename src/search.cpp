@@ -1110,7 +1110,10 @@ moves_loop:  // When in check, search starts here
             && is_valid(ttData.value) && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
+            // Use logarithmic growth for singularBeta margin to make singular extensions
+            // more selective at deeper depths, improving search efficiency in LTC
+            Value singularBeta =
+              ttData.value - (20 + 40 * (ss->ttPv && !PvNode)) * std::log2(2 + depth) / 10.0;
             Depth singularDepth = newDepth / 2;
 
             ss->excludedMove = move;
