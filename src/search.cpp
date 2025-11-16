@@ -1186,9 +1186,9 @@ moves_loop:  // When in check, search starts here
         if (ttCapture)
             r += 1415;
 
-        // Increase reduction if next ply has a lot of fail high
+        // Increase reduction if next ply has a lot of fail high, but less so if opponent is worsening
         if ((ss + 1)->cutoffCnt > 2)
-            r += 1051 + allNode * 814;
+            r += 1051 + allNode * 814 + (depth * depth / 10) * !opponentWorsening;
 
         // For first picked move (ttMove) reduce reduction
         if (move == ttData.move)
