@@ -923,8 +923,10 @@ Value Search::Worker::search(
     {
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
+        int        complexity = std::abs(correction_value(*this, pos, ss)) / 2000;
+        int        divisor    = 306 + std::min(complexity, 50);
         MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &captureHistory);
-        Depth      probCutDepth = std::clamp(depth - 5 - (ss->staticEval - beta) / 306, 0, depth);
+        Depth probCutDepth = std::clamp(depth - 5 - (ss->staticEval - beta) / divisor, 0, depth);
 
         while ((move = mp.next_move()) != Move::none())
         {
