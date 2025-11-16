@@ -967,6 +967,12 @@ moves_loop:  // When in check, search starts here
         && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
         return probCutBeta;
 
+    // Detect PV nodes that are likely to fail low based on a sufficiently deep TT upper bound.
+    // We use this as a soft signal to bias reductions/pruning inside the moves loop.
+    const bool likelyFailLow = PvNode && ttHit && (ttData.bound == BOUND_UPPER)
+                            && ttData.depth >= depth && is_valid(ttData.value)
+                            && !is_decisive(ttData.value);
+
     const PieceToHistory* contHist[] = {
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
       (ss - 4)->continuationHistory, (ss - 5)->continuationHistory, (ss - 6)->continuationHistory};
@@ -1025,12 +1031,24 @@ moves_loop:  // When in check, search starts here
         if (ss->ttPv)
             r += 946;
 
+        // If this PV node is likely to fail low according to a deep TT upper-bound,
+        // be more selective on late non-TT moves. This biases towards proving fail-low faster.
+        // (*Scaler) The added reduction scales with depth (through existing LMR machinery)
+        // and is damped for captures.
+        if (likelyFailLow && move != ttData.move)
+            r += 978 + 189 * (depth >= 8) + 307 * !capture;
+
         // Step 14. Pruning at shallow depths.
         // Depth conditions are important for mate finding.
         if (!rootNode && pos.non_pawn_material(us) && !is_loss(bestValue))
         {
-            // Skip quiet moves if movecount exceeds our FutilityMoveCount threshold
-            if (moveCount >= (3 + depth * depth) / (2 - improving))
+            // Skip quiet moves if movecount exceeds our FutilityMoveCount threshold.
+            // If PV is likely to fail low, trigger this one move earlier to save work.
+            int futilityCountLimit = (3 + depth * depth) / (2 - improving);
+            if (likelyFailLow)
+                futilityCountLimit = std::max(1, futilityCountLimit - 1);
+
+            if (moveCount >= futilityCountLimit)
                 mp.skip_quiet_moves();
 
             // Reduced depth of the next LMR search
@@ -1228,7 +1246,10 @@ moves_loop:  // When in check, search starts here
                 const bool doDeeperSearch = d < newDepth && value > (bestValue + 43 + 2 * newDepth);
                 const bool doShallowerSearch = value < bestValue + 9;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                // If PV is likely to fail low (TT upper bound), avoid extra deepening
+                // on later moves to reduce node explosion without hurting strength.
+                newDepth +=
+                  (likelyFailLow && moveCount > 2 ? 0 : doDeeperSearch) - doShallowerSearch;
 
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
