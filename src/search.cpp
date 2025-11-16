@@ -961,11 +961,41 @@ Value Search::Worker::search(
 
 moves_loop:  // When in check, search starts here
 
-    // Step 12. A small Probcut idea
+    // Step 12. A small ProbCut idea
     probCutBeta = beta + 418;
     if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4 && ttData.value >= probCutBeta
         && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
         return probCutBeta;
+
+    // (*Scaler) TT-guided in-check cutoff with light verification.
+    // When in check and TT already has a deep enough lower bound well above beta,
+    // prune early using a depth-scaled margin. This scales better at LTC because
+    // the margin grows with depth and we additionally verify consistency one ply.
+    if (ss->inCheck && !ss->ttPv && (ttData.bound & BOUND_LOWER) && is_valid(ttData.value)
+        && !is_decisive(ttData.value) && ttData.depth >= depth - 3)
+    {
+        Value ttCut = beta + Value(360 * std::min(depth, 12));  // depth-scaled margin
+
+        if (ttData.value >= ttCut)
+        {
+            bool verified = true;
+
+            // Optional one-ply consistency check to mitigate graph-history issues
+            if (ttData.move && pos.pseudo_legal(ttData.move) && pos.legal(ttData.move)
+                && pos.rule50_count() < 96)
+            {
+                pos.do_move(ttData.move, st);
+                auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(pos.key());
+                pos.undo_move(ttData.move);
+
+                if (ttHitNext && is_valid(ttDataNext.value) && !is_decisive(ttDataNext.value))
+                    verified = ((ttData.value >= ttCut) == (-ttDataNext.value >= ttCut));
+            }
+
+            if (verified)
+                return ttData.value;
+        }
+    }
 
     const PieceToHistory* contHist[] = {
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
