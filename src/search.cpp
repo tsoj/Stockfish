@@ -1041,6 +1041,9 @@ moves_loop:  // When in check, search starts here
                 Piece capturedPiece = pos.piece_on(move.to_sq());
                 int   captHist = captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
 
+                // Calculate margin first for use in both pruning decisions
+                int margin = std::max(157 * depth + captHist / 29, 0);
+
                 // Futility pruning for captures
                 if (!givesCheck && lmrDepth < 7)
                 {
@@ -1048,12 +1051,23 @@ moves_loop:  // When in check, search starts here
                                         + PieceValue[capturedPiece] + 130 * captHist / 1024;
 
                     if (futilityValue <= alpha)
+                    {
+                        bestValue = std::max(bestValue, futilityValue);
                         continue;
+                    }
+
+                    // Additional pruning for captures that are tactically losing
+                    // even if static eval suggests they might be okay
+                    // (*Scaler): More aggressive pruning scales well
+                    else if (!pos.see_ge(move, -margin * 3))
+                    {
+                        bestValue = std::max(bestValue, alpha);
+                        continue;
+                    }
                 }
 
                 // SEE based pruning for captures and checks
                 // Avoid pruning sacrifices of our last piece for stalemate
-                int margin = std::max(157 * depth + captHist / 29, 0);
                 if ((alpha >= VALUE_DRAW || pos.non_pawn_material(us) != PieceValue[movedPiece])
                     && !pos.see_ge(move, -margin))
                     continue;
