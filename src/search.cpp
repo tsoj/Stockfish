@@ -1228,7 +1228,11 @@ moves_loop:  // When in check, search starts here
                 const bool doDeeperSearch = d < newDepth && value > (bestValue + 43 + 2 * newDepth);
                 const bool doShallowerSearch = value < bestValue + 9;
 
-                newDepth += doDeeperSearch - doShallowerSearch;
+                // Also reduce depth if the LMR result is not a tactical surprise, i.e.,
+                // it is very close to the static evaluation of the position.
+                const bool isPositional = !ss->inCheck && std::abs(value - ss->staticEval) < 25;
+
+                newDepth += doDeeperSearch - (doShallowerSearch || isPositional);
 
                 if (newDepth > d)
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
