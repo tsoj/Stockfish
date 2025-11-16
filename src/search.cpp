@@ -1186,9 +1186,12 @@ moves_loop:  // When in check, search starts here
         if (ttCapture)
             r += 1415;
 
-        // Increase reduction if next ply has a lot of fail high
+        // Increase reduction if next ply has a lot of fail high, with granular scaling
         if ((ss + 1)->cutoffCnt > 2)
-            r += 1051 + allNode * 814;
+        {
+            int cutoffExcess = (ss + 1)->cutoffCnt - 2;
+            r += 275 * std::min(cutoffExcess, 4) + allNode * 225 * std::min(cutoffExcess, 3);
+        }
 
         // For first picked move (ttMove) reduce reduction
         if (move == ttData.move)
