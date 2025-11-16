@@ -1354,9 +1354,38 @@ moves_loop:  // When in check, search starts here
                     break;
                 }
 
-                // Reduce other moves if we have found at least one score improvement
-                if (depth > 2 && depth < 14 && !is_decisive(value))
-                    depth -= 2;
+                // Dynamic sibling-depth reduction after an alpha-raise.
+                // Reduce more when the new best move looks trustworthy (TT move, low LMR, extension,
+                // high stats) and when the improvement is large at this depth. Keep reductions modest
+                // for PV nodes to preserve tactical robustness. (*Scaler)
+                if (depth > 2 && depth < 16 && !is_decisive(value))
+                {
+                    // Old alpha is still in 'alpha' here
+                    int improvement = int(value) - int(alpha);
+
+                    // Trust signals for the improving move
+                    int trust = 0;
+                    trust += (move == ttData.move);   // TT move
+                    trust += (r < 1024);              // LMR reduction less than ~1 ply
+                    trust += (newDepth >= depth);     // Received an extension
+                    trust += (ss->statScore > 2600);  // Strong stats for the move
+
+                    // Base reduction: non-PV nodes get a bit more by default
+                    int dec = 1 + int(!PvNode);
+
+                    // Large improvement relative to the depth searched for this move
+                    if (improvement >= 72 + 6 * newDepth)
+                        dec++;
+
+                    // If multiple trust signals are present, we can reduce a bit more
+                    if (trust >= 2)
+                        dec++;
+
+                    // Cap reductions: more conservative on PV nodes
+                    dec = std::min(dec, PvNode ? 2 : 3);
+
+                    depth = std::max(1, depth - dec);
+                }
 
                 assert(depth > 0);
                 alpha = value;  // Update alpha! Always alpha < beta
