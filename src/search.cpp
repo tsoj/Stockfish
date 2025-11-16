@@ -1125,6 +1125,12 @@ moves_loop:  // When in check, search starts here
                 int tripleMargin = 76 + 308 * PvNode - 250 * !ttCapture + 92 * ss->ttPv - corrValAdj
                                  - (ss->ply * 2 > rootDepth * 3) * 52;
 
+                // Adjust margins based on next-ply cutoff count for better LTC scaling:
+                // Penalize (higher margin) if many cutoffs (unstable, risk of explosion),
+                // but ease (lower margin) if few cutoffs (stable, safe to extend more).
+                doubleMargin += (ss + 1)->cutoffCnt > 3 ? 25 : -15;
+                tripleMargin += (ss + 1)->cutoffCnt > 3 ? 40 : -25;
+
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
