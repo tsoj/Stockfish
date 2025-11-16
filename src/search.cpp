@@ -1098,6 +1098,8 @@ moves_loop:  // When in check, search starts here
         // Step 15. Extensions
         // Singular extension search. If all moves but one
         // fail low on a search of (alpha-s, beta-s), and just one fails high on
+        // (alpha, beta), then that move is // Singular extension search. If all moves but one
+        // fail low on a search of (alpha-s, beta-s), and just one fails high on
         // (alpha, beta), then that move is singular and should be extended. To
         // verify this we do a reduced search on the position excluding the ttMove
         // and if the result is lower than ttValue minus a margin, then we will
@@ -1106,7 +1108,9 @@ moves_loop:  // When in check, search starts here
         // (*Scaler) Generally, higher singularBeta (i.e closer to ttValue)
         // and lower extension margins scale well.
 
-        if (!rootNode && move == ttData.move && !excludedMove && depth >= 6 + ss->ttPv
+        int singularMinDepth = 6 + ss->ttPv - improving;
+
+        if (!rootNode && move == ttData.move && !excludedMove && depth >= singularMinDepth
             && is_valid(ttData.value) && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
