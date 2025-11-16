@@ -961,11 +961,40 @@ Value Search::Worker::search(
 
 moves_loop:  // When in check, search starts here
 
-    // Step 12. A small Probcut idea
-    probCutBeta = beta + 418;
-    if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4 && ttData.value >= probCutBeta
-        && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
-        return probCutBeta;
+    // Step 12. Small ProbCut / softbound refinement
+    // Use dynamic margins and a symmetric soft fail-low for non-PV nodes. Add a depth-scaled
+    // in-check shortcut that returns the TT value directly when safely above beta.
+
+    // Depth-aware lower margin; reduce slightly if improving to allow earlier cutoffs.
+    int   depthClamped = std::min(int(depth), 8);
+    Value lowerMargin  = ss->inCheck ? Value(220 * depthClamped) : Value(418 - 32 * improving);
+    probCutBeta        = beta + lowerMargin;
+
+    if ((ttData.bound & BOUND_LOWER) && is_valid(ttData.value) && !is_decisive(ttData.value)
+        && ttData.depth >= depth - 4 && !is_decisive(beta) && pos.rule50_count() < 96)
+    {
+        // In-check: if TT lower bound exceeds beta by a large, depth-scaled margin,
+        // return the TT value itself for better precision.
+        if (ss->inCheck && ttData.value >= beta + Value(180 * depthClamped))
+            return ttData.value;
+
+        // Otherwise, return a soft fail-high value as before, but with a dynamic margin.
+        if (ttData.value >= probCutBeta)
+            return probCutBeta;
+    }
+
+    // Symmetric soft fail-low using TT upper bound for non-PV nodes only.
+    if (!PvNode)
+    {
+        // Slightly smaller symmetric margin; disabled in-check and for decisive bounds.
+        Value upperMargin  = Value(384 - 32 * !improving);
+        Value probCutAlpha = alpha - upperMargin;
+
+        if ((ttData.bound & BOUND_UPPER) && is_valid(ttData.value) && !is_decisive(ttData.value)
+            && ttData.depth >= depth - 5 && !ss->inCheck && !is_decisive(alpha)
+            && pos.rule50_count() < 96 && ttData.value <= probCutAlpha)
+            return probCutAlpha;
+    }
 
     const PieceToHistory* contHist[] = {
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
