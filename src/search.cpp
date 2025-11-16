@@ -907,9 +907,15 @@ Value Search::Worker::search(
 
     // Step 10. Internal iterative reductions
     // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
+    // IIR at cut-nodes is restricted to cases where static eval is high enough.
     // (*Scaler) Making IIR more aggressive scales poorly.
-    if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    if (depth >= 6 && !ttData.move && priorReduction <= 3)
+    {
+        if (PvNode)
+            depth--;
+        else if (cutNode && ss->staticEval >= beta)
+            depth--;
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
