@@ -1182,12 +1182,15 @@ moves_loop:  // When in check, search starts here
         if (cutNode)
             r += 3094 + 1056 * !ttData.move;
 
-        // Increase reduction if ttMove is a capture
-        if (ttCapture)
+        // Be more selective: if the ttMove is a capture, penalize quiets only
+        if (ttCapture && !capture)
             r += 1415;
 
+        // Make cutoffCnt-based increase slightly stricter after a null parent
+        const bool prevWasNull = ((ss - 1)->currentMove == Move::null());
+
         // Increase reduction if next ply has a lot of fail high
-        if ((ss + 1)->cutoffCnt > 2)
+        if ((ss + 1)->cutoffCnt > 2 + prevWasNull)
             r += 1051 + allNode * 814;
 
         // For first picked move (ttMove) reduce reduction
@@ -1204,6 +1207,17 @@ moves_loop:  // When in check, search starts here
 
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 794 / 8192;
+
+        // Prefer forcing moves: reduce reduction for recaptures, checks, and promotions
+        // Mild depth/PV scaling for LTC robustness.
+        if (prevSq != SQ_NONE && capture && move.to_sq() == prevSq)
+            r -= 512 + (depth >= 8) * 256;  // direct recapture
+
+        if (givesCheck)
+            r -= 384 + PvNode * 128;  // checking moves
+
+        if (move.type_of() == PROMOTION)
+            r -= 320 + (depth >= 10) * 128;  // promotions
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
