@@ -1205,6 +1205,14 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 794 / 8192;
 
+        // (*Scaler) In all-nodes when not improving, increase reduction for quiet moves with poor history, scaling with depth
+        if (allNode && !improving && !capture && ss->statScore < 0)
+            r += depth / 4;
+
+        // Cap history-based reduction decrease for captures to avoid over-extending noisy lines
+        if (capture && ss->statScore > 0)
+            r = std::max(r, 0);
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
