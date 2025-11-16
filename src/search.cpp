@@ -1637,8 +1637,10 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             if (!capture)
                 continue;
 
-            // Do not search moves with bad enough SEE values
-            if (!pos.see_ge(move, -78))
+            // Do not search moves with bad enough SEE values, scaled by ply for deeper pruning
+            // in long capture sequences (helps in LTC by reducing node count in deep qsearch).
+            int seeThreshold = -78 - 10 * (ss->ply / 4);
+            if (!pos.see_ge(move, seeThreshold))
                 continue;
         }
 
