@@ -1631,6 +1631,16 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                     bestValue = std::min(alpha, futilityBase);
                     continue;
                 }
+
+                // New: If stand pat already exceeds alpha, require a non-losing capture.
+                // This avoids spending time on "hope" captures that drop material while
+                // not giving check, not promoting, and not recapturing the last square.
+                // It is safe because stand pat already holds alpha.
+                else if (futilityBase > alpha && !pos.see_ge(move, VALUE_ZERO))
+                {
+                    bestValue = alpha;
+                    continue;
+                }
             }
 
             // Skip non-captures
