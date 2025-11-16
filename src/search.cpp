@@ -690,44 +690,66 @@ Value Search::Worker::search(
     // to save indentation, we list the condition in all code between here and there.
 
     // At non-PV nodes we check for an early TT cutoff
-    if (!PvNode && !excludedMove && ttData.depth > depth - (ttData.value <= beta)
-        && is_valid(ttData.value)  // Can happen when !ttHit or when access race in probe()
-        && (ttData.bound & (ttData.value >= beta ? BOUND_LOWER : BOUND_UPPER))
-        && (cutNode == (ttData.value >= beta) || depth > 5))
+    // Allow a proximity-aware relaxation for fail-high entries: if the TT score is close to beta,
+    // an equal-depth entry is sufficiently reliable to cut. This scales with depth (LTC-friendly).
+    if (!PvNode && !excludedMove)
     {
-        // If ttMove is quiet, update move sorting heuristics on TT hit
-        if (ttData.move && ttData.value >= beta)
-        {
-            // Bonus for a quiet ttMove that fails high
-            if (!ttCapture)
-                update_quiet_histories(pos, ss, *this, ttData.move,
-                                       std::min(130 * depth - 71, 1043));
+        const bool isFailHigh = ttData.value >= beta;
+        // Only relax for non-decisive scores close to the window on the fail-high side
+        const int  nearBetaMargin = 48 + 6 * int(depth);
+        const bool nearBeta =
+          isFailHigh && !is_decisive(ttData.value) && ttData.value <= beta + Value(nearBetaMargin);
 
-            // Extra penalty for early quiet moves of the previous ply
-            if (prevSq != SQ_NONE && (ss - 1)->moveCount < 4 && !priorCapture)
-                update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, -2142);
-        }
+        // For fail-low (upper bound), keep allowing equal depth as before.
+        // For fail-high (lower bound), allow equal depth only if nearBeta, otherwise require > depth.
+        const int relax = isFailHigh ? int(nearBeta) : 1;
 
-        // Partial workaround for the graph history interaction problem
-        // For high rule50 counts don't produce transposition table cutoffs.
-        if (pos.rule50_count() < 96)
+        if (ttData.depth > depth - relax
+            && is_valid(ttData.value)  // Can happen when !ttHit or when access race in probe()
+            && (ttData.bound & (isFailHigh ? BOUND_LOWER : BOUND_UPPER))
+            && (cutNode == isFailHigh || depth > 5))
         {
-            if (depth >= 8 && ttData.move && pos.pseudo_legal(ttData.move) && pos.legal(ttData.move)
-                && !is_decisive(ttData.value))
+            // If ttMove is quiet, update move sorting heuristics on TT hit
+            if (ttData.move && isFailHigh)
             {
-                pos.do_move(ttData.move, st);
-                Key nextPosKey                             = pos.key();
-                auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(nextPosKey);
-                pos.undo_move(ttData.move);
+                // Bonus for a quiet ttMove that fails high
+                if (!ttCapture)
+                    update_quiet_histories(pos, ss, *this, ttData.move,
+                                           std::min(130 * depth - 71, 1043));
 
-                // Check that the ttValue after the tt move would also trigger a cutoff
-                if (!is_valid(ttDataNext.value))
-                    return ttData.value;
-                if ((ttData.value >= beta) == (-ttDataNext.value >= beta))
+                // Extra penalty for early quiet moves of the previous ply
+                if (prevSq != SQ_NONE && (ss - 1)->moveCount < 4 && !priorCapture)
+                    update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, -2142);
+            }
+            // Symmetric small bonus for prior early quiet move in an early fail-low cutoff:
+            // without this, early returns miss the normal end-of-node countermove updates.
+            else if (!isFailHigh && prevSq != SQ_NONE && (ss - 1)->moveCount < 4 && !priorCapture)
+            {
+                // Modest depth-scaled bonus; conservative to avoid overlearning on shallow cutoffs
+                update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, 480);
+            }
+
+            // Partial workaround for the graph history interaction problem:
+            // For high rule50 counts don't produce transposition table cutoffs.
+            if (pos.rule50_count() < 96)
+            {
+                if (depth >= 8 && ttData.move && pos.pseudo_legal(ttData.move)
+                    && pos.legal(ttData.move) && !is_decisive(ttData.value))
+                {
+                    pos.do_move(ttData.move, st);
+                    Key nextPosKey                             = pos.key();
+                    auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(nextPosKey);
+                    pos.undo_move(ttData.move);
+
+                    // Check that the ttValue after the tt move would also trigger a cutoff
+                    if (!is_valid(ttDataNext.value))
+                        return ttData.value;
+                    if ((ttData.value >= beta) == (-ttDataNext.value >= beta))
+                        return ttData.value;
+                }
+                else
                     return ttData.value;
             }
-            else
-                return ttData.value;
         }
     }
 
