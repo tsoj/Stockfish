@@ -906,10 +906,37 @@ Value Search::Worker::search(
     improving |= ss->staticEval >= beta;
 
     // Step 10. Internal iterative reductions
-    // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Making IIR more aggressive scales poorly.
+    // Adaptive IIR: if there is no TT move at PV/Cut nodes we reduce depth.
+    // Be slightly more aggressive at cut nodes when we have corroborating signals
+    // that the node is unlikely to raise alpha:
+    //  - a recent TT upper bound near this depth (fail-low evidence),
+    //  - a static evaluation well below the window and not improving.
+    // We keep PV nodes conservative and never drop below depth 1.
+    // (*Scaler) Extra reduction only kicks in at higher depths.
     if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    {
+        int dd = 1;  // base IIR
+
+        // Only consider an extra reduction at sufficiently large depth for stability
+        if (cutNode && depth >= 10)
+        {
+            const bool ttFailLowEvidence = is_valid(ttData.value) && (ttData.bound & BOUND_UPPER)
+                                        && ttData.depth >= depth - 2 && ttData.value <= alpha;
+
+            // Margin grows with depth and when position is not improving
+            const int  iirMargin = 32 * (depth - 6) + 64 * !improving;
+            const bool staticFar = ss->staticEval + iirMargin <= alpha;
+
+            if (ttFailLowEvidence || staticFar)
+                dd = 2;
+        }
+
+        // Be conservative on PV nodes: never exceed the base IIR
+        if (PvNode)
+            dd = 1;
+
+        depth = std::max(1, depth - dd);
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
