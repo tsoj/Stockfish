@@ -1190,6 +1190,27 @@ moves_loop:  // When in check, search starts here
         if ((ss + 1)->cutoffCnt > 2)
             r += 1051 + allNode * 814;
 
+        // Bound-aware LMR: use TT bound type for directional hints
+        // - Prior fail-high (lower bound): non-ttMove is likely worse -> increase reduction
+        // - Prior fail-low  (upper bound): ttMove deserves extra anti-reduction
+        if (is_valid(ttData.value))
+        {
+            if ((ttData.bound & BOUND_LOWER) && move != ttData.move)
+                r += 613 + (depth >= 8) * 389;  // scales with depth
+            else if ((ttData.bound & BOUND_UPPER) && move == ttData.move)
+                r -= 733;
+        }
+
+        // Recapture anti-reduction: capturing back on the previous move's target square
+        bool isRecapture = capture && prevSq != SQ_NONE && move.to_sq() == prevSq;
+        if (isRecapture)
+            r -= 928 + PvNode * 217
+               + (depth >= 10) * 189;  // modest anti-reduction, scales with PV/depth
+
+        // Quiet check anti-reduction: quiet forcing moves deserve less reduction
+        if (givesCheck && !capture)
+            r -= 312 + (depth >= 6) * 192;
+
         // For first picked move (ttMove) reduce reduction
         if (move == ttData.move)
             r -= 2018;
