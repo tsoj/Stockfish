@@ -1041,8 +1041,12 @@ moves_loop:  // When in check, search starts here
                 Piece capturedPiece = pos.piece_on(move.to_sq());
                 int   captHist = captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
 
-                // Futility pruning for captures
-                if (!givesCheck && lmrDepth < 7)
+                // Identify immediate recaptures (capture on opponent's last moved-to square)
+                const bool isRecapture = capture && prevSq != SQ_NONE && move.to_sq() == prevSq;
+
+                // Futility pruning for captures: avoid pruning immediate recaptures,
+                // as they are often critical to resolve exchanges.
+                if (!givesCheck && lmrDepth < 7 && !isRecapture)
                 {
                     Value futilityValue = ss->staticEval + 231 + 211 * lmrDepth
                                         + PieceValue[capturedPiece] + 130 * captHist / 1024;
@@ -1052,8 +1056,14 @@ moves_loop:  // When in check, search starts here
                 }
 
                 // SEE based pruning for captures and checks
-                // Avoid pruning sacrifices of our last piece for stalemate
+                // Avoid pruning sacrifices of our last piece for stalemate.
+                // For immediate recaptures relax the SEE threshold with a depth-scaled margin.
                 int margin = std::max(157 * depth + captHist / 29, 0);
+                if (isRecapture)
+                    margin +=
+                      512
+                      + 64 * std::max(lmrDepth, 0);  // (*Scaler) favors deeper recapture resolution
+
                 if ((alpha >= VALUE_DRAW || pos.non_pawn_material(us) != PieceValue[movedPiece])
                     && !pos.see_ge(move, -margin))
                     continue;
@@ -1204,6 +1214,15 @@ moves_loop:  // When in check, search starts here
 
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 794 / 8192;
+
+        // Favor immediate recaptures and promotions by decreasing LMR reduction.
+        // These are high-volatility tactical moves and deserve slightly deeper search.
+        // (*Scaler): both adjustments scale with depth (and slightly with lmrDepth above).
+        if (capture && prevSq != SQ_NONE && move.to_sq() == prevSq)
+            r -= 1024 + 64 * int(std::min(depth, Depth(8)));  // up to ~1.5 plies at higher depth
+
+        if (move.type_of() == PROMOTION)
+            r -= 640 + 32 * (depth > 6);
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
