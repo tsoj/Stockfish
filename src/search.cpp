@@ -855,12 +855,15 @@ Value Search::Worker::search(
     // The depth condition is important for mate finding.
     {
         auto futility_margin = [&](Depth d) {
-            Value futilityMult = 91 - 21 * !ss->ttHit;
+            Value futilityMult   = 91 - 21 * !ss->ttHit;
+            Value correctionTerm = std::abs(correctionValue) / 158105;
 
-            return futilityMult * d                               //
-                 - 2094 * improving * futilityMult / 1024         //
-                 - 331 * opponentWorsening * futilityMult / 1024  //
-                 + std::abs(correctionValue) / 158105;
+            // Increase margin when next ply has many cutoffs
+            if ((ss + 1)->cutoffCnt > 3)
+                correctionTerm += std::abs(correctionValue) / 316210;
+
+            return futilityMult * d - 2094 * improving * futilityMult / 1024
+                 - 331 * opponentWorsening * futilityMult / 1024 + correctionTerm;
         };
 
         if (!ss->ttPv && depth < 14 && eval - futility_margin(depth) >= beta && eval >= beta
