@@ -1134,10 +1134,12 @@ moves_loop:  // When in check, search starts here
             // Multi-cut pruning
             // Our ttMove is assumed to fail high based on the bound of the TT entry,
             // and if after excluding the ttMove with a reduced search we fail high
-            // over the original beta, we assume this expected cut-node is not
-            // singular (multiple moves fail high), and we can prune the whole
-            // subtree by returning a softbound.
-            else if (value >= beta && !is_decisive(value))
+            // significantly over the original beta (by a depth-dependent margin),
+            // we assume this expected cut-node is not singular (multiple moves fail high),
+            // and we can prune the whole subtree by returning a softbound.
+            // (*Scaler) Requiring a stronger fail-high at greater depths reduces
+            // search errors in long time controls while preserving benefits at shallow depths.
+            else if (value >= beta + 15 * depth && !is_decisive(value))
             {
                 ttMoveHistory << std::max(-400 - 100 * depth, -4000);
                 return value;
