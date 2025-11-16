@@ -915,6 +915,14 @@ Value Search::Worker::search(
     // If we have a good enough capture (or queen promotion) and a reduced search
     // returns a value much above beta, we can (almost) safely prune the previous move.
     probCutBeta = beta + 224 - 64 * improving;
+
+    // Early ProbCut: If TT value is sufficiently above beta, prune without capture search
+    if (is_valid(ttData.value) && ttData.value >= probCutBeta + 100 && depth >= 3
+        && !is_decisive(beta) && ttData.depth >= depth - 2 && !PvNode)
+    {
+        return ttData.value;
+    }
+
     if (depth >= 3
         && !is_decisive(beta)
         // If value from transposition table is lower than probCutBeta, don't attempt
