@@ -1129,6 +1129,11 @@ moves_loop:  // When in check, search starts here
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
                 depth++;
+
+                // Scale double/triple extensions with an extra depth boost at low depths,
+                // to better resolve strong singularities without explosion risk.
+                if (extension > 1 && !PvNode && depth < 14)
+                    depth++;
             }
 
             // Multi-cut pruning
