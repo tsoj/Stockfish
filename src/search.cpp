@@ -1205,6 +1205,24 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 794 / 8192;
 
+        // Recapture-aware LMR dampening: recaptures are often forcing and tactically critical.
+        // Slightly reduce reduction to search them deeper.
+        // (*Scaler) Small, context-dependent decrease; scales well at LTC due to narrow activation.
+        {
+            const bool isRecapture = priorCapture && (move.to_sq() == prevSq);
+            if (isRecapture)
+            {
+                int recReduce = 1200 + 400 * (moveCount <= 2)  // earlier moves are more critical
+                              + 250 * PvNode                   // a bit stronger in PV
+                              - 200 * improving;  // less when position is already improving
+                // Avoid being too optimistic at cut nodes
+                if (cutNode)
+                    recReduce = recReduce * 3 / 4;
+
+                r -= recReduce;
+            }
+        }
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
