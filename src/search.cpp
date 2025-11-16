@@ -1354,9 +1354,48 @@ moves_loop:  // When in check, search starts here
                     break;
                 }
 
-                // Reduce other moves if we have found at least one score improvement
-                if (depth > 2 && depth < 14 && !is_decisive(value))
-                    depth -= 2;
+                // Adaptive sibling-depth reduction after a first improvement
+                // (*Scaler) Prefer reductions driven by window slack and depth band.
+                if (!is_decisive(value))
+                {
+                    // Only reduce if there are remaining moves and the node is not trivial
+                    if (depth > 1 && depth < 14)
+                    {
+                        const int window   = int(beta) - int(alpha);  // > 0 here
+                        const int slackToB = int(beta) - int(value);  // > 0 (we did not fail high)
+                        const int improvGain = int(value) - int(alpha);  // >= 0
+
+                        int reduceBy = 1;
+
+                        // Mid-depth band benefits most from pruning pressure
+                        if (depth > 4 && depth < 10)
+                            reduceBy += 2;
+                        else if (depth > 3 && depth < 12)
+                            reduceBy += 1;
+
+                        // If we improved a lot and are still far from beta, reduce more
+                        if (window > 0)
+                        {
+                            if (improvGain > window / 3)
+                                reduceBy += 1;
+                            if (slackToB > window / 2)
+                                reduceBy += 1;
+
+                            // Be conservative on PV nodes when very close to beta
+                            if (PvNode && slackToB < window / 4)
+                                reduceBy = std::max(1, reduceBy - 1);
+                        }
+
+                        // Avoid excessive reductions at shallow depths
+                        if (depth < 4)
+                            reduceBy = std::min(reduceBy, 1);
+
+                        // Global cap for stability
+                        reduceBy = std::min(reduceBy, 3);
+
+                        depth = std::max(1, depth - reduceBy);
+                    }
+                }
 
                 assert(depth > 0);
                 alpha = value;  // Update alpha! Always alpha < beta
