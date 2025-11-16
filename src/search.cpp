@@ -1016,6 +1016,18 @@ moves_loop:  // When in check, search starts here
         // Calculate new depth for this move
         newDepth = depth - 1;
 
+        // Detect tactical recaptures on the previous move's destination square.
+        // This stabilizes tactical sequences (e.g., BxN, QxB) by slightly extending
+        // safe recaptures and reducing their LMR.
+        bool isRecapture = capture && priorCapture && (move.to_sq() == prevSq) && !ss->inCheck
+                        && !((ss - 1)->inCheck);
+        Piece recapturedPiece = isRecapture ? pos.piece_on(move.to_sq()) : NO_PIECE;
+
+        // Light extension for safe recaptures to improve horizon handling.
+        // Gate by SEE to avoid extending losing sacs, and keep it small for LTC scaling.
+        if (isRecapture && pos.see_ge(move, -56))
+            extension = std::max<Depth>(extension, 1);
+
         int delta = beta - alpha;
 
         Depth r = reduction(improving, depth, moveCount, delta);
@@ -1177,6 +1189,16 @@ moves_loop:  // When in check, search starts here
         r += 843;  // Base reduction offset to compensate for other tweaks
         r -= moveCount * 66;
         r -= std::abs(correctionValue) / 30450;
+
+        // Prefer recaptures in LMR by reducing reduction, scaled by victim value.
+        // This synergizes with the small recapture extension above.
+        if (isRecapture)
+        {
+            int recScale = 1024                                      // base boost
+                         + 512 * (type_of(recapturedPiece) >= ROOK)  // bigger for heavy pieces
+                         + 256 * PvNode;                             // a bit more on PV
+            r -= recScale;
+        }
 
         // Increase reduction for cut nodes
         if (cutNode)
