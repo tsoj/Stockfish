@@ -1202,8 +1202,12 @@ moves_loop:  // When in check, search starts here
                           + (*contHist[0])[movedPiece][move.to_sq()]
                           + (*contHist[1])[movedPiece][move.to_sq()];
 
-        // Decrease/increase reduction for moves with a good/bad history
-        r -= ss->statScore * 794 / 8192;
+        // Non-linear adjustment for moves with exceptional history (*Scaler)
+        int historyFactor = ss->statScore * 794 / 8192;
+        // Give extra reduction decrease for exceptional history at deeper depths
+        if (ss->statScore > 2500 && depth > 12)
+            historyFactor += 1000 + (depth - 12) * 200;
+        r -= historyFactor;
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
