@@ -1113,9 +1113,20 @@ moves_loop:  // When in check, search starts here
             Value singularBeta  = ttData.value - (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
             Depth singularDepth = newDepth / 2;
 
-            ss->excludedMove = move;
-            value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
-            ss->excludedMove = Move::none();
+            // Skip singular search if correction value is very high (eval uncertainty) and depth is low
+            // (more aggressive skipping at low depth for efficiency, scales to LTC by allowing at high depth)
+            bool skipSingular = std::abs(correctionValue) > 400 * (10 - depth / 3);
+            if (!skipSingular)
+            {
+                ss->excludedMove = move;
+                value =
+                  search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
+                ss->excludedMove = Move::none();
+            }
+            else
+            {
+                value = singularBeta;  // Assume non-singular if skipped
+            }
 
             if (value < singularBeta)
             {
@@ -1128,7 +1139,13 @@ moves_loop:  // When in check, search starts here
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
 
-                depth++;
+                // Boost extension if TT move has good continuation history (encourages proven lines, scales with LTC depth)
+                int histBonus =
+                  std::min(1, (*((ss - 1)->continuationHistory))[movedPiece][move.to_sq()] / 8192);
+                extension += histBonus * (depth > 12);  // Only at high depth for LTC scaling
+
+                depth +=
+                  !improving;  // Extra depth bump if not improving (more caution in stable positions)
             }
 
             // Multi-cut pruning
@@ -1152,7 +1169,8 @@ moves_loop:  // When in check, search starts here
 
             // If the ttMove is assumed to fail high over current beta
             else if (ttData.value >= beta)
-                extension = -3;
+                extension =
+                  -3 + improving;  // Less negative if improving (avoid under-searching gains)
 
             // If we are on a cutNode but the ttMove is not assumed to fail high
             // over current beta
