@@ -1354,9 +1354,28 @@ moves_loop:  // When in check, search starts here
                     break;
                 }
 
-                // Reduce other moves if we have found at least one score improvement
-                if (depth > 2 && depth < 14 && !is_decisive(value))
-                    depth -= 2;
+                // (*Scaler) Dynamic sibling-depth reduction after an improving move.
+                // Scale with depth and node type; stronger for cut-nodes and early, clear improvements;
+                // lighter for PV/ttPv contexts to preserve PV stability and mate-finding.
+                if (depth > 1 && depth < 16 && !is_decisive(value))
+                {
+                    const int  improv = int(value) - int(alpha);  // actual improvement margin in cp
+                    const bool early  = ss->moveCount <= 3;       // stronger if early improvement
+
+                    int sibRed =
+                      1                                     // base reduction
+                      + (depth > 4 && depth < 12)           // mid-depth bonus
+                      + (cutNode)                           // widen search less at cut-nodes
+                      + (!PvNode && early && improv > 48);  // strong early improv in non-PV
+
+                    // Be conservative for possible PV nodes
+                    if (ss->ttPv)
+                        sibRed -= 1;
+
+                    // Clamp and apply, never drop below depth 1 here
+                    sibRed = std::clamp(sibRed, 1, 3);
+                    depth -= std::min<Depth>(Depth(sibRed), depth - 1);
+                }
 
                 assert(depth > 0);
                 alpha = value;  // Update alpha! Always alpha < beta
