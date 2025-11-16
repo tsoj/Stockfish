@@ -1205,6 +1205,35 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 794 / 8192;
 
+        // Tactical LMR guards:
+        // - Soften reduction for direct recaptures (on the previous move's to-square)
+        // - Soften reduction for quiet moves that escape from an attacked square
+        // (*Scaler) These guards are gated by board features and SEE and thus scale well.
+        if (!ss->inCheck)
+        {
+            // Direct recapture on the previous move's destination square
+            if (prevSq != SQ_NONE && priorCapture && capture && move.to_sq() == prevSq)
+            {
+                // Recaptures are highly relevant tactically, often restoring material balance.
+                r -= 1575;
+            }
+            else if (!capture)
+            {
+                // Quiet escape: move a piece away from an attacked square
+                // We approximate this by checking if the from-square is attacked by the opponent.
+                bool fromAttacked = (pos.attackers_to(move.from_sq()) & pos.pieces(~us)) != 0;
+
+                if (fromAttacked)
+                {
+                    // Prefer escapes that are at least SEE-safe; scale the reduction accordingly.
+                    if (pos.see_ge(move, 0))
+                        r -= 1415;
+                    else
+                        r -= 512;  // dubious escape, still reduce but modestly
+                }
+            }
+        }
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
