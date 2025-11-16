@@ -917,9 +917,9 @@ Value Search::Worker::search(
     probCutBeta = beta + 224 - 64 * improving;
     if (depth >= 3
         && !is_decisive(beta)
-        // If value from transposition table is lower than probCutBeta, don't attempt
-        // probCut there
-        && !(is_valid(ttData.value) && ttData.value < probCutBeta))
+        // If value from transposition table is significantly lower than probCutBeta,
+        // don't attempt probCut there. Allow a 50 cp margin for TT value imprecision.
+        && !(is_valid(ttData.value) && ttData.value < probCutBeta - 50))
     {
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
