@@ -1234,7 +1234,10 @@ moves_loop:  // When in check, search starts here
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
 
                 // Post LMR continuation history updates
-                update_continuation_histories(ss, movedPiece, move.to_sq(), 1365);
+                // If the subsequent full-depth re-search fell back to a fail-low,
+                // revert part of the earlier bonus to avoid polluting histories.
+                const int lmrBonus = (newDepth > d && value <= alpha) ? -1365 / 2 : 1365;
+                update_continuation_histories(ss, movedPiece, move.to_sq(), lmrBonus);
             }
         }
 
