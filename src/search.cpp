@@ -1354,9 +1354,15 @@ moves_loop:  // When in check, search starts here
                     break;
                 }
 
-                // Reduce other moves if we have found at least one score improvement
-                if (depth > 2 && depth < 14 && !is_decisive(value))
-                    depth -= 2;
+                // Reduce other moves if we have found at least one score improvement,
+                // scaling the reduction based on depth and position dynamics for better LTC performance
+                if (depth > 2 && !is_decisive(value))
+                {
+                    int red = 1 + (depth > 8);
+                    if (!improving && value < beta - delta / 2 && depth < 16)
+                        ++red;
+                    depth -= red;
+                }
 
                 assert(depth > 0);
                 alpha = value;  // Update alpha! Always alpha < beta
