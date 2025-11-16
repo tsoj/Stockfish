@@ -1186,9 +1186,9 @@ moves_loop:  // When in check, search starts here
         if (ttCapture)
             r += 1415;
 
-        // Increase reduction if next ply has a lot of fail high
-        if ((ss + 1)->cutoffCnt > 2)
-            r += 1051 + allNode * 814;
+        // Increase reduction proportional to fail high count at next ply (*Scaler)
+        if ((ss + 1)->cutoffCnt > 0)
+            r += 350 * (ss + 1)->cutoffCnt + allNode * 250 * (ss + 1)->cutoffCnt;
 
         // For first picked move (ttMove) reduce reduction
         if (move == ttData.move)
