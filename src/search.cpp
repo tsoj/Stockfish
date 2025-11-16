@@ -1215,6 +1215,16 @@ moves_loop:  // When in check, search starts here
             // std::clamp has been replaced by a more robust implementation.
             Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 2)) + PvNode;
 
+            // New: Limit LMR for forcing moves (checks and captures).
+            // This reduces the chance to over-reduce tactical moves and scales well at LTC.
+            // (*Scaler) Limit at most to one ply reduction for forcing moves.
+            if ((givesCheck || capture) && newDepth > 2)
+                d = std::max(d, newDepth - 1);
+
+            // Avoid over-reducing a transposition move that appears later in ordering
+            if (move == ttData.move && newDepth > 1)
+                d = std::max(d, newDepth - 1);
+
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
@@ -1236,6 +1246,22 @@ moves_loop:  // When in check, search starts here
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1365);
             }
+        }
+        // Step 18. Full-depth search when LMR is skipped
+        else if (!PvNode || moveCount > 1)
+        {
+            // Increase reduction if ttMove is not present
+            if (!ttData.move)
+                r += 1118;
+
+            // Note that if expected reduction is high, we reduce search depth here
+            Depth d2 = newDepth - (r > 3212) - (r > 4784 && newDepth > 2);
+
+            // New: Also guard against over-reduction for forcing moves when LMR path is skipped.
+            if ((givesCheck || capture) && d2 < newDepth && newDepth > 2)
+                d2 = newDepth - 1;
+
+            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d2, !cutNode);
         }
 
         // Step 18. Full-depth search when LMR is skipped
