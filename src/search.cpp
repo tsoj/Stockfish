@@ -905,11 +905,35 @@ Value Search::Worker::search(
 
     improving |= ss->staticEval >= beta;
 
-    // Step 10. Internal iterative reductions
-    // At sufficient depth, reduce depth for PV/Cut nodes without a TTMove.
-    // (*Scaler) Making IIR more aggressive scales poorly.
-    if (!allNode && depth >= 6 && !ttData.move && priorReduction <= 3)
-        depth--;
+    // Step 10. Internal iterative reductions (IIR), TT- and eval-aware
+    // For PV/Cut nodes prefer to reduce depth when we lack a trusted TT move
+    // or when a shallow TT upper bound already places the position well below alpha.
+    // Avoid over-triggering when we are improving or have an EXACT TT bound.
+    if (!allNode && depth >= 6 && priorReduction <= 3)
+    {
+        int iir = 0;
+
+        // Classic trigger: no ttMove at this node
+        iir += !ttData.move;
+
+        // TT says "fail-low" well below alpha at shallow depth -> likely unpromising
+        if (ss->ttHit && is_valid(ttData.value)
+            && !(ttData.bound & BOUND_LOWER)  // upper bound or not a lower bound
+            && ttData.depth < depth - 2 && ttData.value <= alpha - 48)
+            iir++;
+
+        // When not improving and the previous ply was reduced, contract a bit more
+        iir += (!improving && priorReduction >= 2);
+
+        // Damp if we have strong TT evidence (EXACT bound) or we sit near beta
+        if ((ttData.bound == BOUND_EXACT) || ss->staticEval >= beta - 24)
+            iir = std::max(0, iir - 1);
+
+        if (iir > 0)
+            depth--;
+        if (iir > 1 && depth >= 7)
+            depth--;
+    }
 
     // Step 11. ProbCut
     // If we have a good enough capture (or queen promotion) and a reduced search
@@ -926,6 +950,12 @@ Value Search::Worker::search(
         MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &captureHistory);
         Depth      probCutDepth = std::clamp(depth - 5 - (ss->staticEval - beta) / 306, 0, depth);
 
+        // TT-assisted: if TT suggests a likely fail-high (lower bound near our probCutBeta),
+        // allow a slightly deeper reduced verification search.
+        if (ss->ttHit && is_valid(ttData.value) && (ttData.bound & BOUND_LOWER)
+            && ttData.value >= probCutBeta - 64 && probCutDepth < depth)
+            probCutDepth = std::min<Depth>(depth, probCutDepth + 1);
+
         while ((move = mp.next_move()) != Move::none())
         {
             assert(move.is_ok());
@@ -935,12 +965,16 @@ Value Search::Worker::search(
 
             assert(pos.capture_stage(move));
 
+            // Require non-negative SEE to avoid spending time on speculative, losing captures
+            if (!pos.see_ge(move, 0))
+                continue;
+
             do_move(pos, move, st, ss);
 
             // Perform a preliminary qsearch to verify that the move holds
             value = -qsearch<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1);
 
-            // If the qsearch held, perform the regular search
+            // If the qsearch held, perform the regular reduced search
             if (value >= probCutBeta && probCutDepth > 0)
                 value = -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, probCutDepth,
                                        !cutNode);
