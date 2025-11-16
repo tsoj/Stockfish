@@ -1110,7 +1110,13 @@ moves_loop:  // When in check, search starts here
             && is_valid(ttData.value) && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
-            Value singularBeta  = ttData.value - (56 + 81 * (ss->ttPv && !PvNode)) * depth / 60;
+            // Calculate position complexity based on difference between TT value and static evaluation
+            int evalDiff = std::abs(ttData.value - ss->staticEval);
+            // Scale complexity to reasonable range (1 point per 150 centipawns)
+            int complexityAdj = std::min(evalDiff / 150, 24);
+
+            Value singularBeta =
+              ttData.value - (56 + 81 * (ss->ttPv && !PvNode) + complexityAdj) * depth / 60;
             Depth singularDepth = newDepth / 2;
 
             ss->excludedMove = move;
@@ -1119,11 +1125,13 @@ moves_loop:  // When in check, search starts here
 
             if (value < singularBeta)
             {
-                int corrValAdj   = std::abs(correctionValue) / 229958;
+                int corrValAdj = std::abs(correctionValue) / 229958;
+                // Increase margins in complex positions for more conservative extensions
                 int doubleMargin = -4 + 198 * PvNode - 212 * !ttCapture - corrValAdj
-                                 - 921 * ttMoveHistory / 127649 - (ss->ply > rootDepth) * 45;
+                                 - 921 * ttMoveHistory / 127649 - (ss->ply > rootDepth) * 45
+                                 + complexityAdj * 3;
                 int tripleMargin = 76 + 308 * PvNode - 250 * !ttCapture + 92 * ss->ttPv - corrValAdj
-                                 - (ss->ply * 2 > rootDepth * 3) * 52;
+                                 - (ss->ply * 2 > rootDepth * 3) * 52 + complexityAdj * 4;
 
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
