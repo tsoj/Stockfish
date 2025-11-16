@@ -967,6 +967,12 @@ moves_loop:  // When in check, search starts here
         && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
         return probCutBeta;
 
+    // Additional early return for quiet cut nodes with strong TT upper bounds
+    Value upperBoundMargin = alpha - 150 - 25 * depth;
+    if (depth < 12 && cutNode && !ss->inCheck && !ss->ttPv && (ttData.bound & BOUND_UPPER)
+        && ttData.value <= upperBoundMargin && is_valid(ttData.value) && !is_decisive(ttData.value))
+        return ttData.value;
+
     const PieceToHistory* contHist[] = {
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
       (ss - 4)->continuationHistory, (ss - 5)->continuationHistory, (ss - 6)->continuationHistory};
