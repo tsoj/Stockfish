@@ -967,6 +967,21 @@ moves_loop:  // When in check, search starts here
         && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
         return probCutBeta;
 
+    // Pruning in check based on a strong TT hit. When in check, many prunings
+    // are disabled. However, if the TT provides strong evidence that the position
+    // is winning, we can prune to save time. The margin is depth-dependent and
+    // adjusted based on the quality of the TT hit and whether we are in a cutNode.
+    if (ss->inCheck && !ss->ttPv && depth < 12 && (ttData.bound & BOUND_LOWER)
+        && is_valid(ttData.value))
+    {
+        Value margin = 120 + 210 * depth - 40 * std::max(0, ttData.depth - depth);
+        if (cutNode)
+            margin = margin * 7 / 8;  // Reduce margin in cutnodes
+
+        if (ttData.value >= beta + margin && !is_decisive(ttData.value))
+            return ttData.value;
+    }
+
     const PieceToHistory* contHist[] = {
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
       (ss - 4)->continuationHistory, (ss - 5)->continuationHistory, (ss - 6)->continuationHistory};
