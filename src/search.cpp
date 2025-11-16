@@ -1219,6 +1219,16 @@ moves_loop:  // When in check, search starts here
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
 
+            // Midpoint rescue: if a reduced search fails high and there is a large gap
+            // to the full depth, perform an intermediate-depth verification search.
+            // This helps stabilize move ordering and reduces costly immediate jumps
+            // from a highly reduced line to full depth when unnecessary.
+            if (value > alpha && d + 5 < newDepth)
+            {
+                Depth mid = (d + newDepth) / 2;
+                value     = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, mid, true);
+            }
+
             // Do a full-depth search when reduced LMR search fails high
             // (*Scaler) Shallower searches here don't scale well
             if (value > alpha)
