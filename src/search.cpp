@@ -918,8 +918,9 @@ Value Search::Worker::search(
     if (depth >= 3
         && !is_decisive(beta)
         // If value from transposition table is lower than probCutBeta, don't attempt
-        // probCut there
-        && !(is_valid(ttData.value) && ttData.value < probCutBeta))
+        // probCut there. Only skip if TT entry is not a lower bound, as lower bound
+        // doesn't guarantee true value is below probCutBeta.
+        && !(is_valid(ttData.value) && ttData.value < probCutBeta && ttData.bound != BOUND_LOWER))
     {
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
