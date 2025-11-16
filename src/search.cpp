@@ -961,11 +961,31 @@ Value Search::Worker::search(
 
 moves_loop:  // When in check, search starts here
 
-    // Step 12. A small Probcut idea
+    // Step 12. A small ProbCut idea (with verification and GHI guards)
     probCutBeta = beta + 418;
-    if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4 && ttData.value >= probCutBeta
-        && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
-        return probCutBeta;
+    if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4 && is_valid(ttData.value)
+        && ttData.value >= probCutBeta && !is_decisive(beta) && !is_decisive(ttData.value))
+    {
+        // Reduce false cutoffs due to graph-history interaction and noisy TT entries:
+        // - Avoid trusting TT at high rule50 counts
+        // - Require a legal and tactical TT move
+        if (pos.rule50_count() < 96 && ttData.move && pos.pseudo_legal(ttData.move)
+            && pos.legal(ttData.move)
+            && (pos.capture_stage(ttData.move) || pos.gives_check(ttData.move)))
+        {
+            // Cheap verification: After the TT move, the "fail-high" property should remain consistent.
+            pos.do_move(ttData.move, st);
+            Key nextPosKey                             = pos.key();
+            auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(nextPosKey);
+            pos.undo_move(ttData.move);
+
+            // If next position has no valid TT entry, accept the cutoff (matching earlier TT usage),
+            // otherwise ensure fail-high consistency across the horizon.
+            if (!is_valid(ttDataNext.value)
+                || ((ttData.value >= probCutBeta) == (-ttDataNext.value >= probCutBeta)))
+                return probCutBeta;
+        }
+    }
 
     const PieceToHistory* contHist[] = {
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
