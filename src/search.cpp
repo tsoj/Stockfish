@@ -1106,7 +1106,7 @@ moves_loop:  // When in check, search starts here
         // (*Scaler) Generally, higher singularBeta (i.e closer to ttValue)
         // and lower extension margins scale well.
 
-        if (!rootNode && move == ttData.move && !excludedMove && depth >= 6 + ss->ttPv
+        if (!rootNode && move == ttData.move && !excludedMove && depth >= 6
             && is_valid(ttData.value) && !is_decisive(ttData.value) && (ttData.bound & BOUND_LOWER)
             && ttData.depth >= depth - 3)
         {
@@ -1157,7 +1157,7 @@ moves_loop:  // When in check, search starts here
             // If we are on a cutNode but the ttMove is not assumed to fail high
             // over current beta
             else if (cutNode)
-                extension = -2;
+                extension = -2 + (value > singularBeta);
         }
 
         // Step 16. Make the move
