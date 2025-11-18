@@ -1614,7 +1614,11 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                 if (moveCount > 2)
                     continue;
 
-                Value futilityValue = futilityBase + PieceValue[pos.piece_on(move.to_sq())];
+                // Use capture history to adjust futility value
+                int hist = captureHistory[pos.moved_piece(move)][move.to_sq()]
+                                         [type_of(pos.piece_on(move.to_sq()))];
+                Value futilityValue =
+                  futilityBase + PieceValue[pos.piece_on(move.to_sq())] + hist / 16;
 
                 // If static eval + value of piece we are going to capture is
                 // much lower than alpha, we can prune this move.
