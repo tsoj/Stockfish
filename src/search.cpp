@@ -1180,7 +1180,13 @@ moves_loop:  // When in check, search starts here
 
         // Increase reduction for cut nodes
         if (cutNode)
+        {
             r += 3094 + 1056 * !ttData.move;
+
+            // Decrease reduction for captures in cut nodes (~2 Elo)
+            if (capture)
+                r -= 1024;
+        }
 
         // Increase reduction if ttMove is a capture
         if (ttCapture)
