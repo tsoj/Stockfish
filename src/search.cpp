@@ -141,6 +141,27 @@ void update_all_stats(const Position& pos,
                       Move            TTMove,
                       int             moveCount);
 
+bool predict_fail_high(const bool cutNode,
+                       const bool ttUpperBound,
+                       const bool ttMoveIsNone,
+                       const bool improving,
+                       const bool inCheck,
+                       const bool ttLowerBound) {
+
+    const int cutNodeCoeff      = 764;
+    const int ttUpperBoundCoeff = -759;
+    const int improvingCoeff    = 520;
+    const int ttMoveIsNoneCoeff = -449;
+    const int inCheckCoeff      = 387;
+    const int ttLowerBoundCoeff = 52;
+
+    const int logit = int(cutNode) * cutNodeCoeff + int(ttUpperBound) * ttUpperBoundCoeff
+                    + int(improving) * improvingCoeff + int(ttMoveIsNone) * ttMoveIsNoneCoeff
+                    + int(inCheck) * inCheckCoeff + int(ttLowerBound) * ttLowerBoundCoeff;
+
+    return logit > 23;
+}
+
 }  // namespace
 
 Search::Worker::Worker(SharedState&                    sharedState,
@@ -978,6 +999,9 @@ moves_loop:  // When in check, search starts here
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
       (ss - 4)->continuationHistory, (ss - 5)->continuationHistory, (ss - 6)->continuationHistory};
 
+    const bool predictedFailHigh =
+      predict_fail_high(cutNode, ss->ttHit && (ttData.bound & BOUND_UPPER), !ttData.move, improving,
+                        ss->inCheck, ss->ttHit && (ttData.bound & BOUND_LOWER));
 
     MovePicker mp(pos, ttData.move, depth, &mainHistory, &lowPlyHistory, &captureHistory, contHist,
                   &pawnHistory, ss->ply);
@@ -1210,6 +1234,10 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 850 / 8192;
 
+        if (predictedFailHigh)
+            r -= 500;  // less reduction if we expect this node to be a cut node
+        else
+            r += 500;
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
