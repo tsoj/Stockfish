@@ -1211,6 +1211,11 @@ moves_loop:  // When in check, search starts here
         if (cutNode)
             r += 3372 + 997 * !ttData.move;
 
+        if (predictedFailHigh && moveCount > 1)
+            r += 500;
+        else
+            r -= 100;
+
         // Increase reduction if ttMove is a capture
         if (ttCapture)
             r += 1119;
@@ -1233,11 +1238,6 @@ moves_loop:  // When in check, search starts here
 
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 850 / 8192;
-
-        if (predictedFailHigh)
-            r -= 500;  // less reduction if we expect this node to be a cut node
-        else
-            r += 500;
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
