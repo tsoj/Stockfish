@@ -534,17 +534,17 @@ void Search::Worker::iterative_deepening() {
 }
 
 
-void Search::Worker::do_move(Position& pos, const Move move, StateInfo& st, Stack* const ss) {
-    do_move(pos, move, st, pos.gives_check(move), ss);
+int Search::Worker::do_move(Position& pos, const Move move, StateInfo& st, Stack* const ss) {
+    return do_move(pos, move, st, pos.gives_check(move), ss);
 }
 
-void Search::Worker::do_move(
+int Search::Worker::do_move(
   Position& pos, const Move move, StateInfo& st, const bool givesCheck, Stack* const ss) {
     bool capture = pos.capture_stage(move);
     // Preferable over fetch_add to avoid locking instructions
     nodes.store(nodes.load(std::memory_order_relaxed) + 1, std::memory_order_relaxed);
 
-    auto [dirtyPiece, dirtyThreats] = accumulatorStack.push();
+    const auto [dirtyPiece, dirtyThreats] = accumulatorStack.push();
     pos.do_move(move, st, givesCheck, dirtyPiece, dirtyThreats, &tt);
 
     if (ss != nullptr)
@@ -555,6 +555,8 @@ void Search::Worker::do_move(
         ss->continuationCorrectionHistory =
           &continuationCorrectionHistory[dirtyPiece.pc][move.to_sq()];
     }
+
+    return dirtyThreats.list.size();
 }
 
 void Search::Worker::do_null_move(Position& pos, StateInfo& st, Stack* const ss) {
@@ -955,6 +957,7 @@ Value Search::Worker::search(
 
             do_move(pos, move, st, ss);
 
+
             // Perform a preliminary qsearch to verify that the move holds
             value = -qsearch<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1);
 
@@ -1178,7 +1181,8 @@ moves_loop:  // When in check, search starts here
         }
 
         // Step 16. Make the move
-        do_move(pos, move, st, givesCheck, ss);
+        const int numDirtyThreats = do_move(pos, move, st, givesCheck, ss);
+
 
         // Add extension to new depth
         newDepth += extension;
@@ -1189,9 +1193,12 @@ moves_loop:  // When in check, search starts here
             r -= 2719 + PvNode * 983 + (ttData.value > alpha) * 922
                + (ttData.depth >= depth) * (934 + cutNode * 1011);
 
-        r += 714;  // Base reduction offset to compensate for other tweaks
+        r += 664;  // Base reduction offset to compensate for other tweaks
         r -= moveCount * 73;
         r -= std::abs(correctionValue) / 30370;
+
+        if (numDirtyThreats == 0)
+            r += 700;
 
         // Increase reduction for cut nodes
         if (cutNode)
