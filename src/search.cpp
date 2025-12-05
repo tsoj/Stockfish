@@ -1193,12 +1193,12 @@ moves_loop:  // When in check, search starts here
             r -= 2719 + PvNode * 983 + (ttData.value > alpha) * 922
                + (ttData.depth >= depth) * (934 + cutNode * 1011);
 
-        r += 664;  // Base reduction offset to compensate for other tweaks
+        r += 714;  // Base reduction offset to compensate for other tweaks
         r -= moveCount * 73;
         r -= std::abs(correctionValue) / 30370;
 
-        if (numDirtyThreats == 0)
-            r += 700;
+        // The more threats change with this move, the less we reduce
+        r += 600 - std::min(10, numDirtyThreats) * 100;
 
         // Increase reduction for cut nodes
         if (cutNode)
