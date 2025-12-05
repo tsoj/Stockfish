@@ -1197,8 +1197,8 @@ moves_loop:  // When in check, search starts here
         r -= moveCount * 73;
         r -= std::abs(correctionValue) / 30370;
 
-        // The more threats change with this move, the less we reduce
-        r += 600 - std::min(10, numDirtyThreats) * 100;
+        // The more threats a move changes, the more we reduce
+        r += std::min(10, numDirtyThreats) * 100 - 500;
 
         // Increase reduction for cut nodes
         if (cutNode)
