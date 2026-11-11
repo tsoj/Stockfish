@@ -164,6 +164,12 @@ struct RootMove {
     int         tbRank             = 0;
     Value       tbScore;
     RootPVMoves pv, previousPV;
+
+    // Node-effort statistics of this move's null-window searches, used for
+    // root move ordering. Weighted sums (weights decay per iteration) of:
+    // the weights themselves, log2(nodes + 1) and the searched depth.
+    i64 effortWeight = 0, effortLogNodes = 0, effortDepth = 0;
+    int effortIter = 0;
 };
 
 using RootMoves = std::vector<RootMove>;
@@ -341,6 +347,9 @@ class Worker {
    private:
     bool iterative_deepening();
 
+    void record_root_effort(RootMove& rm, Depth d, u64 nodeCount);
+    void order_root_moves(std::vector<Move>& order, Move ttMove);
+
     void do_move(Position&    pos,
                  const Move   move,
                  StateInfo&   st,
@@ -405,6 +414,13 @@ class Worker {
     // Used by NNUE
     Eval::NNUE::AccumulatorStack  accumulatorStack;
     Eval::NNUE::AccumulatorCaches refreshTable;
+
+    // Running sums for the fit log2(nodes + 1) ~ a + b * depth over the null-window
+    // searches of non-TT root moves: n, sum d, sum d^2, sum y, sum d * y
+    i64 effortFit[5] = {};
+
+    // Root move order of the current root search pass
+    std::vector<Move> rootOrder;
 
     friend class Stockfish::ThreadPool;
     friend class SearchManager;

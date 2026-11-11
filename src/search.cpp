@@ -279,6 +279,138 @@ void Search::Worker::start_searching() {
 // Main iterative deepening loop. It calls search() repeatedly with increasing
 // depth until the allocated thinking time has been consumed, the user stops
 // the search, or the maximum search depth is reached.
+namespace {
+
+// Root move ordering by node effort. Integer arithmetic only, so that the
+// search is reproducible across compilers and platforms.
+constexpr i64 EffortSampleWeight = 1024;     // weight of a new measurement
+constexpr i64 EffortFitCap       = 1 << 15;  // halve the fit sums beyond this count
+constexpr i64 EffortSlopeLimit   = 1 << 20;  // clamp on the fitted slope (fixed point)
+constexpr i64 EffortPriorSlope   = 222;      // slope if all depths are equal: about
+                                             // 0.6 nats per ply in log2 units * 256
+
+// log2(n + 1) in fixed point with 8 fractional bits, linearly interpolated
+i64 log2_fixed(u64 n) {
+    const u64 v    = n + 1;
+    const int m    = int(msb(v));
+    const u64 frac = (m >= 8 ? v >> (m - 8) : v << (8 - m)) & 255;
+    return i64(m) * 256 + i64(frac);
+}
+
+i64 isqrt(i64 v) {
+    i64 r = i64(std::sqrt(double(v)));
+    while (r * r > v)
+        --r;
+    while ((r + 1) * (r + 1) <= v)
+        ++r;
+    return r;
+}
+
+// Rescales to zero mean and unit (1024) standard deviation
+void standardize(std::vector<i64>& v) {
+    const i64 n    = i64(v.size());
+    i64       mean = 0, var = 0;
+    for (i64 x : v)
+        mean += x;
+    mean /= n;
+    for (i64 x : v)
+        var += (x - mean) * (x - mean);
+    const i64 sd = isqrt(var / n) + 1;
+    for (i64& x : v)
+        x = (x - mean) * 1024 / sd;
+}
+
+}  // namespace
+
+// Records the size of one finished null-window search of a non-TT root move
+void Search::Worker::record_root_effort(RootMove& rm, Depth d, u64 nodeCount) {
+
+    const i64 y = log2_fixed(nodeCount);
+
+    // Decay the move's older measurements by 61/64 per iteration
+    for (; rm.effortIter < rootDepth && (rm.effortWeight || rm.effortLogNodes || rm.effortDepth);
+         ++rm.effortIter)
+    {
+        rm.effortWeight   = rm.effortWeight * 61 / 64;
+        rm.effortLogNodes = rm.effortLogNodes * 61 / 64;
+        rm.effortDepth    = rm.effortDepth * 61 / 64;
+    }
+    rm.effortIter = rootDepth;
+    rm.effortWeight += EffortSampleWeight;
+    rm.effortLogNodes += EffortSampleWeight * y;
+    rm.effortDepth += EffortSampleWeight * d;
+
+    // The depth fit pools all iterations of this search
+    if (effortFit[0] >= EffortFitCap)
+        for (i64& x : effortFit)
+            x /= 2;
+    effortFit[0] += 1;
+    effortFit[1] += d;
+    effortFit[2] += i64(d) * d;
+    effortFit[3] += y;
+    effortFit[4] += d * y;
+}
+
+// Reorders the non-TT root moves by combining their effort residual (how many
+// more nodes their null-window searches took than expected for the searched
+// depth) with their MovePicker rank. Moves that are harder to refute are more
+// likely to become the new best move.
+void Search::Worker::order_root_moves(std::vector<Move>& order, Move ttMove) {
+
+    const usize first = !order.empty() && order[0] == ttMove;
+    const usize n     = order.size() - first;
+
+    if (n < 2 || effortFit[0] < 2)
+        return;
+
+    // Least squares fit of log2(nodes + 1) = a + b * depth, with a and b
+    // in units of 1/256 of the fixed-point log
+    const i64 s   = effortFit[0];
+    const i64 sd  = effortFit[1];
+    const i64 det = s * effortFit[2] - sd * sd;
+    const i64 b   = std::clamp(det > 0 ? (s * effortFit[4] - sd * effortFit[3]) * 256 / det
+                                       : EffortPriorSlope * 256,
+                             -EffortSlopeLimit, EffortSlopeLimit);
+    const i64 a = (effortFit[3] * 256 - b * sd) / s;
+
+    std::vector<i64>  residual(n), rank(n);
+    std::vector<bool> known(n);
+    i64               sum = 0, cnt = 0;
+
+    for (usize i = 0; i < n; ++i)
+    {
+        const RootMove& rm = *std::find(rootMoves.begin(), rootMoves.end(), order[first + i]);
+        known[i]           = rm.effortWeight > 0;
+        if (known[i])
+        {
+            residual[i] = (rm.effortLogNodes * 256 - b * rm.effortDepth) / rm.effortWeight - a;
+            sum += residual[i];
+            ++cnt;
+        }
+        rank[i] = -i64(i);
+    }
+    if (!cnt)
+        return;
+
+    // Moves without effort data get the average residual
+    for (usize i = 0; i < n; ++i)
+        if (!known[i])
+            residual[i] = sum / cnt;
+
+    standardize(residual);
+    standardize(rank);
+
+    std::vector<std::pair<i64, Move>> scored(n);
+    for (usize i = 0; i < n; ++i)
+        scored[i] = {residual[i] + rank[i], order[first + i]};
+
+    std::stable_sort(scored.begin(), scored.end(),
+                     [](const auto& x, const auto& y) { return x.first > y.first; });
+
+    for (usize i = 0; i < n; ++i)
+        order[first + i] = scored[i].second;
+}
+
 bool Search::Worker::iterative_deepening() {
 
     SearchManager* mainThread = (is_mainthread() ? main_manager() : nullptr);
@@ -337,6 +469,8 @@ bool Search::Worker::iterative_deepening() {
     bool uciPvSent          = false;
 
     lowPlyHistory.fill(102);
+
+    std::fill(std::begin(effortFit), std::end(effortFit), 0);
 
     for (Color c : {WHITE, BLACK})
         for (int i = 0; i < UINT_16_HISTORY_SIZE; i++)
@@ -1151,9 +1285,26 @@ moves_loop:  // When in check, search starts here
 
     int moveCount = 0;
 
+    // At the root, take the MovePicker order once and reorder the non-TT moves by
+    // combining their MovePicker rank with their node effort relative to what is
+    // expected for their searched depth.
+    usize rootOrderIdx = 0;
+    if constexpr (rootNode)
+    {
+        rootOrder.clear();
+        for (Move m; (m = mp.next_move()) != Move::none();)
+            if (std::count(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast, m))
+                rootOrder.push_back(m);
+
+        order_root_moves(rootOrder, ttData.move);
+    }
+
     // Step 14. Loop through all legal moves until no moves remain
     // or a beta cutoff occurs.
-    while ((move = mp.next_move()) != Move::none())
+    while ((move = rootNode
+                   ? (rootOrderIdx < rootOrder.size() ? rootOrder[rootOrderIdx++] : Move::none())
+                   : mp.next_move())
+           != Move::none())
     {
         assert(move.is_ok());
 
@@ -1167,6 +1318,15 @@ moves_loop:  // When in check, search starts here
             continue;
 
         ss->moveCount = ++moveCount;
+
+        RootMove* rootMove =
+          rootNode ? &*std::find(rootMoves.begin(), rootMoves.end(), move) : nullptr;
+
+        // Record the size of a null-window search of a non-TT root move
+        auto recordEffort = [&](Depth searchDepth, u64 startNodes) {
+            if (rootNode && moveCount > 1 && !threads.stop.load(std::memory_order_relaxed))
+                record_root_effort(*rootMove, searchDepth, u64(nodes) - startNodes);
+        };
 
         if (rootNode && is_mainthread() && nodes > NODES_LIMIT_OUTPUT)
             main_manager()->updates.onIter(
@@ -1403,9 +1563,12 @@ moves_loop:  // When in check, search starts here
             Depth d =
               std::max(1, newDepth + std::min(-r / 1024, ss->ply < 2 * rootDepth ? 2 : 0)) + PvNode;
 
+            const u64 lmrStartNodes = rootNode ? u64(nodes) : 0;
+
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
+            recordEffort(d, lmrStartNodes);
 
             // Do a full-depth search when reduced LMR search fails high
             // (*Scaler) Shallower searches here don't scale well
@@ -1419,7 +1582,11 @@ moves_loop:  // When in check, search starts here
                 newDepth += doDeeperSearch - doShallowerSearch;
 
                 if (newDepth > d)
+                {
+                    const u64 startNodes = rootNode ? u64(nodes) : 0;
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                    recordEffort(newDepth, startNodes);
+                }
 
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1334);
@@ -1434,8 +1601,10 @@ moves_loop:  // When in check, search starts here
                 r += 1127;
 
             // If expected reduction is high, we reduce search depth here
-            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha,
-                                   newDepth - (r > 5234) - (r > 5487 && newDepth > 2), !cutNode);
+            const Depth fullDepth  = newDepth - (r > 5234) - (r > 5487 && newDepth > 2);
+            const u64   startNodes = rootNode ? u64(nodes) : 0;
+            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, fullDepth, !cutNode);
+            recordEffort(fullDepth, startNodes);
         }
 
         // Step 20. For PV nodes only, do a full PV search on the first move
