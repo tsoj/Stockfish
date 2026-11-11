@@ -50,6 +50,9 @@
 #include "uci.h"
 #include "ucioption.h"
 
+#include <cstdio>
+#include <cstdlib>
+
 namespace Stockfish {
 
 inline int lmr_divisor(int depth) {
@@ -69,6 +72,30 @@ void syzygy_extend_pv(const OptionsMap&            options,
 using namespace Search;
 
 namespace {
+
+// ROOTLOG instrumentation: enabled when env SF_ROOTLOG is set
+FILE* root_log() {
+    static FILE* f = []() -> FILE* {
+        const char* p = std::getenv("SF_ROOTLOG");
+        return p ? std::fopen(p, "w") : nullptr;
+    }();
+    return f;
+}
+
+// Log one child search of a root move: kind depth cutNode nodes value alpha beta
+#define ROOTLOG_CALL(KIND, DEPTH, CUT, STMT) \
+    do \
+    { \
+        const bool logIt_ = rootNode && is_mainthread() && root_log(); \
+        const int  d_     = logIt_ ? int(DEPTH) : 0; \
+        const u64  n0_    = u64(nodes); \
+        STMT; \
+        if (logIt_) \
+            std::fprintf(root_log(), "C %d %s %c %d %d %llu %d %d %d\n", moveCount, \
+                         UCIEngine::move(move, false).c_str(), KIND, d_, int(CUT), \
+                         (unsigned long long) (u64(nodes) - n0_), int(value), int(alpha), \
+                         int(beta)); \
+    } while (0)
 
 constexpr u64 NODES_LIMIT_OUTPUT = 10'000'000;
 
@@ -342,6 +369,9 @@ bool Search::Worker::iterative_deepening() {
         for (int i = 0; i < UINT_16_HISTORY_SIZE; i++)
             mainHistory[c][i] = mainHistory[c][i] * 729 / 1024;
 
+    if (mainThread && root_log())
+        std::fprintf(root_log(), "G %s\n", rootPos.fen().c_str());
+
     // Iterative deepening loop until requested to stop or the target depth is reached
     while (rootDepth + 1 < MAX_PLY && !threads.stop
            && !(limits.depth && mainThread && rootDepth >= limits.depth))
@@ -409,7 +439,15 @@ bool Search::Worker::iterative_deepening() {
                 // effective increment for every four searchAgain steps (see issue #2717).
                 Depth adjustedDepth = std::max(1, rootDepth - failedHighCnt - failHighRecovery
                                                     - 3 * (searchAgainCounter + 1) / 4);
+                if (mainThread && root_log())
+                    std::fprintf(root_log(), "P %d %d %d %d %llu\n", rootDepth, adjustedDepth,
+                                 int(alpha), int(beta), (unsigned long long) u64(nodes));
                 bestValue           = search<Root>(rootPos, ss, alpha, beta, adjustedDepth, false);
+                if (mainThread && root_log())
+                    std::fprintf(root_log(), "E %d %d %s\n", int(bestValue), int(bool(threads.stop)),
+                                 UCIEngine::move(rootMoves[0].pv[0], false).c_str());
+                if (mainThread && root_log())
+                    std::fflush(root_log());
 
                 // Bring the best move to the front. It is critical that sorting
                 // is done with a stable algorithm because all the values but the
@@ -1404,7 +1442,7 @@ moves_loop:  // When in check, search starts here
               std::max(1, newDepth + std::min(-r / 1024, ss->ply < 2 * rootDepth ? 2 : 0)) + PvNode;
 
             ss->reduction = newDepth - d;
-            value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
+            ROOTLOG_CALL('L', d, 1, value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true));
             ss->reduction = 0;
 
             // Do a full-depth search when reduced LMR search fails high
@@ -1419,7 +1457,8 @@ moves_loop:  // When in check, search starts here
                 newDepth += doDeeperSearch - doShallowerSearch;
 
                 if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                    ROOTLOG_CALL('F', newDepth, !cutNode,
+                                 value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode));
 
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1334);
@@ -1434,8 +1473,9 @@ moves_loop:  // When in check, search starts here
                 r += 1127;
 
             // If expected reduction is high, we reduce search depth here
-            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha,
-                                   newDepth - (r > 5234) - (r > 5487 && newDepth > 2), !cutNode);
+            ROOTLOG_CALL('N', newDepth - (r > 5234) - (r > 5487 && newDepth > 2), !cutNode,
+                         value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha,
+                                   newDepth - (r > 5234) - (r > 5487 && newDepth > 2), !cutNode));
         }
 
         // Step 20. For PV nodes only, do a full PV search on the first move
@@ -1454,7 +1494,7 @@ moves_loop:  // When in check, search starts here
                     || ttData.depth > 1))
                 newDepth = std::max(newDepth, 1);
 
-            value = -search<PV>(pos, ss + 1, -beta, -alpha, newDepth, false);
+            ROOTLOG_CALL('V', newDepth, 0, value = -search<PV>(pos, ss + 1, -beta, -alpha, newDepth, false));
         }
 
         // Step 21. Undo move
