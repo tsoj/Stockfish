@@ -276,6 +276,46 @@ void Search::Worker::start_searching() {
     main_manager()->updates.onBestmove(bestmove, ponder);
 }
 
+namespace {
+
+// Move ordering at PV nodes by node effort. Integer arithmetic only, so that the
+// search is reproducible across compilers and platforms.
+constexpr int PVEffortMinDepth = 6;    // minimum depth of PV nodes using effort
+constexpr i64 PVEffortSlope    = 222;  // expected growth of log2(nodes + 1) per ply:
+                                       // about 0.6 nats per ply in log2 units * 256
+
+// log2(n + 1) in fixed point with 8 fractional bits, linearly interpolated
+i64 log2_fixed(u64 n) {
+    const u64 v    = n + 1;
+    const int m    = int(msb(v));
+    const u64 frac = (m >= 8 ? v >> (m - 8) : v << (8 - m)) & 255;
+    return i64(m) * 256 + i64(frac);
+}
+
+// Adds the size of a null-window search of a non-TT move at a PV node
+void record_pv_effort(PVEffortEntry& e, Key key, u16 searchId, Move m, Depth d, u64 nodeCount) {
+    if (e.key != u32(key >> 32) || e.searchId != searchId)
+    {
+        e.key      = u32(key >> 32);
+        e.searchId = searchId;
+        e.count    = 0;
+    }
+
+    const int v = std::clamp(int(log2_fixed(nodeCount) - PVEffortSlope * d), -32000, 32000);
+
+    for (int i = 0; i < e.count; ++i)
+        if (e.moves[i].move == m.raw())
+        {
+            e.moves[i].value += (v - e.moves[i].value) / 4;
+            return;
+        }
+
+    if (e.count < PVEffortEntry::Size)
+        e.moves[e.count++] = {m.raw(), i16(v)};
+}
+
+}  // namespace
+
 // Main iterative deepening loop. It calls search() repeatedly with increasing
 // depth until the allocated thinking time has been consumed, the user stops
 // the search, or the maximum search depth is reached.
@@ -337,6 +377,8 @@ bool Search::Worker::iterative_deepening() {
     bool uciPvSent          = false;
 
     lowPlyHistory.fill(102);
+
+    ++searchId;
 
     for (Color c : {WHITE, BLACK})
         for (int i = 0; i < UINT_16_HISTORY_SIZE; i++)
@@ -712,6 +754,7 @@ void Search::Worker::undo_null_move(Position& pos) { pos.undo_null_move(); }
 
 // Reset histories, usually before a new game
 void Search::Worker::clear() {
+    std::fill(pvEffort.begin(), pvEffort.end(), PVEffortEntry{});
     mainHistory.fill(-5);
     captureHistory.fill(-742);
 
@@ -1144,8 +1187,15 @@ moves_loop:  // When in check, search starts here
       (ss - 4)->continuationHistory, (ss - 5)->continuationHistory, (ss - 6)->continuationHistory};
 
 
+    // At PV nodes including the root, use the node effort of the moves in earlier
+    // iterations of the current search to adjust their MovePicker order
+    PVEffortEntry* pvEntry =
+      PvNode && depth >= PVEffortMinDepth ? &pvEffort[posKey & (pvEffort.size() - 1)] : nullptr;
+    const bool pvEntryValid = pvEntry && pvEntry->key == u32(posKey >> 32)
+                           && pvEntry->searchId == searchId && pvEntry->count >= 2;
+
     MovePicker mp(pos, ttData.move, depth, &mainHistory, &lowPlyHistory, &captureHistory, contHist,
-                  &sharedHistory, ss->ply);
+                  &sharedHistory, ss->ply, pvEntryValid ? pvEntry : nullptr);
 
     value = bestValue;
 
@@ -1167,6 +1217,13 @@ moves_loop:  // When in check, search starts here
             continue;
 
         ss->moveCount = ++moveCount;
+
+        // Record the size of a null-window search of a non-TT move at a PV node
+        auto recordEffort = [&](Depth searchDepth, u64 startNodes) {
+            if (pvEntry && moveCount > 1 && !threads.stop.load(std::memory_order_relaxed))
+                record_pv_effort(*pvEntry, posKey, searchId, move, searchDepth,
+                                 u64(nodes) - startNodes);
+        };
 
         if (rootNode && is_mainthread() && nodes > NODES_LIMIT_OUTPUT)
             main_manager()->updates.onIter(
@@ -1403,9 +1460,12 @@ moves_loop:  // When in check, search starts here
             Depth d =
               std::max(1, newDepth + std::min(-r / 1024, ss->ply < 2 * rootDepth ? 2 : 0)) + PvNode;
 
+            const u64 lmrStartNodes = pvEntry ? u64(nodes) : 0;
+
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
+            recordEffort(d, lmrStartNodes);
 
             // Do a full-depth search when reduced LMR search fails high
             // (*Scaler) Shallower searches here don't scale well
@@ -1419,7 +1479,11 @@ moves_loop:  // When in check, search starts here
                 newDepth += doDeeperSearch - doShallowerSearch;
 
                 if (newDepth > d)
+                {
+                    const u64 startNodes = pvEntry ? u64(nodes) : 0;
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                    recordEffort(newDepth, startNodes);
+                }
 
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1334);
@@ -1434,8 +1498,10 @@ moves_loop:  // When in check, search starts here
                 r += 1127;
 
             // If expected reduction is high, we reduce search depth here
-            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha,
-                                   newDepth - (r > 5234) - (r > 5487 && newDepth > 2), !cutNode);
+            const Depth fullDepth  = newDepth - (r > 5234) - (r > 5487 && newDepth > 2);
+            const u64   startNodes = pvEntry ? u64(nodes) : 0;
+            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, fullDepth, !cutNode);
+            recordEffort(fullDepth, startNodes);
         }
 
         // Step 20. For PV nodes only, do a full PV search on the first move

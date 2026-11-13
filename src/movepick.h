@@ -30,6 +30,35 @@ class Position;
 
 enum Stages : i8;
 
+// Node-effort statistics of the moves of one PV position in the current search:
+// for each move, a running average of log2(nodes + 1) - slope * depth over its
+// null-window searches, in fixed point with 8 fractional bits.
+struct PVEffortEntry {
+    static constexpr int Size = 30;
+
+    u32 key      = 0;
+    u16 searchId = 0;
+    u16 count    = 0;
+    struct {
+        u16 move;
+        i16 value;
+    } moves[Size];
+
+    const i16* find(Move m) const {
+        for (int i = 0; i < count; ++i)
+            if (moves[i].move == m.raw())
+                return &moves[i].value;
+        return nullptr;
+    }
+
+    int mean() const {
+        int sum = 0;
+        for (int i = 0; i < count; ++i)
+            sum += moves[i].value;
+        return count ? sum / count : 0;
+    }
+};
+
 // The MovePicker class is used to pick one legal move at a time from the
 // current position. The most important method is next_move(), which emits one
 // new legal move on every call, until there are no moves left, when
@@ -49,7 +78,8 @@ class MovePicker {
                const CapturePieceToHistory*,
                const PieceToHistory**,
                const SharedHistories*,
-               int);
+               int,
+               const PVEffortEntry* = nullptr);
     MovePicker(const Position&, Move, int, const CapturePieceToHistory*);
     Move next_move();
     void skip_quiet_moves();
@@ -74,6 +104,8 @@ class MovePicker {
     Depth                        depth;
     int                          ply;
     bool                         skipQuiets = false;
+    const PVEffortEntry*         effort;
+    int                          effortMean = 0;
     ExtMove                      moves[MAX_MOVES];
 };
 
