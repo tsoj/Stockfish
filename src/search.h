@@ -33,6 +33,7 @@
 
 #include "history.h"
 #include "misc.h"
+#include "movepick.h"
 #include "nnue/nnue_accumulator.h"
 #include "numa.h"
 #include "position.h"
@@ -405,6 +406,10 @@ class Worker {
     // Used by NNUE
     Eval::NNUE::AccumulatorStack  accumulatorStack;
     Eval::NNUE::AccumulatorCaches refreshTable;
+
+    // Node-effort statistics of PV nodes, valid for the search with the same id
+    std::vector<PVEffortEntry> pvEffort = std::vector<PVEffortEntry>(1 << 15);
+    u16                        searchId = 0;
 
     friend class Stockfish::ThreadPool;
     friend class SearchManager;
