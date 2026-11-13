@@ -151,7 +151,8 @@ MovePicker::MovePicker(const Position&              p,
                        const CapturePieceToHistory* cph,
                        const PieceToHistory**       ch,
                        const SharedHistories*       sh,
-                       int                          pl) :
+                       int                          pl,
+                       const PVEffortEntry*         pve) :
     pos(p),
     mainHistory(mh),
     lowPlyHistory(lph),
@@ -160,7 +161,11 @@ MovePicker::MovePicker(const Position&              p,
     sharedHistory(sh),
     ttMove(ttm),
     depth(d),
-    ply(pl) {
+    ply(pl),
+    effort(pve) {
+
+    if (effort)
+        effortMean = effort->mean();
 
     first_stage = pos.checkers() ? EVASION : depth > 0 ? GOOD_CAPTURE : QSEARCH;
 
@@ -173,7 +178,8 @@ MovePicker::MovePicker(const Position& p, Move ttm, int th, const CapturePieceTo
     pos(p),
     captureHistory(cph),
     ttMove(ttm),
-    threshold(th) {
+    threshold(th),
+    effort(nullptr) {
 
     assert(!pos.checkers());
 
@@ -255,6 +261,12 @@ ExtMove* MovePicker::generate_and_score() {
             else
                 m.value = (*mainHistory)[us][m.raw()] + (*continuationHistory[0])[pc][to];
         }
+
+        // At PV nodes, prefer moves whose subtrees in earlier iterations were
+        // larger than expected for their searched depth
+        if (effort)
+            if (const i16* e = effort->find(m))
+                m.value += 16 * (*e - effortMean);
     }
     return it;
 }

@@ -286,8 +286,10 @@ namespace {
 constexpr i64 EffortSampleWeight = 1024;     // weight of a new measurement
 constexpr i64 EffortFitCap       = 1 << 15;  // halve the fit sums beyond this count
 constexpr i64 EffortSlopeLimit   = 1 << 20;  // clamp on the fitted slope (fixed point)
-constexpr i64 EffortPriorSlope   = 222;      // slope if all depths are equal: about
-                                             // 0.6 nats per ply in log2 units * 256
+constexpr i64 EffortPriorSlope   = 222;      // slope if all depths are equal, and at
+                                             // PV nodes: about 0.6 nats per ply in
+                                             // log2 units * 256
+constexpr int PVEffortMinDepth = 6;          // minimum depth of PV nodes using effort
 
 // log2(n + 1) in fixed point with 8 fractional bits, linearly interpolated
 i64 log2_fixed(u64 n) {
@@ -295,6 +297,28 @@ i64 log2_fixed(u64 n) {
     const int m    = int(msb(v));
     const u64 frac = (m >= 8 ? v >> (m - 8) : v << (8 - m)) & 255;
     return i64(m) * 256 + i64(frac);
+}
+
+// Adds the size of a null-window search of a non-TT move at a PV node
+void record_pv_effort(PVEffortEntry& e, Key key, u16 searchId, Move m, Depth d, u64 nodeCount) {
+    if (e.key != u32(key >> 32) || e.searchId != searchId)
+    {
+        e.key      = u32(key >> 32);
+        e.searchId = searchId;
+        e.count    = 0;
+    }
+
+    const int v = std::clamp(int(log2_fixed(nodeCount) - EffortPriorSlope * d), -32000, 32000);
+
+    for (int i = 0; i < e.count; ++i)
+        if (e.moves[i].move == m.raw())
+        {
+            e.moves[i].value += (v - e.moves[i].value) / 4;
+            return;
+        }
+
+    if (e.count < PVEffortEntry::Size)
+        e.moves[e.count++] = {m.raw(), i16(v)};
 }
 
 i64 isqrt(i64 v) {
@@ -471,6 +495,7 @@ bool Search::Worker::iterative_deepening() {
     lowPlyHistory.fill(102);
 
     std::fill(std::begin(effortFit), std::end(effortFit), 0);
+    ++searchId;
 
     for (Color c : {WHITE, BLACK})
         for (int i = 0; i < UINT_16_HISTORY_SIZE; i++)
@@ -846,6 +871,7 @@ void Search::Worker::undo_null_move(Position& pos) { pos.undo_null_move(); }
 
 // Reset histories, usually before a new game
 void Search::Worker::clear() {
+    std::fill(pvEffort.begin(), pvEffort.end(), PVEffortEntry{});
     mainHistory.fill(-5);
     captureHistory.fill(-742);
 
@@ -1278,8 +1304,16 @@ moves_loop:  // When in check, search starts here
       (ss - 4)->continuationHistory, (ss - 5)->continuationHistory, (ss - 6)->continuationHistory};
 
 
+    // At PV nodes, use the node effort of the moves in earlier iterations of the
+    // current search to adjust their MovePicker order
+    PVEffortEntry* pvEntry      = PvNode && !rootNode && depth >= PVEffortMinDepth
+                                  ? &pvEffort[posKey & (pvEffort.size() - 1)]
+                                  : nullptr;
+    const bool     pvEntryValid = pvEntry && pvEntry->key == u32(posKey >> 32)
+                           && pvEntry->searchId == searchId && pvEntry->count >= 2;
+
     MovePicker mp(pos, ttData.move, depth, &mainHistory, &lowPlyHistory, &captureHistory, contHist,
-                  &sharedHistory, ss->ply);
+                  &sharedHistory, ss->ply, pvEntryValid ? pvEntry : nullptr);
 
     value = bestValue;
 
@@ -1322,10 +1356,17 @@ moves_loop:  // When in check, search starts here
         RootMove* rootMove =
           rootNode ? &*std::find(rootMoves.begin(), rootMoves.end(), move) : nullptr;
 
-        // Record the size of a null-window search of a non-TT root move
-        auto recordEffort = [&](Depth searchDepth, u64 startNodes) {
-            if (rootNode && moveCount > 1 && !threads.stop.load(std::memory_order_relaxed))
+        // Record the size of a null-window search of a non-TT move at the root
+        // or at a PV node
+        const bool trackEffort  = rootNode || pvEntry;
+        auto       recordEffort = [&](Depth searchDepth, u64 startNodes) {
+            if (moveCount == 1 || threads.stop.load(std::memory_order_relaxed))
+                return;
+            if (rootNode)
                 record_root_effort(*rootMove, searchDepth, u64(nodes) - startNodes);
+            else if (pvEntry)
+                record_pv_effort(*pvEntry, posKey, searchId, move, searchDepth,
+                                       u64(nodes) - startNodes);
         };
 
         if (rootNode && is_mainthread() && nodes > NODES_LIMIT_OUTPUT)
@@ -1563,7 +1604,7 @@ moves_loop:  // When in check, search starts here
             Depth d =
               std::max(1, newDepth + std::min(-r / 1024, ss->ply < 2 * rootDepth ? 2 : 0)) + PvNode;
 
-            const u64 lmrStartNodes = rootNode ? u64(nodes) : 0;
+            const u64 lmrStartNodes = trackEffort ? u64(nodes) : 0;
 
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
@@ -1583,7 +1624,7 @@ moves_loop:  // When in check, search starts here
 
                 if (newDepth > d)
                 {
-                    const u64 startNodes = rootNode ? u64(nodes) : 0;
+                    const u64 startNodes = trackEffort ? u64(nodes) : 0;
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
                     recordEffort(newDepth, startNodes);
                 }
@@ -1602,7 +1643,7 @@ moves_loop:  // When in check, search starts here
 
             // If expected reduction is high, we reduce search depth here
             const Depth fullDepth  = newDepth - (r > 5234) - (r > 5487 && newDepth > 2);
-            const u64   startNodes = rootNode ? u64(nodes) : 0;
+            const u64   startNodes = trackEffort ? u64(nodes) : 0;
             value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, fullDepth, !cutNode);
             recordEffort(fullDepth, startNodes);
         }
