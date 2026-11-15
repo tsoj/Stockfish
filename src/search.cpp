@@ -277,11 +277,9 @@ void Search::Worker::start_searching() {
 
 namespace {
 
-// Move ordering at PV nodes by node effort. Integer arithmetic only, so that the
-// search is reproducible across compilers and platforms.
+// Move ordering at PV nodes by node effort
 constexpr int PVEffortMinDepth = 6;    // minimum depth of PV nodes using effort
-constexpr i64 PVEffortSlope    = 222;  // expected growth of log2(nodes + 1) per ply:
-                                       // about 0.6 nats per ply in log2 units * 256
+constexpr i64 PVEffortSlope    = 222;  // expected growth of log2(nodes + 1) per ply: about 0.6 nats per ply in log2 units * 256
 
 // log2(n + 1) in fixed point with 8 fractional bits, linearly interpolated
 i64 log2_fixed(u64 n) {
@@ -291,7 +289,6 @@ i64 log2_fixed(u64 n) {
     return i64(m) * 256 + i64(frac);
 }
 
-// Adds the size of a null-window search of a non-TT move at a PV node
 void record_pv_effort(PVEffortEntry& e, Key key, Move m, Depth d, u64 nodeCount) {
     if (e.key != u32(key >> 32))
     {
@@ -1182,8 +1179,8 @@ moves_loop:  // When in check, search starts here
       (ss - 4)->continuationHistory, (ss - 5)->continuationHistory, (ss - 6)->continuationHistory};
 
 
-    // At PV nodes including the root, use the node effort of the moves in earlier
-    // iterations of the current search to adjust their MovePicker order
+    // At PV nodes, use the node effort of the moves in earlier
+    // iterations  to adjust their MovePicker order
     PVEffortEntry* pvEntry =
       (PvNode && depth >= PVEffortMinDepth) ? &pvEffort[posKey & (pvEffort.size() - 1)] : nullptr;
 
