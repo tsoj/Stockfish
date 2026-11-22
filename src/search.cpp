@@ -46,7 +46,6 @@
 #include "thread.h"
 #include "timeman.h"
 #include "tt.h"
-#include "tune.h"
 #include "types.h"
 #include "uci.h"
 #include "ucioption.h"
@@ -140,12 +139,6 @@ void update_correction_history(const Position& pos,
         (*(ss - 6)->continuationCorrectionHistory)[pc][to] << bonus * 35 / 128;
     }
 }
-
-// Singular extension margin adjustment based on the averaged score
-int seAvgScale   = 128;
-int seAvgBias[2] = {150, 112};  // NonPV, PV: mean gap at singular searches
-int seAvgMaxAdj  = 64;
-// TUNE(SetRange(0, 512), seAvgScale, SetRange(0, 400), seAvgBias, SetRange(0, 200), seAvgMaxAdj);
 
 // Averaged score: the averaging is done in sigmoid space s(v) = tanh(v / 554),
 // where -1 is a certain loss, 0 is 50% expected score and +1 a certain win
@@ -1379,8 +1372,7 @@ moves_loop:  // When in check, search starts here
                 if (!is_decisive(value))
                 {
                     int gap    = value - singularRes.avg;
-                    int gapAdj = std::clamp(seAvgScale * (gap - seAvgBias[PvNode]) / 1024,
-                                            -seAvgMaxAdj, seAvgMaxAdj);
+                    int gapAdj = std::clamp((gap - 150 + 38 * PvNode) / 8, -64, 64);
                     doubleMargin -= gapAdj;
                     tripleMargin -= gapAdj;
                 }
