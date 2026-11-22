@@ -140,9 +140,10 @@ void update_correction_history(const Position& pos,
     }
 }
 
-// Averaged score: the averaging is done in sigmoid space s(v) = tanh(v / 554),
-// where -1 is a certain loss, 0 is 50% expected score and +1 a certain win
-// (+1 pawn gives 0.5). Mate scores saturate at +-1, so they cannot dominate
+// Averaged score: the averaging is done in t(v) = tanh(v / 554) space, where
+// -1 is a certain loss, 0 is 50% expected score and +1 a certain win (+1 pawn
+// gives 0.5). As tanh(x) = 2 * logistic(2x) - 1, this is the same as averaging
+// logistic expected scores. Mate scores saturate at +-1, so they cannot dominate
 // the mean. The mean is mapped back to the usual score space. For speed, both
 // mappings use lookup tables and fixed point arithmetic (1.0 == 65535).
 constexpr int AvgLimit    = 4096;  // |v| beyond this saturates
@@ -150,23 +151,25 @@ constexpr int AvgOne      = 65535;
 constexpr int AvgInvShift = 4;
 constexpr int AvgInvSize  = (AvgOne >> AvgInvShift) + 1;
 
-struct AvgTables {
-    u16 sigmoid[AvgLimit + 1];  // s(v) * AvgOne for v in [0, AvgLimit]
-    i16 inverse[AvgInvSize];    // 554 * atanh(m) for m = i << AvgInvShift (bucket center)
+// t(v) * AvgOne for v in [0, AvgLimit]
+const auto toTanh = [] {
+    std::array<u16, AvgLimit + 1> t{};
+    for (int v = 0; v <= AvgLimit; ++v)
+        t[v] = u16(std::lround(AvgOne * std::tanh(v / 554.0)));
+    return t;
+}();
 
-    AvgTables() {
-        for (int v = 0; v <= AvgLimit; ++v)
-            sigmoid[v] = u16(std::lround(AvgOne * std::tanh(v / 554.0)));
-        for (int i = 0; i < AvgInvSize; ++i)
-        {
-            double m   = std::min(((i << AvgInvShift) + (1 << (AvgInvShift - 1))) / double(AvgOne),
-                                  1.0 - 1e-9);
-            inverse[i] = i16(std::lround(554.0 * std::atanh(m)));
-        }
+// 554 * atanh(m) for m = i << AvgInvShift (bucket center)
+const auto fromTanh = [] {
+    std::array<i16, AvgInvSize> t{};
+    for (int i = 0; i < AvgInvSize; ++i)
+    {
+        double m =
+          std::min(((i << AvgInvShift) + (1 << (AvgInvShift - 1))) / double(AvgOne), 1.0 - 1e-9);
+        t[i] = i16(std::lround(554.0 * std::atanh(m)));
     }
-};
-
-const AvgTables avgTables;
+    return t;
+}();
 
 // Accumulates the negated averaged scores of the searched children of a node
 struct AvgAcc {
@@ -174,7 +177,7 @@ struct AvgAcc {
     int cnt = 0;
 
     void add(Value a) {
-        int s = avgTables.sigmoid[std::min(std::abs(a), AvgLimit)];
+        int s = toTanh[std::min(std::abs(a), AvgLimit)];
         sum += a < 0 ? -s : s;
         ++cnt;
     }
@@ -188,7 +191,7 @@ struct AvgAcc {
         int a = std::abs(m);
         if (a >= AvgOne)
             return fallback;
-        Value v = avgTables.inverse[a >> AvgInvShift];
+        Value v = fromTanh[a >> AvgInvShift];
         return m < 0 ? -v : v;
     }
 };
@@ -835,7 +838,7 @@ SearchResult Search::Worker::search(
     SearchedList quietsSearched;
 
     // Experimental averaged score: sum and count of negated child averages
-    AvgAcc avgAcc, probCutAvgAcc;
+    AvgAcc avgAcc;
 
     // Step 1. Initialize node
     ss->inCheck   = pos.checkers();
@@ -1183,7 +1186,7 @@ SearchResult Search::Worker::search(
             undo_move(pos, move);
 
             value = res.value;
-            probCutAvgAcc.add(res.avg);
+            avgAcc.add(res.avg);
 
             if (value >= probCutBeta)
             {
@@ -1194,11 +1197,14 @@ SearchResult Search::Worker::search(
                 if (!is_decisive(value))
                 {
                     Value v = value - (probCutBeta - beta);
-                    return {v, probCutAvgAcc.mean_or(v)};
+                    return {v, avgAcc.mean_or(v)};
                 }
             }
         }
     }
+
+    // The ProbCut searches do not count towards the averaged score of the move loop
+    avgAcc = {};
 
 moves_loop:  // When in check, search starts here
 
@@ -1365,10 +1371,6 @@ moves_loop:  // When in check, search starts here
                 int tripleMargin = 70 + 279 * PvNode - 188 * !ttCapture + 81 * ss->ttPv - corrValAdj
                                  - (ss->ply > rootDepth) * 43;
 
-                // If the alternatives to the ttMove are on average much worse than the
-                // best of them, the ttMove is a narrow path without escapes: make double
-                // and triple extensions more likely. The bias is the typical gap at
-                // singular searches, so that on average the margins are unchanged.
                 if (!is_decisive(value))
                 {
                     int gap    = value - singularRes.avg;

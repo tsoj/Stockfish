@@ -112,7 +112,7 @@ struct PVMoves {
 
 // Result of search()/qsearch(): the regular minimax score and the "averaged"
 // score. The averaged score is the mean of the negated averaged scores of all
-// searched children, where the mean is taken in sigmoid space (see AvgAcc in
+// searched children, where the mean is taken in tanh space (see AvgAcc in
 // search.cpp), or the minimax score for nodes without searched children. TT
 // cutoffs use the static eval instead, if available.
 struct SearchResult {
