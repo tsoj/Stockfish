@@ -110,6 +110,26 @@ struct PVMoves {
     }
 };
 
+// Result of search()/qsearch(): the regular minimax score and the "averaged"
+// score. The averaged score is the mean of the negated averaged scores of all
+// searched children, where the mean is taken in sigmoid space (see AvgAcc in
+// search.cpp), or the minimax score for nodes without searched children. TT
+// cutoffs use the static eval instead, if available.
+struct SearchResult {
+    Value value;
+    Value avg;
+
+    // Leaf: the averaged score is just the minimax score
+    explicit SearchResult(Value v) :
+        value(v),
+        avg(v) {}
+    SearchResult(Value v, Value a) :
+        value(v),
+        avg(a) {}
+
+    SearchResult operator-() const { return {-value, -avg}; }
+};
+
 // Stack struct keeps track of the information we need to remember from nodes
 // shallower and deeper in the tree during the search. Each search thread has
 // its own array of Stack objects, indexed by the current ply.
@@ -349,12 +369,12 @@ class Worker {
 
     // This is the main search function, for both PV and non-PV nodes
     template<NodeType nodeType>
-    Value
+    SearchResult
     search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, const bool cutNode);
 
     // Quiescence search function, which is called by the main search
     template<NodeType nodeType>
-    Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta);
+    SearchResult qsearch(Position& pos, Stack* ss, Value alpha, Value beta);
 
     int reduction(bool i, Depth d, int mn) const;
 

@@ -46,6 +46,7 @@
 #include "thread.h"
 #include "timeman.h"
 #include "tt.h"
+#include "tune.h"
 #include "types.h"
 #include "uci.h"
 #include "ucioption.h"
@@ -138,6 +139,46 @@ void update_correction_history(const Position& pos,
         (*(ss - 4)->continuationCorrectionHistory)[pc][to] << bonus * 70 / 128;
         (*(ss - 6)->continuationCorrectionHistory)[pc][to] << bonus * 35 / 128;
     }
+}
+
+// Singular extension margin adjustment based on the averaged score
+int seAvgScale   = 128;
+int seAvgBias[2] = {150, 112};  // NonPV, PV: mean gap at singular searches
+int seAvgMaxAdj  = 64;
+// TUNE(SetRange(0, 512), seAvgScale, SetRange(0, 400), seAvgBias, SetRange(0, 200), seAvgMaxAdj);
+
+// Averaged score: the averaging is done in sigmoid space s(v) = tanh(v / 554),
+// where -1 is a certain loss, 0 is 50% expected score and +1 a certain win
+// (+1 pawn gives 0.5). Mate scores map to exactly +-1, so they cannot dominate
+// the mean. The mean is mapped back to the usual score space.
+constexpr double AvgSigmoidScale = 554.0;
+
+// Accumulates the negated averaged scores of the searched children of a node
+struct AvgAcc {
+    double sum = 0;
+    int    cnt = 0;
+
+    void add(Value a) {
+        sum += std::tanh(double(a) / AvgSigmoidScale);
+        ++cnt;
+    }
+
+    // If nothing was averaged, or every averaged score is saturated (e.g. all
+    // children are mated), use the given fallback (usually the minimax score)
+    Value mean_or(Value fallback) const {
+        double m = cnt ? sum / cnt : 0.0;
+        if (!cnt || std::abs(m) >= 1.0)
+            return fallback;
+        double v = AvgSigmoidScale * std::atanh(m);
+        return Value(std::lround(std::clamp(v, double(VALUE_TB_LOSS_IN_MAX_PLY + 1),
+                                            double(VALUE_TB_WIN_IN_MAX_PLY - 1))));
+    }
+};
+
+// Result of a TT based cutoff (TT cutoff or small ProbCut): the averaged score
+// is the static eval of the node, if available (not in check).
+SearchResult tt_cutoff_result(Value v, Value staticEval) {
+    return {v, is_valid(staticEval) ? staticEval : v};
 }
 
 // Add a small random component to draw evaluations to avoid 3-fold blindness
@@ -401,7 +442,7 @@ bool Search::Worker::iterative_deepening() {
                 // effective increment for every four searchAgain steps (see issue #2717).
                 Depth adjustedDepth = std::max(1, rootDepth - failedHighCnt - failHighRecovery
                                                     - 3 * (searchAgainCounter + 1) / 4);
-                bestValue           = search<Root>(rootPos, ss, alpha, beta, adjustedDepth, false);
+                bestValue = search<Root>(rootPos, ss, alpha, beta, adjustedDepth, false).value;
 
                 // Bring the best move to the front. It is critical that sorting
                 // is done with a stable algorithm because all the values but the
@@ -734,7 +775,7 @@ void Search::Worker::clear() {
 
 // Main search function for both PV and non-PV nodes
 template<NodeType nodeType>
-Value Search::Worker::search(
+SearchResult Search::Worker::search(
   Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, const bool cutNode) {
 
     constexpr bool PvNode   = nodeType != NonPV;
@@ -753,7 +794,7 @@ Value Search::Worker::search(
     {
         alpha = value_draw(nodes);
         if (alpha >= beta)
-            return alpha;
+            return SearchResult(alpha);
     }
 
     assert(-VALUE_INFINITE <= alpha && alpha < beta && beta <= VALUE_INFINITE);
@@ -774,6 +815,9 @@ Value Search::Worker::search(
 
     SearchedList capturesSearched;
     SearchedList quietsSearched;
+
+    // Experimental averaged score: sum and count of negated child averages
+    AvgAcc avgAcc, probCutAvgAcc;
 
     // Step 1. Initialize node
     ss->inCheck   = pos.checkers();
@@ -801,7 +845,10 @@ Value Search::Worker::search(
         // Step 2. Check for aborted search or immediate draw
         if (threads.stop.load(std::memory_order_relaxed) || pos.is_draw(ss->ply)
             || ss->ply >= MAX_PLY)
-            return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : value_draw(nodes);
+        {
+            Value v = (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : value_draw(nodes);
+            return SearchResult(v);
+        }
 
         // Step 3. Mate distance pruning. Even if we mate at the next move our score
         // would be at best mate_in(ss->ply + 1), but if alpha is already bigger because
@@ -811,7 +858,7 @@ Value Search::Worker::search(
         alpha = std::max(mated_in(ss->ply), alpha);
         beta  = std::min(mate_in(ss->ply + 1), beta);
         if (alpha >= beta)
-            return alpha;
+            return SearchResult(alpha);
     }
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
@@ -919,13 +966,13 @@ Value Search::Worker::search(
 
                     // Check that the ttValue after the tt move would also trigger a cutoff
                     if (!is_valid(ttDataNext.value))
-                        return ttData.value;
+                        return tt_cutoff_result(ttData.value, ss->inCheck ? VALUE_NONE : ss->staticEval);
 
                     if ((ttData.value >= beta) == (-ttDataNext.value >= beta))
-                        return ttData.value;
+                        return tt_cutoff_result(ttData.value, ss->inCheck ? VALUE_NONE : ss->staticEval);
                 }
                 else
-                    return ttData.value;
+                    return tt_cutoff_result(ttData.value, ss->inCheck ? VALUE_NONE : ss->staticEval);
             }
         }
         // Case B: No cutoff, but depth was sufficient, so the bound points the wrong way.
@@ -979,7 +1026,7 @@ Value Search::Worker::search(
                                    std::min(MAX_PLY - 1, depth + 6), Move::none(), VALUE_NONE,
                                    tt.generation());
 
-                    return value;
+                    return SearchResult(value);
                 }
 
                 if (PvNode)
@@ -1025,7 +1072,10 @@ Value Search::Worker::search(
                              + std::abs(correctionValue) / 198435;
 
         if (eval - futilityMargin >= beta)
-            return (661 * beta + 363 * eval) / 1024;
+        {
+            Value v = (661 * beta + 363 * eval) / 1024;
+            return SearchResult(v);
+        }
     }
 
     // Step 10. Null move search with verification search
@@ -1042,7 +1092,7 @@ Value Search::Worker::search(
         R -= seekMate * R / 2;
         do_null_move(pos, ss);
 
-        Value nullValue = -search<NonPV>(pos, ss + 1, -beta, -beta + 1, depth - R, false);
+        Value nullValue = -search<NonPV>(pos, ss + 1, -beta, -beta + 1, depth - R, false).value;
 
         undo_null_move(pos);
 
@@ -1052,7 +1102,7 @@ Value Search::Worker::search(
             if (nmpMinPly || depth < 16)
             {
                 ++ss->priorNMPFailHigh;
-                return nullValue;
+                return SearchResult(nullValue);
             }
 
             // Recursive verification is not allowed
@@ -1062,14 +1112,14 @@ Value Search::Worker::search(
             // disabled until ply exceeds nmpMinPly.
             nmpMinPly = ss->ply + 3 * (depth - R) / 4;
 
-            Value v = search<NonPV>(pos, ss, beta - 1, beta, depth - R, false);
+            Value v = search<NonPV>(pos, ss, beta - 1, beta, depth - R, false).value;
 
             nmpMinPly = 0;
 
             if (v >= beta)
             {
                 ++ss->priorNMPFailHigh;
-                return nullValue;
+                return SearchResult(nullValue);
             }
         }
     }
@@ -1105,14 +1155,17 @@ Value Search::Worker::search(
 
             do_move(pos, move, pos.gives_check(move), capture, ss);
             // Perform a preliminary qsearch to verify that the move holds
-            value = -qsearch<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1);
+            SearchResult res = -qsearch<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1);
 
             // If the qsearch held, perform the regular search
-            if (value >= probCutBeta && probCutDepth > 0)
-                value = -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, probCutDepth,
-                                       !cutNode);
+            if (res.value >= probCutBeta && probCutDepth > 0)
+                res = -search<NonPV>(pos, ss + 1, -probCutBeta, -probCutBeta + 1, probCutDepth,
+                                     !cutNode);
 
             undo_move(pos, move);
+
+            value = res.value;
+            probCutAvgAcc.add(res.avg);
 
             if (value >= probCutBeta)
             {
@@ -1121,7 +1174,10 @@ Value Search::Worker::search(
                                probCutDepth + 1, move, unadjustedStaticEval, tt.generation());
 
                 if (!is_decisive(value))
-                    return value - (probCutBeta - beta);
+                {
+                    Value v = value - (probCutBeta - beta);
+                    return {v, probCutAvgAcc.mean_or(v)};
+                }
             }
         }
     }
@@ -1132,7 +1188,7 @@ moves_loop:  // When in check, search starts here
     probCutBeta = beta + 428;
     if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4 && ttData.value >= probCutBeta
         && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value) && !seekMate)
-        return probCutBeta;
+        return tt_cutoff_result(probCutBeta, ss->inCheck ? VALUE_NONE : ss->staticEval);
 
     const PieceToHistory* contHist[] = {
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
@@ -1162,6 +1218,8 @@ moves_loop:  // When in check, search starts here
             continue;
 
         ss->moveCount = ++moveCount;
+
+        SearchResult childRes(VALUE_NONE);
 
         if (rootNode && is_mainthread() && nodes > NODES_LIMIT_OUTPUT)
             main_manager()->updates.onIter(
@@ -1276,7 +1334,9 @@ moves_loop:  // When in check, search starts here
             Depth singularDepth = newDepth / 2;
 
             ss->excludedMove = move;
-            value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
+            SearchResult singularRes =
+              search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
+            value            = singularRes.value;
             ss->excludedMove = Move::none();
 
             if (value < singularBeta)
@@ -1286,6 +1346,19 @@ moves_loop:  // When in check, search starts here
                                  - 1175 * ttMoveHistory / 114178 - (ss->ply > rootDepth) * 38;
                 int tripleMargin = 70 + 279 * PvNode - 188 * !ttCapture + 81 * ss->ttPv - corrValAdj
                                  - (ss->ply > rootDepth) * 43;
+
+                // If the alternatives to the ttMove are on average much worse than the
+                // best of them, the ttMove is a narrow path without escapes: make double
+                // and triple extensions more likely. The bias is the typical gap at
+                // singular searches, so that on average the margins are unchanged.
+                if (!is_decisive(value))
+                {
+                    int gap    = value - singularRes.avg;
+                    int gapAdj = std::clamp(seAvgScale * (gap - seAvgBias[PvNode]) / 1024,
+                                            -seAvgMaxAdj, seAvgMaxAdj);
+                    doubleMargin -= gapAdj;
+                    tripleMargin -= gapAdj;
+                }
 
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
@@ -1311,7 +1384,7 @@ moves_loop:  // When in check, search starts here
                     update_correction_history(pos, ss, *this, bonus);
                 }
 
-                return value;
+                return singularRes;
             }
 
             // Negative extensions
@@ -1398,7 +1471,8 @@ moves_loop:  // When in check, search starts here
               std::max(1, newDepth + std::min(-r / 1024, ss->ply < 2 * rootDepth ? 2 : 0)) + PvNode;
 
             ss->reduction = newDepth - d;
-            value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
+            childRes      = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
+            value         = childRes.value;
             ss->reduction = 0;
 
             // Do a full-depth search when reduced LMR search fails high
@@ -1413,7 +1487,11 @@ moves_loop:  // When in check, search starts here
                 newDepth += doDeeperSearch - doShallowerSearch;
 
                 if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                {
+                    childRes =
+                      -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+                    value = childRes.value;
+                }
 
                 // Post LMR continuation history updates
                 update_continuation_histories(ss, movedPiece, move.to_sq(), 1334);
@@ -1428,8 +1506,9 @@ moves_loop:  // When in check, search starts here
                 r += 1127;
 
             // If expected reduction is high, we reduce search depth here
-            value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha,
-                                   newDepth - (r > 5234) - (r > 5487 && newDepth > 2), !cutNode);
+            childRes = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha,
+                                      newDepth - (r > 5234) - (r > 5487 && newDepth > 2), !cutNode);
+            value    = childRes.value;
         }
 
         // Step 20. For PV nodes only, do a full PV search on the first move
@@ -1448,11 +1527,15 @@ moves_loop:  // When in check, search starts here
                     || ttData.depth > 1))
                 newDepth = std::max(newDepth, 1);
 
-            value = -search<PV>(pos, ss + 1, -beta, -alpha, newDepth, false);
+            childRes = -search<PV>(pos, ss + 1, -beta, -alpha, newDepth, false);
+            value    = childRes.value;
         }
 
         // Step 21. Undo move
         undo_move(pos, move);
+
+        // The averaged score uses the result of the last (most reliable) search of this move
+        avgAcc.add(childRes.avg);
 
         assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
 
@@ -1461,7 +1544,7 @@ moves_loop:  // When in check, search starts here
         // and we return immediately without updating the best move,
         // principal variation or transposition table.
         if (threads.stop.load(std::memory_order_relaxed))
-            return VALUE_ZERO;
+            return SearchResult(VALUE_ZERO);
 
         if (rootNode)
         {
@@ -1665,7 +1748,8 @@ moves_loop:  // When in check, search starts here
 
     // The search is now complete
     assert(-VALUE_INFINITE < bestValue && bestValue < VALUE_INFINITE);
-    return bestValue;
+
+    return {bestValue, avgAcc.mean_or(bestValue)};
 }
 
 
@@ -1676,7 +1760,7 @@ moves_loop:  // When in check, search starts here
 // See https://www.chessprogramming.org/Horizon_Effect
 // and https://www.chessprogramming.org/Quiescence_Search
 template<NodeType nodeType>
-Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta) {
+SearchResult Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta) {
 
     static_assert(nodeType != Root);
     constexpr bool PvNode = nodeType == PV;
@@ -1689,8 +1773,12 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     {
         alpha = value_draw(nodes);
         if (alpha >= beta)
-            return alpha;
+            return SearchResult(alpha);
     }
+
+    // Experimental averaged score: sum and count of negated child averages.
+    // The stand pat score (when not in check) counts as one of the options.
+    AvgAcc avgAcc;
 
     PVMoves pv;
 
@@ -1717,7 +1805,10 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
 
     // Step 2. Check for an immediate draw or maximum ply reached
     if (pos.is_draw(ss->ply) || ss->ply >= MAX_PLY)
-        return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : VALUE_DRAW;
+    {
+        Value v = (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : VALUE_DRAW;
+        return SearchResult(v);
+    }
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
@@ -1733,7 +1824,16 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     // At non-PV nodes we check for an early TT cutoff
     if (!PvNode && ttData.depth >= DEPTH_QS && is_valid(ttData.value)
         && (ttData.bound & (ttData.value >= beta ? BOUND_LOWER : BOUND_UPPER)))
-        return ttData.value;
+    {
+        // Static eval for the averaged score. This does not influence the search.
+        Value staticEval = VALUE_NONE;
+        if (!ss->inCheck)
+        {
+            Value unadjusted = is_valid(ttData.eval) ? ttData.eval : evaluate(pos);
+            staticEval = to_corrected_static_eval(unadjusted, correction_value(*this, pos, ss));
+        }
+        return tt_cutoff_result(ttData.value, staticEval);
+    }
 
     // Step 4. Static evaluation of the position
     Value unadjustedStaticEval = VALUE_NONE;
@@ -1775,8 +1875,11 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             if (!ss->ttHit)
                 ttWriter.write(posKey, VALUE_NONE, false, BOUND_LOWER, DEPTH_UNSEARCHED,
                                Move::none(), unadjustedStaticEval, tt.generation());
-            return bestValue;
+            return SearchResult(bestValue);
         }
+
+        // The stand pat score counts as one of the averaged options
+        avgAcc.add(bestValue);
 
         if (bestValue > alpha)
             alpha = bestValue;
@@ -1845,8 +1948,11 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         // Step 7. Make and search the move
         do_move(pos, move, givesCheck, capture, ss);
 
-        value = -qsearch<nodeType>(pos, ss + 1, -beta, -alpha);
+        SearchResult childRes = -qsearch<nodeType>(pos, ss + 1, -beta, -alpha);
+        value                 = childRes.value;
         undo_move(pos, move);
+
+        avgAcc.add(childRes.avg);
 
         assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
 
@@ -1879,7 +1985,7 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         if (ss->inCheck)  // Checkmate!
         {
             assert(!MoveList<ALL>(pos).size());
-            return mated_in(ss->ply);  // Plies to mate from the root
+            return SearchResult(mated_in(ss->ply));  // Plies to mate from the root
         }
 
         // Only check for stalemate under specific conditions
@@ -1901,7 +2007,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
 
     // The search is now complete
     assert(-VALUE_INFINITE < bestValue && bestValue < VALUE_INFINITE);
-    return bestValue;
+
+    return {bestValue, avgAcc.mean_or(bestValue)};
 }
 
 int Search::Worker::reduction(bool i, Depth d, int mn) const {
