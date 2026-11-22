@@ -145,28 +145,24 @@ void update_correction_history(const Position& pos,
 // gives 0.5). As tanh(x) = 2 * logistic(2x) - 1, this is the same as averaging
 // logistic expected scores. Mate scores saturate at +-1, so they cannot dominate
 // the mean. The mean is mapped back to the usual score space. For speed, both
-// mappings use lookup tables and fixed point arithmetic (1.0 == 65535).
-constexpr int AvgLimit    = 4096;  // |v| beyond this saturates
-constexpr int AvgOne      = 65535;
-constexpr int AvgInvShift = 4;
-constexpr int AvgInvSize  = (AvgOne >> AvgInvShift) + 1;
+// mappings use lookup tables and fixed point arithmetic (1.0 == AvgOne).
+constexpr int AvgOne = 32767;
 
-// t(v) * AvgOne for v in [0, AvgLimit]
+// t(v) * AvgOne, indexed by v + VALUE_INFINITE
 const auto toTanh = [] {
-    std::array<u16, AvgLimit + 1> t{};
-    for (int v = 0; v <= AvgLimit; ++v)
-        t[v] = u16(std::lround(AvgOne * std::tanh(v / 554.0)));
+    std::array<i16, 2 * VALUE_INFINITE + 1> t{};
+    for (int v = -VALUE_INFINITE; v <= VALUE_INFINITE; ++v)
+        t[v + VALUE_INFINITE] = i16(std::lround(AvgOne * std::tanh(v / 554.0)));
     return t;
 }();
 
-// 554 * atanh(m) for m = i << AvgInvShift (bucket center)
+// 554 * atanh(m / AvgOne), indexed by m + AvgOne
 const auto fromTanh = [] {
-    std::array<i16, AvgInvSize> t{};
-    for (int i = 0; i < AvgInvSize; ++i)
+    std::array<i16, 2 * AvgOne + 1> t{};
+    for (int m = -AvgOne; m <= AvgOne; ++m)
     {
-        double m =
-          std::min(((i << AvgInvShift) + (1 << (AvgInvShift - 1))) / double(AvgOne), 1.0 - 1e-9);
-        t[i] = i16(std::lround(554.0 * std::atanh(m)));
+        double x      = std::clamp(m / double(AvgOne), -1 + 0.5 / AvgOne, 1 - 0.5 / AvgOne);
+        t[m + AvgOne] = i16(std::lround(554.0 * std::atanh(x)));
     }
     return t;
 }();
@@ -177,22 +173,15 @@ struct AvgAcc {
     int cnt = 0;
 
     void add(Value a) {
-        int s = toTanh[std::min(std::abs(a), AvgLimit)];
-        sum += a < 0 ? -s : s;
+        assert(-VALUE_INFINITE <= a && a <= VALUE_INFINITE);
+        sum += toTanh[a + VALUE_INFINITE];
         ++cnt;
     }
 
-    // If nothing was averaged, or every averaged score is saturated (e.g. all
-    // children are mated), use the given fallback (usually the minimax score)
+    // Nodes without searched children (checkmate, stalemate, or a singular
+    // search with only the excluded move) use the given fallback.
     Value mean_or(Value fallback) const {
-        if (!cnt)
-            return fallback;
-        int m = sum / cnt;
-        int a = std::abs(m);
-        if (a >= AvgOne)
-            return fallback;
-        Value v = fromTanh[a >> AvgInvShift];
-        return m < 0 ? -v : v;
+        return cnt ? fromTanh[sum / cnt + AvgOne] : fallback;
     }
 };
 
