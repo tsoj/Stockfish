@@ -149,29 +149,54 @@ int seAvgMaxAdj  = 64;
 
 // Averaged score: the averaging is done in sigmoid space s(v) = tanh(v / 554),
 // where -1 is a certain loss, 0 is 50% expected score and +1 a certain win
-// (+1 pawn gives 0.5). Mate scores map to exactly +-1, so they cannot dominate
-// the mean. The mean is mapped back to the usual score space.
-constexpr double AvgSigmoidScale = 554.0;
+// (+1 pawn gives 0.5). Mate scores saturate at +-1, so they cannot dominate
+// the mean. The mean is mapped back to the usual score space. For speed, both
+// mappings use lookup tables and fixed point arithmetic (1.0 == 65535).
+constexpr int AvgLimit    = 4096;  // |v| beyond this saturates
+constexpr int AvgOne      = 65535;
+constexpr int AvgInvShift = 4;
+constexpr int AvgInvSize  = (AvgOne >> AvgInvShift) + 1;
+
+struct AvgTables {
+    u16 sigmoid[AvgLimit + 1];  // s(v) * AvgOne for v in [0, AvgLimit]
+    i16 inverse[AvgInvSize];    // 554 * atanh(m) for m = i << AvgInvShift (bucket center)
+
+    AvgTables() {
+        for (int v = 0; v <= AvgLimit; ++v)
+            sigmoid[v] = u16(std::lround(AvgOne * std::tanh(v / 554.0)));
+        for (int i = 0; i < AvgInvSize; ++i)
+        {
+            double m   = std::min(((i << AvgInvShift) + (1 << (AvgInvShift - 1))) / double(AvgOne),
+                                  1.0 - 1e-9);
+            inverse[i] = i16(std::lround(554.0 * std::atanh(m)));
+        }
+    }
+};
+
+const AvgTables avgTables;
 
 // Accumulates the negated averaged scores of the searched children of a node
 struct AvgAcc {
-    double sum = 0;
-    int    cnt = 0;
+    int sum = 0;
+    int cnt = 0;
 
     void add(Value a) {
-        sum += std::tanh(double(a) / AvgSigmoidScale);
+        int s = avgTables.sigmoid[std::min(std::abs(a), AvgLimit)];
+        sum += a < 0 ? -s : s;
         ++cnt;
     }
 
     // If nothing was averaged, or every averaged score is saturated (e.g. all
     // children are mated), use the given fallback (usually the minimax score)
     Value mean_or(Value fallback) const {
-        double m = cnt ? sum / cnt : 0.0;
-        if (!cnt || std::abs(m) >= 1.0)
+        if (!cnt)
             return fallback;
-        double v = AvgSigmoidScale * std::atanh(m);
-        return Value(std::lround(std::clamp(v, double(VALUE_TB_LOSS_IN_MAX_PLY + 1),
-                                            double(VALUE_TB_WIN_IN_MAX_PLY - 1))));
+        int m = sum / cnt;
+        int a = std::abs(m);
+        if (a >= AvgOne)
+            return fallback;
+        Value v = avgTables.inverse[a >> AvgInvShift];
+        return m < 0 ? -v : v;
     }
 };
 
