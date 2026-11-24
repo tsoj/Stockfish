@@ -1153,6 +1153,8 @@ SearchResult Search::Worker::search(
         MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &captureHistory);
         Depth      probCutDepth = depth - (improving ? 5 : 3);
 
+        AvgAcc probCutAvgAcc;
+
         while ((move = mp.next_move()) != Move::none())
         {
             assert(move.is_ok());
@@ -1175,7 +1177,7 @@ SearchResult Search::Worker::search(
             undo_move(pos, move);
 
             value = res.value;
-            avgAcc.add(res.avg);
+            probCutAvgAcc.add(res.avg);
 
             if (value >= probCutBeta)
             {
@@ -1186,14 +1188,11 @@ SearchResult Search::Worker::search(
                 if (!is_decisive(value))
                 {
                     Value v = value - (probCutBeta - beta);
-                    return {v, avgAcc.mean_or(v)};
+                    return {v, probCutAvgAcc.mean_or(v)};
                 }
             }
         }
     }
-
-    // The ProbCut searches do not count towards the averaged score of the move loop
-    avgAcc = {};
 
 moves_loop:  // When in check, search starts here
 
