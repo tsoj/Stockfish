@@ -1276,6 +1276,7 @@ moves_loop:  // When in check, search starts here
             Depth singularDepth = newDepth / 2;
 
             ss->excludedMove = move;
+            u64 nodesBefore  = nodes;
             value = search<NonPV>(pos, ss, singularBeta - 1, singularBeta, singularDepth, cutNode);
             ss->excludedMove = Move::none();
 
@@ -1286,6 +1287,14 @@ moves_loop:  // When in check, search starts here
                                  - 1175 * ttMoveHistory / 114178 - (ss->ply > rootDepth) * 38;
                 int tripleMargin = 70 + 279 * PvNode - 188 * !ttCapture + 81 * ss->ttPv - corrValAdj
                                  - (ss->ply > rootDepth) * 43;
+
+                // Compare the size of the singular search tree with the size expected for
+                // its depth (in 1/64 log units). If it took more nodes than expected, the
+                // alternatives were harder to refute: make a double extension less likely.
+                int sd       = std::min(singularDepth, 14);
+                int surprise = int(64 * std::log1p(double(nodes - nodesBefore)))
+                             - (54 + 21 * sd - 4 * sd * sd / 5);
+                doubleMargin += surprise * 134 / 64 - 114 + 82 * PvNode;
 
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
