@@ -1295,8 +1295,8 @@ moves_loop:  // When in check, search starts here
                 int sd       = std::min(singularDepth, 14);
                 int surprise = int(64 * std::log1p(double(nodes - nodesBefore)))
                              - (54 + 21 * sd - 4 * sd * sd / 5);
-                doubleMargin += surprise * 3 / 4 - 24;
-                tripleMargin += surprise * 3 / 4 - 3;
+                doubleMargin += surprise * 3 / 4 - 23;
+                tripleMargin += surprise * 3 / 4 - 2;
 
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
