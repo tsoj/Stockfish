@@ -1290,11 +1290,13 @@ moves_loop:  // When in check, search starts here
 
                 // Compare the size of the singular search tree with the size expected for
                 // its depth (in 1/64 log units). If it took more nodes than expected, the
-                // alternatives were harder to refute: make a double extension less likely.
+                // alternatives were harder to refute: make double (and, at PV nodes,
+                // triple) extensions less likely.
                 int sd       = std::min(singularDepth, 14);
                 int surprise = int(64 * std::log1p(double(nodes - nodesBefore)))
                              - (54 + 21 * sd - 4 * sd * sd / 5);
-                doubleMargin += surprise * 134 / 64 - 114 + 82 * PvNode;
+                doubleMargin += surprise * 50 / 64 - 25 + 9 * PvNode;
+                tripleMargin += PvNode * (surprise * 148 / 64 + 101);
 
                 extension =
                   1 + (value < singularBeta - doubleMargin) + (value < singularBeta - tripleMargin);
