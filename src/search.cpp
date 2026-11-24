@@ -1361,10 +1361,10 @@ moves_loop:  // When in check, search starts here
 
                 if (!is_decisive(value))
                 {
-                    int gap    = value - singularRes.avg;
-                    int gapAdj = std::clamp((gap - 150 + 38 * PvNode) / 8, -64, 64);
-                    doubleMargin -= gapAdj;
-                    tripleMargin -= gapAdj;
+                    int gap    = std::clamp(value - singularRes.avg - 156 + 28 * PvNode, -512, 512);
+                    int gapAdj = gap * (15 - 4 * PvNode) / 64;
+                    doubleMargin -= gapAdj + 17 - 11 * PvNode;
+                    tripleMargin -= gapAdj - 5 - 3 * PvNode;
                 }
 
                 extension =
