@@ -83,6 +83,21 @@ const std::array<int, MAX_MOVES> reductions = [] {
     return table;
 }();
 
+// 64 * ln(n) for n >= 1, exact (truncated) for n < 256. Larger n are shifted
+// into the table range and each shifted bit adds 64 * ln(2) ~= 2839 / 64.
+int log64(u64 n) {
+    static const std::array<int, 256> table = [] {
+        std::array<int, 256> t{};
+        for (usize i = 1; i < t.size(); ++i)
+            t[i] = int(64 * std::log(i));
+        return t;
+    }();
+
+    assert(n >= 1);
+    int shift = msb(n | 128) - 7;
+    return table[n >> shift] + shift * 2839 / 64;
+}
+
 // (*Scalers):
 // The values with Scaler asterisks have proven non-linear scaling.
 // They are optimized to time controls of 180 + 1.8 and longer,
@@ -1293,8 +1308,7 @@ moves_loop:  // When in check, search starts here
                 // alternatives were harder to refute: make double and triple extensions
                 // less likely.
                 int sd       = std::min(singularDepth, 14);
-                int surprise = int(64 * std::log1p(double(nodes - nodesBefore)))
-                             - (54 + 21 * sd - 4 * sd * sd / 5);
+                int surprise = log64(nodes - nodesBefore + 1) - (54 + 21 * sd - 4 * sd * sd / 5);
                 doubleMargin += surprise * 3 / 4 - 23;
                 tripleMargin += surprise * 3 / 4 - 2;
 
